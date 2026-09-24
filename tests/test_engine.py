@@ -14,7 +14,7 @@ def test_deck_has_108_unique_cards():
     assert sum(c.suit == "JOKER" for c in deck) == 4
 
 
-@pytest.mark.parametrize("rank,pts", [(1, 1), (6, 6), (7, 9), (9, 11), (10, 15), (12, 17), (13, 23)])
+@pytest.mark.parametrize("rank,pts", [(1, 1), (6, 6), (7, 8), (9, 10), (10, 13), (12, 15), (13, 19)])
 def test_score_table(rank, pts):
     assert score_for(rank) == pts
     assert bonus(rank) == pts - rank
@@ -98,10 +98,50 @@ def test_collect_matching_suit_only():
     game.current = owner
     for action in game.legal_actions():
         if isinstance(action, Collect):
-            picked = next(c for c in game.market if c.id == action.card_id)
             quota = game.players[owner].quota
-            assert quota is not None
-            assert picked.suit == quota.suit or picked.suit == "JOKER"
+            assert quota is not None and quota.rank is not None
+            need = quota.rank - 1 - len(game.players[owner].collection)
+            assert 1 <= len(action.card_ids) <= need
+            for card_id in action.card_ids:
+                picked = next(c for c in game.market if c.id == card_id)
+                assert picked.suit == quota.suit or picked.suit == "JOKER"
+
+
+def test_collect_several_then_refill_on_next_turn():
+    game = Game.start(GameConfig(seed=4, num_players=3))
+    quota = next(c for c in game.market if c.rank is not None and c.rank >= 3)
+    game.step(TakeQuota(quota.id))
+    owner = next(i for i, p in enumerate(game.players) if p.quota is not None)
+    game.current = owner
+    suit = game.players[owner].quota.suit  # type: ignore[union-attr]
+    extras = []
+    for card in list(game.deck):
+        if card.suit == suit:
+            game.deck.remove(card)
+            extras.append(card)
+        if len(extras) == 2:
+            break
+    assert len(extras) == 2
+    game.deck.extend(game.market[:2])
+    game.market = extras + game.market[2:]
+    before = len(game.deck)
+    game.step(Collect(tuple(c.id for c in extras)))
+    assert game.players[owner].quota is not None
+    assert len(game.players[owner].collection) == 2
+    assert len(game.market) == game.market_size()
+    assert len(game.deck) == before - 2
+
+
+def test_deck_ends_at_the_start_of_the_next_turn():
+    game = Game.start(GameConfig(seed=5, num_players=3))
+    card = next(c for c in game.market if c.rank is not None and c.rank >= 2)
+    game.deck.clear()
+    game.step(TakeQuota(card.id))
+    assert game.finished
+    assert game.end_reason == "DECK"
+    owner = next(p for p in game.players if p.quota is not None)
+    assert owner.quota is not None
+    assert len(game.market) == game.market_size() - 1
 
 
 def _assert_invariants(game: Game, removed_ids: list[int]) -> None:

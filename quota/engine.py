@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import random
 from dataclasses import dataclass, field
 from typing import Literal
@@ -21,10 +22,10 @@ class TakeQuota:
 
 @dataclass(frozen=True, slots=True)
 class Collect:
-    card_id: int
+    card_ids: tuple[int, ...]
 
-    def key(self) -> tuple[str, int]:
-        return ("collect", self.card_id)
+    def key(self) -> tuple[str, tuple[int, ...]]:
+        return ("collect", self.card_ids)
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,16 +149,24 @@ class Game:
                 TakeQuota(c.id) for c in self.market if c.suit != "JOKER"
             ]
             return acts + [Pass()]
-        acts = [
-            Collect(c.id)
+        assert p.quota.rank is not None
+        eligible = [
+            c.id
             for c in self.market
             if c.suit == p.quota.suit or c.suit == "JOKER"
+        ]
+        need = p.quota.rank - 1 - len(p.collection)
+        acts: list[Action] = [
+            Collect(ids)
+            for size in range(1, need + 1)
+            for ids in itertools.combinations(eligible, size)
         ]
         return acts + [Abandon(), Pass()]
 
     def step(self, action: Action) -> None:
         if self.finished:
             raise RuntimeError("game is already finished")
+        action = self._canonicalize(action)
         legal = {a.key(): a for a in self.legal_actions()}
         if action.key() not in legal:
             raise ValueError(f"illegal action: {action}")
@@ -168,19 +177,20 @@ class Game:
             gained = True
             if card.rank == 1:
                 self._achieve(p, [card], 1)
-                self.log.append(f"{p.name} が {card.label()} を注文し、即納品（1点）")
+                self.log.append(f"{p.name} が {card.label()} の注文を請け負い、即納品（1点）")
             else:
                 p.quota = card
                 p.collection = []
                 self.log.append(
-                    f"{p.name} が {card.label()} を注文（{card.rank}枚、{score_for(card.rank)}点）"
+                    f"{p.name} が {card.label()} の注文を請け負った（{card.rank}枚、{score_for(card.rank)}点）"
                 )
         elif isinstance(action, Collect):
-            card = self._take_market(action.card_id)
-            gained = True
-            p.collection.append(card)
             assert p.quota is not None and p.quota.rank is not None
-            self.log.append(f"{p.name} が {card.label()} を買い付け")
+            taken = [self._take_market(card_id) for card_id in action.card_ids]
+            gained = True
+            p.collection.extend(taken)
+            labels = "、".join(card.label() for card in taken)
+            self.log.append(f"{p.name} が {labels} を買い付け")
             if 1 + len(p.collection) == p.quota.rank:
                 rank = p.quota.rank
                 cards = [p.quota, *p.collection]
@@ -202,13 +212,6 @@ class Game:
         if gained:
             self.no_gain_streak = 0
             self.stall_flag = False
-            while len(self.market) < self.market_size():
-                if not self.deck:
-                    self.finished = True
-                    self.end_reason = "DECK"
-                    self.log.append("季節風の終わり（山札切れ）")
-                    return
-                self.market.append(self.deck.pop())
         else:
             self.no_gain_streak += 1
             if self.no_gain_streak == self.config.resolved_stall_threshold():
@@ -228,6 +231,18 @@ class Game:
 
         self.current = (self.current + 1) % len(self.players)
         self.turn_number += 1
+        self.begin_turn()
+
+    def begin_turn(self) -> bool:
+        """Refill the market at the start of a turn. False means the game ended."""
+        while len(self.market) < self.market_size():
+            if not self.deck:
+                self.finished = True
+                self.end_reason = "DECK"
+                self.log.append("季節風の終わり（山札切れ）")
+                return False
+            self.market.append(self.deck.pop())
+        return True
 
     def ranking(self) -> list[list[int]]:
         """Seats grouped best-first. Ties share a group."""
@@ -285,6 +300,12 @@ class Game:
             ids.extend(c.id for c in p.collection)
             ids.extend(c.id for c in p.achieved)
         return ids
+
+    def _canonicalize(self, action: Action) -> Action:
+        if not isinstance(action, Collect):
+            return action
+        order = {card.id: index for index, card in enumerate(self.market)}
+        return Collect(tuple(sorted(action.card_ids, key=lambda card_id: order.get(card_id, 10**9))))
 
     def _take_market(self, card_id: int) -> Card:
         for i, card in enumerate(self.market):
