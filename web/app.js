@@ -111,9 +111,9 @@ function render() {
     const marks = deliveryMarks(player.achieved, state.sequence_rule);
     const recordRows = achievedRows(recorded);
     if (!recordRows.length) recordRows.push([]);
-    const done = recordRows.map((row) => {
+    const done = recordRows.map((row, rowIndex) => {
       const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)))).join("");
-      return `<div class="line record">${cards}</div>`;
+      return `<div class="line record" style="z-index:${rowIndex + 1}">${cards}</div>`;
     }).join("");
     const seq = state.sequence_rule ? ` / 並び順 ${player.sequence_bonus}` : "";
     const alt = index % 2 ? " alt" : "";
