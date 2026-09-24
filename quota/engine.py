@@ -7,7 +7,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Literal
 
-from quota.cards import Card, bonus, make_deck, score_for
+from quota.cards import Card, bonus, make_deck, score_for, sequence_bonus
 
 EndReason = Literal["DECK", "STALL"]
 
@@ -66,6 +66,7 @@ class GameConfig:
     seed: int | None = None
     names: list[str] | None = None
     human_seats: list[int] | None = None
+    sequence_rule: bool = False
 
     def resolved_market_size(self) -> int:
         if self.market_size is not None:
@@ -166,9 +167,7 @@ class Game:
     def step(self, action: Action) -> None:
         if self.finished:
             raise RuntimeError("game is already finished")
-        action = self._canonicalize(action)
-        legal = {a.key(): a for a in self.legal_actions()}
-        if action.key() not in legal:
+        if not self.is_legal(action):
             raise ValueError(f"illegal action: {action}")
         p = self.players[self.current]
         gained = False
@@ -249,7 +248,7 @@ class Game:
         seats = list(range(len(self.players)))
         seats.sort(
             key=lambda i: (
-                self.players[i].score,
+                self.final_score(self.players[i]),
                 self.players[i].achieve_count,
                 self.players[i].max_single_score,
             ),
@@ -275,12 +274,15 @@ class Game:
             "finished": self.finished,
             "end_reason": self.end_reason,
             "turn_number": self.turn_number,
+            "sequence_rule": self.config.sequence_rule,
             "players": [
                 {
                     "name": p.name,
                     "quota": None if p.quota is None else p.quota.label(),
                     "collection": [c.label() for c in p.collection],
-                    "score": p.score,
+                    "score": self.final_score(p),
+                    "delivery_score": p.score,
+                    "sequence_bonus": self.sequence_points(p),
                     "achieve_count": p.achieve_count,
                     "max_single_score": p.max_single_score,
                 }
@@ -300,6 +302,33 @@ class Game:
             ids.extend(c.id for c in p.collection)
             ids.extend(c.id for c in p.achieved)
         return ids
+
+    def final_score(self, player: Player) -> int:
+        return player.score + self.sequence_points(player)
+
+    def sequence_points(self, player: Player) -> int:
+        if not self.config.sequence_rule:
+            return 0
+        return sequence_bonus(player.achieved)
+
+    def is_legal(self, action: Action) -> bool:
+        if isinstance(action, Collect):
+            player = self.players[self.current]
+            if player.quota is None or player.quota.rank is None:
+                return False
+            ids = action.card_ids
+            if len(ids) != len(set(ids)) or len(ids) < 1:
+                return False
+            need = player.quota.rank - 1 - len(player.collection)
+            if len(ids) > need:
+                return False
+            eligible = {
+                card.id
+                for card in self.market
+                if card.suit == player.quota.suit or card.suit == "JOKER"
+            }
+            return set(ids) <= eligible
+        return action.key() in {item.key() for item in self.legal_actions()}
 
     def _canonicalize(self, action: Action) -> Action:
         if not isinstance(action, Collect):
@@ -323,7 +352,7 @@ class Game:
     def _tied(self, a: int, b: int) -> bool:
         pa, pb = self.players[a], self.players[b]
         return (
-            pa.score == pb.score
+            self.final_score(pa) == self.final_score(pb)
             and pa.achieve_count == pb.achieve_count
             and pa.max_single_score == pb.max_single_score
         )

@@ -36,6 +36,19 @@ def score_for(rank: int) -> int:
     return rank + bonus(rank)
 
 
+def sequence_bonus(cards: list[Card], same: int = 2, adjacent: int = 1) -> int:
+    """Neighbor bonus. Jokers break the chain. K and A are not consecutive."""
+    total = 0
+    for left, right in zip(cards, cards[1:]):
+        if left.suit == "JOKER" or right.suit == "JOKER":
+            continue
+        if left.rank == right.rank:
+            total += same
+        elif left.rank is not None and right.rank is not None and abs(left.rank - right.rank) == 1:
+            total += adjacent
+    return total
+
+
 @dataclass(frozen=True, slots=True)
 class Card:
     id: int
