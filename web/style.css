@@ -34,8 +34,9 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   overflow-y: hidden;
   flex-wrap: nowrap;
 }
-.records { height: calc((var(--card-h) + 8px) * 2 + 8px); }
-.line.record + .line.record { margin-top: 8px; }
+.records { height: calc((var(--card-h) + 8px) * 2 - var(--card-h) / 4); }
+.line.record { position: relative; }
+.line.record + .line.record { margin-top: calc(var(--card-h) * -1 / 4); z-index: 1; }
 .card {
   width: var(--card-w);
   height: var(--card-h);

@@ -125,9 +125,18 @@ def test_collect_several_then_refill_on_next_turn():
     game.deck.extend(game.market[:2])
     game.market = extras + game.market[2:]
     before = len(game.deck)
-    game.step(Collect(tuple(c.id for c in extras)))
+    market_len = len(game.market)
+    game.step(Collect((extras[0].id,)))
+    assert game.current == owner
+    assert len(game.players[owner].collection) == 1
+    assert len(game.market) == market_len - 1
+    game.step(Collect((extras[1].id,)))
     assert game.players[owner].quota is not None
     assert len(game.players[owner].collection) == 2
+    assert len(game.market) == market_len - 2
+    assert len(game.deck) == before
+    game.step(Pass())
+    assert game.current != owner
     assert len(game.market) == game.market_size()
     assert len(game.deck) == before - 2
 
@@ -187,7 +196,8 @@ def _assert_invariants(game: Game, removed_ids: list[int]) -> None:
     assert [c.id for c in game.removed] == removed_ids
     assert len(game.removed) == 8
     if not game.finished:
-        assert len(game.market) == game.market_size()
+        if not game.turn_gain:
+            assert len(game.market) == game.market_size()
         assert 0 <= game.no_gain_streak < game.config.resolved_stall_threshold()
     for p in game.players:
         if p.quota is None:
