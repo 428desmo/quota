@@ -21,6 +21,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 :root { --card-w: 76px; }
 .market { display: flex; gap: 8px; flex-wrap: wrap; min-height: 96px; }
 .line { display: flex; align-items: stretch; min-height: 96px; }
+.line.record + .line.record { margin-top: 8px; }
 .card {
   width: var(--card-w);
   min-height: 96px;
