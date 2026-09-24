@@ -139,7 +139,7 @@ function render() {
     if (!me.quota) {
       controls = `<div class="controls">
         <div class="control-buttons"><button type="button" id="pass">パス</button></div>
-        <p>カードを押すと<br>ノルマ札にします。</p>
+        <p>場札からノルマ札を選びましょう。</p>
       </div>`;
     } else {
       const done = me.collection.length > 0;
@@ -148,7 +148,7 @@ function render() {
           <button type="button" id="abandon">放棄</button>
           <button type="button" id="pass">${done ? "次へ" : "パス"}</button>
         </div>
-        <p>有効なカードを押すと集めます（残り ${me.need} 枚）。${done ? "取り終えたら次へ。" : ""}</p>
+        <p>ノルマを達成しましょう（あと${me.need}枚）。</p>
       </div>`;
     }
   } else if (!state.finished) {
@@ -173,10 +173,8 @@ function render() {
       / 膠着状態 ${state.stall_count}
       ${state.sequence_rule ? " / 上級" : ""}</p>
     <section class="panel">
-      <div class="market-wrap">
-        <div class="vlabel">場札</div>
-        <div class="market" id="market">${market}</div>
-      </div>
+      <div class="market-label">場札</div>
+      <div class="market" id="market">${market}</div>
       ${controls}
     </section>
     ${seats}
