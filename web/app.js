@@ -102,10 +102,12 @@ function render() {
       : "<span class='note'>注文なし</span>";
     const need = player.quota ? `<span class="note">あと ${player.need} 枚</span>` : "";
     const marks = deliveryMarks(player.achieved, state.sequence_rule);
-    const done = achievedRows(recorded).map((row) => {
+    const recordRows = achievedRows(recorded);
+    while (recordRows.length < 2) recordRows.push([]);
+    const done = recordRows.map((row) => {
       const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)))).join("");
       return `<div class="line record">${cards}</div>`;
-    }).join("") || "<span class='note'>なし</span>";
+    }).join("");
     const seq = state.sequence_rule ? ` / 積み付け ${player.sequence_bonus}` : "";
     return `<section class="seat${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === state.current && !state.finished ? "▶ " : ""}${player.name}</strong>
@@ -113,7 +115,7 @@ function render() {
       <div class="note">注文 ${need}</div>
       <div class="line order">${order}</div>
       <div class="note">出荷記録</div>
-      ${done}
+      <div class="records">${done}</div>
     </section>`;
   }).join("");
 
