@@ -55,7 +55,7 @@ function render() {
   if (!state || state.phase === "lobby") {
     app.innerHTML = `
       <h1>Quota</h1>
-      <p>港の市場で注文を請け負い、同じ商品をそろえて納品する。</p>
+      <p>場札からノルマ札を取り、同じマークを集めてノルマを達成する。</p>
       <form class="panel" id="start">
         <div class="row">
           <label>人数
@@ -68,7 +68,7 @@ function render() {
             <input name="seed" inputmode="numeric">
           </label>
           <label><span>上級ルール</span>
-            <input name="sequence" type="checkbox"> 積み付けボーナス
+            <input name="sequence" type="checkbox"> 並び順ボーナス
           </label>
         </div>
         <p><button class="primary" type="submit">スタート</button></p>
@@ -99,7 +99,7 @@ function render() {
     orderCards.push(...player.collection, ...parkedHere);
     const order = orderCards.length
       ? orderCards.map((card, index) => cardHtml(card, index + 1)).join("")
-      : "<span class='note'>注文なし</span>";
+      : "<span class='note'>ノルマなし</span>";
     const need = player.quota ? `<span class="note">あと ${player.need} 枚</span>` : "";
     const marks = deliveryMarks(player.achieved, state.sequence_rule);
     const recordRows = achievedRows(recorded);
@@ -108,13 +108,13 @@ function render() {
       const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)))).join("");
       return `<div class="line record">${cards}</div>`;
     }).join("");
-    const seq = state.sequence_rule ? ` / 積み付け ${player.sequence_bonus}` : "";
+    const seq = state.sequence_rule ? ` / 並び順 ${player.sequence_bonus}` : "";
     return `<section class="seat${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === state.current && !state.finished ? "▶ " : ""}${player.name}</strong>
-        <span>${player.score}点${seq} / 納品 ${player.achieve_count}</span></div>
-      <div class="note">注文 ${need}</div>
+        <span>${player.score}点${seq} / 達成 ${player.achieve_count}</span></div>
+      <div class="note">ノルマ ${need}</div>
       <div class="line order">${order}</div>
-      <div class="note">出荷記録</div>
+      <div class="note">実績</div>
       <div class="records">${done}</div>
     </section>`;
   }).join("");
@@ -123,12 +123,12 @@ function render() {
   let controls = "";
   if (state.current_human) {
     if (!me.quota) {
-      controls = `<p>カードを押すと注文を請け負います。</p>
+      controls = `<p>カードを押すとノルマ札にします。</p>
         <button type="button" id="pass">パス</button>`;
     } else {
-      controls = `<p>買い付ける順にカードを押す（残り ${me.need} 枚まで）。選んだ順が積み付けの順です。</p>
-        <button type="button" id="collect" class="primary">買い付ける</button>
-        <button type="button" id="abandon">注文を取り消す</button>
+      controls = `<p>集める順にカードを押す（残り ${me.need} 枚まで）。選んだ順が並び順です。</p>
+        <button type="button" id="collect" class="primary">集める</button>
+        <button type="button" id="abandon">放棄</button>
         <button type="button" id="pass">パス</button>`;
     }
   } else if (!state.finished) {
@@ -150,10 +150,10 @@ function render() {
       ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
     </div>
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count} / 連続パス ${state.no_gain_streak}
-      / 入港後まだ取引なし ${state.stall_flag ? "あり" : "なし"}
+      / 膠着済み ${state.stall_flag ? "あり" : "なし"}
       ${state.sequence_rule ? " / 上級ルール" : ""}</p>
     <section class="panel">
-      <div>市場</div>
+      <div>場札</div>
       <div class="market" id="market">${market}</div>
       ${controls}
     </section>
@@ -183,12 +183,12 @@ function render() {
 }
 
 function finishHtml() {
-  const reason = state.end_reason === "DECK" ? "季節風の終わり（山札切れ）" : "交易の途絶（膠着の連続）";
+  const reason = state.end_reason === "DECK" ? "山札切れ" : "膠着の連続";
   let place = 1;
   const lines = state.ranking.map((group) => {
     const text = group.map((seat) => {
       const player = state.players[seat];
-      return `${place}位 ${player.name} ${player.score}点（納品${player.achieve_count} / 最高${player.max_single_score}）`;
+      return `${place}位 ${player.name} ${player.score}点（達成${player.achieve_count} / 最高${player.max_single_score}）`;
     }).join("<br>");
     place += group.length;
     return text;
