@@ -99,6 +99,7 @@ class Game:
     log: list[str]
     rng: random.Random
     reshuffle_count: int = 0
+    turn_gain: bool = False
 
     @classmethod
     def start(cls, config: GameConfig | None = None) -> Game:
@@ -137,6 +138,7 @@ class Game:
             turn_number=1,
             log=[],
             rng=rng,
+            turn_gain=False,
         )
         game.log.append(f"先手: {players[first].name}")
         return game
@@ -191,6 +193,7 @@ class Game:
             p.collection.extend(taken)
             labels = "、".join(card.label() for card in taken)
             self.log.append(f"{p.name} が {labels} を収集")
+            self.turn_gain = True
             if 1 + len(p.collection) == p.quota.rank:
                 rank = p.quota.rank
                 cards = [p.quota, *p.collection]
@@ -198,6 +201,8 @@ class Game:
                 p.quota = None
                 p.collection = []
                 self.log.append(f"{p.name} がノルマ達成（{score_for(rank)}点）")
+            else:
+                return
         elif isinstance(action, Abandon):
             assert p.quota is not None
             self.discard.extend([p.quota, *p.collection])
@@ -209,7 +214,7 @@ class Game:
         else:
             raise TypeError(action)
 
-        if gained:
+        if gained or self.turn_gain:
             self.no_gain_streak = 0
             self.stall_flag = False
         else:
@@ -229,6 +234,7 @@ class Game:
                 self.reshuffle_count += 1
                 self.log.append("場を配り直した")
 
+        self.turn_gain = False
         self.current = (self.current + 1) % len(self.players)
         self.turn_number += 1
         self.begin_turn()

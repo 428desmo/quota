@@ -137,7 +137,7 @@ function render() {
       controls = `<p>カードを押すとノルマ札にします。</p>
         <button type="button" id="pass">パス</button>`;
     } else {
-      controls = `<p>有効なカードを押すと集めます（残り ${me.need} 枚）。</p>
+      controls = `<p>有効なカードを押すと集めます（残り ${me.need} 枚）。取り終えたらパス。</p>
         <button type="button" id="abandon">放棄</button>
         <button type="button" id="pass">パス</button>`;
     }
@@ -246,9 +246,9 @@ function achievedRows(cards) {
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-w")) || 76;
   const step = cardW / 2;
   const perRow = Math.max(1, Math.floor((width - 48) / step));
-  if (cards.length <= perRow) return [cards];
-  const mid = Math.ceil(cards.length / 2);
-  return [cards.slice(0, mid), cards.slice(mid)];
+  const rows = [];
+  for (let i = 0; i < cards.length; i += perRow) rows.push(cards.slice(i, i + perRow));
+  return rows;
 }
 
 function flyLifted(lifted, onDone) {
