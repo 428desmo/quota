@@ -1,6 +1,8 @@
 const app = document.querySelector("#app");
 let state = null;
 let seenEvent = 0;
+const scoreAnim = new Map();
+let scoreTimer = 0;
 
 let hiding = new Set();
 let inFlight = new Set();
@@ -121,18 +123,19 @@ function render() {
       const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)))).join("");
       return `<div class="line record" style="z-index:${rowIndex + 1}">${cards}</div>`;
     }).join("");
+    const score = scoreBits(index, player.score);
     const seq = state.sequence_rule ? ` / 並び順 ${player.sequence_bonus}` : "";
     const alt = index % 2 ? " alt" : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === focus && !state.finished ? "▶ " : ""}${player.name}</strong>
-        <span>${player.score}点${seq} / 達成 ${player.achieve_count}${need ? ` / ${need}` : ""}</span></div>
+        <span>${score.plus}<span class="points">${score.points}</span>点${seq} / 達成 ${player.achieve_count}${need ? ` / ${need}` : ""}</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>
         <div class="band-main"><div class="line order">${order}</div></div>
       </div>
       <div class="band">
         <div class="vlabel">実績</div>
-        <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}">${done}</div></div>
+        <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
       </div>
     </section>`;
   }).join("");
@@ -154,7 +157,7 @@ function render() {
           <button type="button" id="abandon">放棄</button>
           <button type="button" id="pass">${done ? "次へ" : "パス"}</button>
         </div>
-        <p>ノルマを達成しましょう（あと${me.need}枚）。</p>
+        <p>ノルマ達成まであと${me.need}枚。</p>
       </div>`;
     }
   } else if (!state.finished) {
@@ -344,8 +347,10 @@ function applyState(next) {
   }
   for (const el of lifted) inFlight.add(el.dataset.id);
   hiding = new Set(inFlight);
+  noteScores(next);
   state = next;
   if (state.phase === "lobby") {
+    scoreAnim.clear();
     inFlight = new Set();
     hiding = new Set();
     parked = new Set();
@@ -358,6 +363,50 @@ function applyState(next) {
   };
   if (lifted.length) flyLifted(lifted, afterFlight);
   else afterFlight();
+}
+
+function noteScores(next) {
+  if (!state || !state.players || !next.players) return;
+  next.players.forEach((player, index) => {
+    const prev = state.players[index];
+    if (!prev || player.score <= prev.score) return;
+    const current = scoreAnim.get(index);
+    const from = current ? shownPoints(current) : prev.score;
+    scoreAnim.set(index, { from, to: player.score, at: Date.now() });
+  });
+  if (scoreAnim.size && !scoreTimer) scoreTimer = setInterval(tickScores, 80);
+}
+
+function shownPoints(anim) {
+  const steps = anim.to - anim.from;
+  const n = Math.min(steps, Math.floor((Date.now() - anim.at) / 80));
+  return anim.from + n;
+}
+
+function scoreBits(index, target) {
+  const anim = scoreAnim.get(index);
+  if (!anim) return { points: target, plus: "" };
+  const steps = Math.max(anim.to - anim.from, 1);
+  const countMs = steps * 80;
+  const t = Date.now() - anim.at;
+  if (t > countMs + 650) {
+    scoreAnim.delete(index);
+    return { points: target, plus: "" };
+  }
+  const opacity = t <= countMs ? 1 : Math.max(0, 1 - (t - countMs) / 650);
+  return {
+    points: shownPoints(anim),
+    plus: `<span class="gain" style="opacity:${opacity}">+${anim.to - anim.from}</span>`,
+  };
+}
+
+function tickScores() {
+  if (!scoreAnim.size) {
+    clearInterval(scoreTimer);
+    scoreTimer = 0;
+    return;
+  }
+  if (state && state.phase !== "lobby") render();
 }
 
 function bundleContaining(cards, ids) {
