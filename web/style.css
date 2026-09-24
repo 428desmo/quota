@@ -18,10 +18,12 @@ button.primary { background: #111; color: #fff; }
 .panel { border: 2px solid #222; background: #fff; padding: 16px; margin: 12px 0; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
-.market, .cards { display: flex; gap: 8px; flex-wrap: wrap; min-height: 92px; }
+:root { --card-w: 76px; }
+.market { display: flex; gap: 8px; flex-wrap: wrap; min-height: 96px; }
+.line { display: flex; align-items: stretch; min-height: 96px; }
 .card {
-  width: 72px;
-  min-height: 88px;
+  width: var(--card-w);
+  min-height: 96px;
   border: 2px solid #222;
   background: #fff;
   display: flex;
@@ -30,9 +32,24 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   justify-content: center;
   font-size: 13px;
   position: relative;
+  flex: none;
 }
+.line .card { margin-left: calc(var(--card-w) * -1 / 3); }
+.line .card:first-child { margin-left: 0; }
+.line.order .card:first-child + .card { margin-left: calc(var(--card-w) * -1 / 4); }
+.card .rank {
+  align-self: flex-start;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 0 0 4px;
+}
+.card.incoming { visibility: hidden; }
 .card.joker { border-style: dashed; }
-.card button, .card.clickable { width: 100%; height: 100%; border: 0; background: transparent; padding: 6px; }
+.card button, .card.clickable {
+  width: 100%; height: 100%; border: 0; background: transparent; padding: 6px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
 .card.selected { outline: 3px solid #c45c26; }
 .card .emoji { font-size: 26px; }
 .seat { border: 2px dashed #222; padding: 8px; margin: 8px 0; }
@@ -43,8 +60,11 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   display: flex; align-items: center; justify-content: center;
 }
 .overlay .panel { width: min(520px, 92vw); }
-.fly {
-  position: fixed; z-index: 5; transition: transform .45s ease, opacity .45s ease;
+.card.lifting {
+  position: fixed;
+  z-index: 30;
+  margin: 0;
   pointer-events: none;
+  transition: left .45s ease, top .45s ease;
 }
 .note { font-size: 13px; color: #444; }

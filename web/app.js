@@ -3,10 +3,14 @@ let state = null;
 let seenEvent = 0;
 let picked = [];
 
-function cardHtml(card, extra = "") {
-  return `<div class="card ${card.joker ? "joker" : ""} ${extra}" data-id="${card.id}">
+let hiding = new Set();
+
+function cardHtml(card, z = 1) {
+  const hidden = hiding.has(card.id) ? "incoming" : "";
+  const rank = card.face ? `<div class="rank">${card.face}</div>` : "";
+  return `<div class="card ${card.joker ? "joker" : ""} ${hidden}" data-id="${card.id}" style="z-index:${z}">
+    ${rank}
     <div class="emoji">${card.emoji}</div>
-    <div>${card.face}</div>
     <div>${card.goods}</div>
   </div>`;
 }
@@ -52,19 +56,21 @@ function render() {
 
   const seats = state.players.map((player, index) => {
     const turn = index === state.current && !state.finished ? " turn" : "";
-    const quota = player.quota
-      ? `${cardHtml(player.quota)} あと ${player.need} 枚`
-      : "注文なし";
-    const held = player.collection.map((card) => cardHtml(card)).join("") || "<span class='note'>なし</span>";
-    const done = player.achieved.map((card) => cardHtml(card)).join("") || "<span class='note'>なし</span>";
+    const order = player.quota
+      ? cardHtml(player.quota, 1) + player.collection.map((card, index) => cardHtml(card, index + 2)).join("")
+      : "<span class='note'>注文なし</span>";
+    const need = player.quota ? `<span class="note">あと ${player.need} 枚</span>` : "";
+    const done = player.achieved.length
+      ? player.achieved.map((card, index) => cardHtml(card, index + 1)).join("")
+      : "<span class='note'>なし</span>";
     const seq = state.sequence_rule ? ` / 積み付け ${player.sequence_bonus}` : "";
     return `<section class="seat${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === state.current && !state.finished ? "▶ " : ""}${player.name}</strong>
         <span>${player.score}点${seq} / 納品 ${player.achieve_count}</span></div>
-      <div>注文 ${quota}</div>
-      <div class="cards">${held}</div>
+      <div class="note">注文 ${need}</div>
+      <div class="line order">${order}</div>
       <div class="note">出荷記録</div>
-      <div class="cards achieved">${done}</div>
+      <div class="line record">${done}</div>
     </section>`;
   }).join("");
 
@@ -87,8 +93,9 @@ function render() {
   const market = state.market.map((card) => {
     const on = picked.includes(card.id) ? "selected" : "";
     const mark = picked.includes(card.id) ? `<div>${picked.indexOf(card.id) + 1}</div>` : "";
+    const rank = card.face ? `<div class="rank">${card.face}</div>` : "";
     return `<div class="card ${card.joker ? "joker" : ""} ${on}" data-id="${card.id}">
-      <button type="button" class="pick">${card.emoji}<br>${card.face}<br>${card.goods}${mark}</button>
+      <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div><div>${card.goods}</div>${mark}</button>
     </div>`;
   }).join("");
 
@@ -127,7 +134,6 @@ function render() {
   }
   const ok = app.querySelector("#ok");
   if (ok) ok.onclick = () => post("/api/reset", {});
-  animate();
 }
 
 function finishHtml() {
@@ -164,26 +170,56 @@ function onPick(id) {
   render();
 }
 
-function animate() {
-  if (!state.event || state.event.n === seenEvent) return;
-  const event = state.event;
-  seenEvent = event.n;
-  const target = app.querySelector(`[data-seat="${event.seat}"] .cards`);
-  if (!target || !event.cards) return;
-  event.cards.forEach((card, index) => {
-    const node = document.createElement("div");
-    node.className = "card fly";
-    node.innerHTML = `<div class="emoji">${card.emoji}</div><div>${card.face}</div><div>${card.goods}</div>`;
-    node.style.left = `${40 + index * 24}px`;
-    node.style.top = "180px";
-    document.body.appendChild(node);
-    const from = node.getBoundingClientRect();
-    const to = target.getBoundingClientRect();
-    requestAnimationFrame(() => {
-      node.style.transform = `translate(${to.left - from.left}px, ${to.top - from.top}px)`;
-    });
-    setTimeout(() => node.remove(), 500);
+function liftMarketCards(cards) {
+  if (!cards || !cards.length || !state || state.event_n === undefined) return [];
+  const lifted = [];
+  for (const card of cards) {
+    const el = document.querySelector(`#market [data-id="${card.id}"]`);
+    if (!el) continue;
+    const rect = el.getBoundingClientRect();
+    el.classList.add("lifting");
+    el.style.left = `${rect.left}px`;
+    el.style.top = `${rect.top}px`;
+    el.style.width = `${rect.width}px`;
+    el.style.height = `${rect.height}px`;
+    document.body.appendChild(el);
+    lifted.push(el);
+  }
+  return lifted;
+}
+
+function flyLifted(lifted) {
+  requestAnimationFrame(() => {
+    for (const el of lifted) {
+      const dest = document.querySelector(`[data-seat] [data-id="${el.dataset.id}"]`);
+      if (!dest) {
+        el.remove();
+        continue;
+      }
+      const to = dest.getBoundingClientRect();
+      const done = () => {
+        el.remove();
+        dest.classList.remove("incoming");
+      };
+      el.addEventListener("transitionend", done, { once: true });
+      el.style.left = `${to.left}px`;
+      el.style.top = `${to.top}px`;
+      setTimeout(done, 600);
+    }
   });
+}
+
+function applyState(next) {
+  const event = next.event;
+  const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
+  const lifted = fresh ? liftMarketCards(event.cards) : [];
+  if (event) seenEvent = event.n;
+  hiding = new Set(lifted.map((el) => el.dataset.id));
+  state = next;
+  if (state.phase === "lobby") picked = [];
+  render();
+  hiding = new Set();
+  if (lifted.length) flyLifted(lifted);
 }
 
 async function post(url, body) {
@@ -192,17 +228,14 @@ async function post(url, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  state = await response.json();
-  if (state.phase === "lobby") picked = [];
-  render();
+  applyState(await response.json());
 }
 
 async function poll() {
   const response = await fetch("/api/state");
   const next = await response.json();
   const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase;
-  state = next;
-  if (changed) render();
+  if (changed) applyState(next);
 }
 
 render();

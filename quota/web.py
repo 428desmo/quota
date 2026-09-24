@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from quota.ai import choose_action
-from quota.cards import RANK_LABEL, SUIT_NAME
+from quota.cards import SUIT_NAME
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
 
 ROOT = Path(__file__).resolve().parent.parent / "web"
@@ -148,7 +148,7 @@ class Table:
 
 
 def _card(card) -> dict:
-    face = "Joker" if card.rank is None else RANK_LABEL.get(card.rank, str(card.rank))
+    face = "" if card.rank is None else str(card.rank)
     return {
         "id": card.id,
         "emoji": EMOJI[card.suit],

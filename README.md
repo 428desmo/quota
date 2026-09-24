@@ -2,7 +2,7 @@
 
 トランプ2セットで遊ぶカードゲーム。自分で注文（ノルマ）を引き受け、同じ商品をそろえて納品する。
 
-規則の正本は `quota_rule_v1.3.md`。ターミナル版の操作は `quota_cli_spec_v1.1.md`。ブラウザ版は `quota_web_spec_v1.0.md`。
+規則の正本は `quota_rule_v1.3.md`。ターミナル版の操作は `quota_cli_spec_v1.1.md`。ブラウザ版は `quota_web_spec_v1.1.md`。
 
 ## ブラウザで遊ぶ
 
