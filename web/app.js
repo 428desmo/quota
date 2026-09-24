@@ -134,12 +134,18 @@ function render() {
   let controls = "";
   if (state.current_human) {
     if (!me.quota) {
-      controls = `<p>カードを押すとノルマ札にします。</p>
-        <button type="button" id="pass">パス</button>`;
+      controls = `<div class="controls">
+        <div class="control-buttons"><button type="button" id="pass">パス</button></div>
+        <p>カードを押すとノルマ札にします。</p>
+      </div>`;
     } else {
-      controls = `<p>有効なカードを押すと集めます（残り ${me.need} 枚）。取り終えたらパス。</p>
-        <button type="button" id="abandon">放棄</button>
-        <button type="button" id="pass">パス</button>`;
+      controls = `<div class="controls">
+        <div class="control-buttons">
+          <button type="button" id="abandon">放棄</button>
+          <button type="button" id="pass">パス</button>
+        </div>
+        <p>有効なカードを押すと集めます（残り ${me.need} 枚）。取り終えたらパス。</p>
+      </div>`;
     }
   } else if (!state.finished) {
     controls = `<p class="note">${me.name} が考えています。</p>`;
