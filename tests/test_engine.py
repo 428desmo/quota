@@ -141,6 +141,23 @@ def test_collect_several_then_refill_on_next_turn():
     assert len(game.deck) == before - 2
 
 
+def test_taking_the_last_eligible_card_ends_the_turn():
+    game = Game.start(GameConfig(seed=4, num_players=3))
+    quota = next(c for c in game.market if c.rank is not None and c.rank >= 4)
+    game.step(TakeQuota(quota.id))
+    owner = next(i for i, p in enumerate(game.players) if p.quota is not None)
+    game.current = owner
+    suit = game.players[owner].quota.suit  # type: ignore[union-attr]
+    extra = next(c for c in game.deck if c.suit == suit)
+    game.deck.remove(extra)
+    others = [c for c in game.market if c.suit != suit and c.suit != "JOKER"]
+    game.market = [extra, *others[: game.market_size() - 1]]
+    game.step(Collect((extra.id,)))
+    assert game.current != owner
+    assert len(game.players[owner].collection) == 1
+    assert len(game.market) == game.market_size()
+
+
 def test_deck_ends_at_the_start_of_the_next_turn():
     game = Game.start(GameConfig(seed=5, num_players=3))
     card = next(c for c in game.market if c.rank is not None and c.rank >= 2)

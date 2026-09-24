@@ -143,6 +143,12 @@ class Game:
         game.log.append(f"先手: {players[first].name}")
         return game
 
+    def _can_collect_more(self, player) -> bool:
+        assert player.quota is not None and player.quota.rank is not None
+        if player.quota.rank - 1 - len(player.collection) <= 0:
+            return False
+        return any(c.suit == player.quota.suit or c.suit == "JOKER" for c in self.market)
+
     def market_size(self) -> int:
         return self.config.resolved_market_size()
 
@@ -201,6 +207,8 @@ class Game:
                 p.quota = None
                 p.collection = []
                 self.log.append(f"{p.name} がノルマ達成（{score_for(rank)}点）")
+            elif p.collection and not self._can_collect_more(p):
+                self.log.append(f"{p.name} は取れる札を取り切った")
             else:
                 return
         elif isinstance(action, Abandon):
