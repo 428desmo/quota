@@ -1,7 +1,6 @@
 const app = document.querySelector("#app");
 let state = null;
 let seenEvent = 0;
-let picked = [];
 
 let hiding = new Set();
 let inFlight = new Set();
@@ -107,7 +106,7 @@ function render() {
     const order = orderCards.length
       ? orderCards.map((card, index) => cardHtml(card, index + 1)).join("")
       : "<span class='note'>ノルマなし</span>";
-    const need = player.quota ? `<span class="note">あと ${player.need} 枚</span>` : "";
+    const need = player.quota ? `あと${player.need}` : "";
     const marks = deliveryMarks(player.achieved, state.sequence_rule);
     const recordRows = achievedRows(recorded);
     while (recordRows.length < 2) recordRows.push([]);
@@ -116,13 +115,18 @@ function render() {
       return `<div class="line record">${cards}</div>`;
     }).join("");
     const seq = state.sequence_rule ? ` / 並び順 ${player.sequence_bonus}` : "";
-    return `<section class="seat${turn}" data-seat="${index}">
+    const alt = index % 2 ? " alt" : "";
+    return `<section class="seat${alt}${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === state.current && !state.finished ? "▶ " : ""}${player.name}</strong>
-        <span>${player.score}点${seq} / 達成 ${player.achieve_count}</span></div>
-      <div class="note">ノルマ ${need}</div>
-      <div class="line order">${order}</div>
-      <div class="note">実績</div>
-      <div class="records">${done}</div>
+        <span>${player.score}点${seq} / 達成 ${player.achieve_count}${need ? ` / ${need}` : ""}</span></div>
+      <div class="band">
+        <div class="vlabel">ノルマ</div>
+        <div class="band-main"><div class="line order">${order}</div></div>
+      </div>
+      <div class="band">
+        <div class="vlabel">実績</div>
+        <div class="band-main"><div class="records">${done}</div></div>
+      </div>
     </section>`;
   }).join("");
 
@@ -133,8 +137,7 @@ function render() {
       controls = `<p>カードを押すとノルマ札にします。</p>
         <button type="button" id="pass">パス</button>`;
     } else {
-      controls = `<p>集める順にカードを押す（残り ${me.need} 枚まで）。選んだ順が並び順です。</p>
-        <button type="button" id="collect" class="primary">集める</button>
+      controls = `<p>有効なカードを押すと集めます（残り ${me.need} 枚）。</p>
         <button type="button" id="abandon">放棄</button>
         <button type="button" id="pass">パス</button>`;
     }
@@ -143,12 +146,11 @@ function render() {
   }
 
   const market = state.market.map((card) => {
-    const on = picked.includes(card.id) ? "selected" : "";
-    const mark = picked.includes(card.id) ? `<div>${picked.indexOf(card.id) + 1}</div>` : "";
     const wide = card.face && [...card.face].length > 2 ? " wide" : "";
     const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
-    return `<div class="card ${card.joker ? "joker" : ""} ${on}" data-id="${card.id}">
-      <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div><div>${card.goods}</div>${mark}</button>
+    const idle = state.current_human && !canPlay(card, me) ? "idle" : "";
+    return `<div class="card ${card.joker ? "joker" : ""} ${idle}" data-id="${card.id}">
+      <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div><div>${card.goods}</div></button>
     </div>`;
   }).join("");
 
@@ -162,8 +164,10 @@ function render() {
       ${state.sequence_rule ? " / 上級ルール" : ""}
       ${state.item_set ? ` / ${state.item_set.name}` : ""}</p>
     <section class="panel">
-      <div>場札</div>
-      <div class="market" id="market">${market}</div>
+      <div class="market-wrap">
+        <div class="vlabel">場札</div>
+        <div class="market" id="market">${market}</div>
+      </div>
       ${controls}
     </section>
     ${seats}
@@ -178,15 +182,6 @@ function render() {
   if (pass) pass.onclick = () => post("/api/action", { kind: "pass" });
   const abandon = app.querySelector("#abandon");
   if (abandon) abandon.onclick = () => post("/api/action", { kind: "abandon" });
-  const collect = app.querySelector("#collect");
-  if (collect) {
-    collect.onclick = () => {
-      if (!picked.length) return;
-      const ids = picked.slice();
-      picked = [];
-      post("/api/action", { kind: "collect", card_ids: ids });
-    };
-  }
   const ok = app.querySelector("#ok");
   if (ok) ok.onclick = () => post("/api/reset", {});
 }
@@ -214,15 +209,14 @@ function onPick(id) {
     post("/api/action", { kind: "take", card_id: id });
     return;
   }
-  if (picked.includes(id)) {
-    picked = picked.filter((n) => n !== id);
-  } else if (picked.length < me.need) {
-    const card = state.market.find((item) => item.id === id);
-    if (!card) return;
-    const quota = me.quota;
-    if (card.joker || card.goods === quota.goods) picked.push(id);
-  }
-  render();
+  const card = state.market.find((item) => item.id === id);
+  if (!card || !canPlay(card, me)) return;
+  post("/api/action", { kind: "collect", card_ids: [id] });
+}
+
+function canPlay(card, player) {
+  if (!player.quota) return !card.joker;
+  return card.joker || card.goods === player.quota.goods;
 }
 
 function liftElement(el) {
@@ -249,7 +243,8 @@ function liftMarketCards(cards) {
 function achievedRows(cards) {
   if (!cards.length) return [];
   const width = app.clientWidth || 900;
-  const step = 76 / 2;
+  const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-w")) || 76;
+  const step = cardW / 2;
   const perRow = Math.max(1, Math.floor((width - 48) / step));
   if (cards.length <= perRow) return [cards];
   const mid = Math.ceil(cards.length / 2);
@@ -338,7 +333,6 @@ function applyState(next) {
   hiding = new Set(inFlight);
   state = next;
   if (state.phase === "lobby") {
-    picked = [];
     inFlight = new Set();
     hiding = new Set();
     parked = new Set();
