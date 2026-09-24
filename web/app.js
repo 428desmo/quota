@@ -19,8 +19,14 @@ function cardHtml(card, z = 1, marks = null) {
     ${rank}
     ${mark}
     <div class="emoji">${card.emoji}</div>
-    <div>${card.goods}</div>
+    ${goodsHtml(card)}
   </div>`;
+}
+
+function goodsHtml(card) {
+  const n = [...card.goods].length;
+  const scale = n >= 5 ? 0.168 : n === 4 ? 0.2 : 0.24;
+  return `<div class="goods" style="font-size:calc(var(--card-w) * ${scale})">${card.goods}</div>`;
 }
 
 function deliveryMarks(cards, sequence) {
@@ -160,7 +166,7 @@ function render() {
     const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
     const idle = state.settling || (state.current_human && !canPlay(card, me)) ? "idle" : "";
     return `<div class="card ${card.joker ? "joker" : ""} ${idle}" data-id="${card.id}">
-      <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div><div>${card.goods}</div></button>
+      <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div>${goodsHtml(card)}</button>
     </div>`;
   }).join("");
 
