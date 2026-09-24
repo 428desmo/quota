@@ -148,7 +148,7 @@ class Table:
 
 
 def _card(card) -> dict:
-    face = "" if card.rank is None else str(card.rank)
+    face = "*" if card.rank is None else str(card.rank)
     return {
         "id": card.id,
         "emoji": EMOJI[card.suit],
