@@ -3,7 +3,7 @@ import random
 import pytest
 
 from quota.ai import choose_action
-from quota.cards import bonus, make_deck, score_for
+from quota.cards import Card, bonus, make_deck, score_for, sequence_bonus
 from quota.engine import Collect, Game, GameConfig, Pass, TakeQuota
 
 
@@ -142,6 +142,42 @@ def test_deck_ends_at_the_start_of_the_next_turn():
     owner = next(p for p in game.players if p.quota is not None)
     assert owner.quota is not None
     assert len(game.market) == game.market_size() - 1
+
+
+def test_sequence_bonus_examples():
+    def card(suit, rank, n):
+        return Card(n, suit, rank)
+
+    joker = Card(99, "JOKER", None)
+    assert sequence_bonus([card("H", 5, 1), card("H", 1, 2), card("C", 1, 3), card("C", 1, 4), card("D", 3, 5)]) == 4
+    assert sequence_bonus([card("H", 3, 1), card("H", 4, 2), card("C", 3, 3), card("C", 2, 4), card("C", 5, 5), card("D", 3, 6)]) == 3
+    assert sequence_bonus([card("S", 6, 1), joker, card("S", 7, 2)]) == 0
+    assert sequence_bonus([card("S", 13, 1), card("H", 1, 2)]) == 0
+    assert sequence_bonus([card("S", 4, 1), card("H", 4, 2), card("D", 4, 3)]) == 4
+
+
+def test_collect_order_is_kept_and_scores_only_when_enabled():
+    game = Game.start(GameConfig(seed=8, num_players=3, sequence_rule=True))
+    quota = next(c for c in game.market if c.rank == 3)
+    game.step(TakeQuota(quota.id))
+    owner = next(i for i, p in enumerate(game.players) if p.quota is not None)
+    game.current = owner
+    suit = game.players[owner].quota.suit  # type: ignore[union-attr]
+    extras = []
+    for card in list(game.deck):
+        if card.suit == suit:
+            game.deck.remove(card)
+            extras.append(card)
+        if len(extras) == 2:
+            break
+    game.deck.extend(game.market[:2])
+    game.market = extras + game.market[2:]
+    ordered = (extras[1].id, extras[0].id)
+    game.step(Collect(ordered))
+    assert [c.id for c in game.players[owner].achieved] == [quota.id, extras[1].id, extras[0].id]
+    assert game.sequence_points(game.players[owner]) == sequence_bonus(game.players[owner].achieved)
+    plain = Game.start(GameConfig(seed=8, num_players=3))
+    assert plain.sequence_points(plain.players[0]) == 0
 
 
 def _assert_invariants(game: Game, removed_ids: list[int]) -> None:

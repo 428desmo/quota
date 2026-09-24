@@ -15,6 +15,7 @@ def main() -> None:
     parser.add_argument("--humans", type=int, default=1, help="人間の人数。残りはCPU")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--auto", action="store_true", help="全員CPUで1ゲーム進める")
+    parser.add_argument("--sequence", action="store_true", help="上級ルール（並び順ボーナス）")
     args = parser.parse_args()
     humans = 0 if args.auto else args.humans
     if humans > args.players:
@@ -30,6 +31,7 @@ def main() -> None:
             seed=args.seed,
             names=names,
             human_seats=list(range(humans)),
+            sequence_rule=args.sequence,
         )
     )
     while not game.finished:
@@ -50,8 +52,9 @@ def main() -> None:
         for seat in group:
             p = game.players[seat]
             print(
-                f"{place}位 {p.name}  {p.score}点  "
+                f"{place}位 {p.name}  {game.final_score(p)}点  "
                 f"納品{p.achieve_count}回  最高{p.max_single_score}点"
+                + (f"  積み付け{game.sequence_points(p)}点" if game.config.sequence_rule else "")
             )
         place += len(group)
 
@@ -68,7 +71,10 @@ def _print_table(game: Game) -> None:
         mark = ">" if i == game.current and not game.finished else " "
         quota = "注文なし" if p.quota is None else p.quota.label()
         held = "、".join(c.label() for c in p.collection) or "なし"
-        print(f"{mark} {p.name}  {p.score}点  注文: {quota}  買い付け: {held}")
+        extra = ""
+        if game.config.sequence_rule:
+            extra = f"  積み付け{game.sequence_points(p)}点"
+        print(f"{mark} {p.name}  {game.final_score(p)}点{extra}  注文: {quota}  買い付け: {held}")
 
 
 def _ask(game: Game):

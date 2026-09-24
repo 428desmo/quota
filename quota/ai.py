@@ -49,5 +49,34 @@ def choose_action(game: Game) -> Action:
         return Pass()
     if need >= 6 and not suits:
         return Abandon()
-    chosen_ids = {c.id for c in (suits + jokers)[:need]}
-    return Collect(tuple(c.id for c in eligible if c.id in chosen_ids))
+    chosen = suits + jokers
+    if game.config.sequence_rule:
+        chosen = _order_for_sequence(player, chosen)[:need]
+    else:
+        chosen = chosen[:need]
+    return Collect(tuple(c.id for c in chosen))
+
+
+def _order_for_sequence(player, cards):
+    """Greedy order that continues the shipment list."""
+    tail = player.quota.rank if player.quota is not None else None
+    if player.collection:
+        last = player.collection[-1]
+        tail = None if last.suit == "JOKER" else last.rank
+    remaining = list(cards)
+    ordered = []
+    while remaining:
+        def value(card, current=tail):
+            if card.suit == "JOKER" or current is None or card.rank is None:
+                return 0
+            if card.rank == current:
+                return 2
+            if abs(card.rank - current) == 1:
+                return 1
+            return 0
+
+        remaining.sort(key=value, reverse=True)
+        picked = remaining.pop(0)
+        ordered.append(picked)
+        tail = None if picked.suit == "JOKER" else picked.rank
+    return ordered
