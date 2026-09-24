@@ -145,7 +145,7 @@ function render() {
   app.innerHTML = `
     <div class="bar">
       <h1>Quota</h1>
-      <button type="button" id="restart">途中でやめて最初からやり直す</button>
+      ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
     </div>
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count} / 連続パス ${state.no_gain_streak}
       / 入港後まだ取引なし ${state.stall_flag ? "あり" : "なし"}
@@ -158,7 +158,8 @@ function render() {
     ${seats}
     ${state.finished ? finishHtml() : ""}`;
 
-  app.querySelector("#restart").onclick = () => post("/api/reset", {});
+  const restart = app.querySelector("#restart");
+  if (restart) restart.onclick = () => post("/api/reset", {});
   app.querySelectorAll(".pick").forEach((button) => {
     button.onclick = () => onPick(Number(button.parentElement.dataset.id));
   });
@@ -306,13 +307,20 @@ function applyState(next) {
   const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
   const lifted = fresh ? liftMarketCards(event.cards) : [];
   if (event) seenEvent = event.n;
-  const aceIds = [];
+  let pause = null;
   if (fresh && event.kind === "take") {
-    for (const card of event.cards) {
-      if (card.face === "1") {
-        parked.add(String(card.id));
-        aceIds.push(String(card.id));
-      }
+    const aceIds = event.cards.filter((card) => card.face === "1").map((card) => String(card.id));
+    aceIds.forEach((id) => parked.add(id));
+    if (aceIds.length) pause = { ids: aceIds, ms: 100 };
+  }
+  if (fresh && event.kind === "collect") {
+    const collected = new Set(event.cards.map((card) => String(card.id)));
+    const player = next.players[event.seat];
+    const bundle = bundleContaining(player.achieved, collected);
+    if (bundle.length) {
+      const ids = bundle.map((card) => String(card.id));
+      ids.forEach((id) => parked.add(id));
+      pause = { ids, ms: 400 };
     }
   }
   for (const el of lifted) inFlight.add(el.dataset.id);
@@ -326,12 +334,24 @@ function applyState(next) {
   }
   render();
   hiding = new Set();
-  if (lifted.length) {
-    flyLifted(lifted, () => {
-      const still = aceIds.filter((id) => parked.has(id));
-      if (still.length) setTimeout(() => hopParked(still), 100);
-    });
+  const afterFlight = () => {
+    if (!pause) return;
+    setTimeout(() => hopParked(pause.ids.filter((id) => parked.has(id))), pause.ms);
+  };
+  if (lifted.length) flyLifted(lifted, afterFlight);
+  else afterFlight();
+}
+
+function bundleContaining(cards, ids) {
+  let index = 0;
+  while (index < cards.length) {
+    const rank = Number(cards[index].face);
+    if (!rank) break;
+    const bundle = cards.slice(index, index + rank);
+    if (bundle.some((card) => ids.has(String(card.id)))) return bundle;
+    index += rank;
   }
+  return [];
 }
 
 async function post(url, body) {
