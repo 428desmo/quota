@@ -1,4 +1,4 @@
-"""Greedy CPU. Prefers finishing, then jokers, then mid-size quotas."""
+"""Greedy CPU. Prefers finishing, then mid-size quotas, and takes up to the need."""
 
 from __future__ import annotations
 
@@ -10,12 +10,10 @@ def choose_action(game: Game) -> Action:
     actions = game.legal_actions()
     player = game.players[game.current]
     takes = [a for a in actions if isinstance(a, TakeQuota)]
-    collects = [a for a in actions if isinstance(a, Collect)]
     if takes:
-        def take_key(action: TakeQuota) -> tuple[int, int]:
+        def take_key(action: TakeQuota) -> tuple[int, int, int]:
             card = next(c for c in game.market if c.id == action.card_id)
             assert card.rank is not None
-            # Aces are safe points. Otherwise prefer 4–8, which finish often.
             sweet = -abs(card.rank - 6)
             return (score_for(card.rank) if card.rank == 1 else 0, sweet, -card.rank)
 
@@ -26,32 +24,30 @@ def choose_action(game: Game) -> Action:
         if card.rank >= 11 and any(
             next(c for c in game.market if c.id == a.card_id).rank == 1 for a in takes
         ):
-            ace = next(
+            return next(
                 a
                 for a in takes
                 if next(c for c in game.market if c.id == a.card_id).rank == 1
             )
-            return ace
         return best
-    if collects:
-        assert player.quota is not None and player.quota.rank is not None
-        need = player.quota.rank - 1 - len(player.collection)
 
-        def collect_key(action: Collect) -> tuple[int, int]:
-            card = next(c for c in game.market if c.id == action.card_id)
-            finishes = 1 if need == 1 else 0
-            joker_later = 0 if card.suit == "JOKER" else 1
-            return (finishes, joker_later, card.id)
+    if player.quota is None:
+        return Pass()
 
-        collects.sort(key=collect_key, reverse=True)
-        if need > 8 and not any(
-            next(c for c in game.market if c.id == a.card_id).suit != "JOKER"
-            for a in collects
-        ):
+    assert player.quota.rank is not None
+    need = player.quota.rank - 1 - len(player.collection)
+    eligible = [
+        c
+        for c in game.market
+        if c.suit == player.quota.suit or c.suit == "JOKER"
+    ]
+    suits = [c for c in eligible if c.suit != "JOKER"]
+    jokers = [c for c in eligible if c.suit == "JOKER"]
+    if not eligible or need <= 0:
+        if need >= 6:
             return Abandon()
-        return collects[0]
-    if any(isinstance(a, Abandon) for a in actions) and player.quota is not None:
-        assert player.quota.rank is not None
-        if player.quota.rank - 1 - len(player.collection) >= 6:
-            return Abandon()
-    return Pass()
+        return Pass()
+    if need >= 6 and not suits:
+        return Abandon()
+    chosen_ids = {c.id for c in (suits + jokers)[:need]}
+    return Collect(tuple(c.id for c in eligible if c.id in chosen_ids))

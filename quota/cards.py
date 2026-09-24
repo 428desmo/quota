@@ -24,11 +24,11 @@ def bonus(rank: int) -> int:
     if rank <= 6:
         return 0
     if rank <= 9:
-        return 2
+        return 1
     if rank <= 12:
-        return 5
+        return 3
     if rank == 13:
-        return 10
+        return 6
     raise ValueError(f"rank out of range: {rank}")
 
 
