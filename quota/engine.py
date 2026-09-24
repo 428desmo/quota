@@ -176,12 +176,12 @@ class Game:
             gained = True
             if card.rank == 1:
                 self._achieve(p, [card], 1)
-                self.log.append(f"{p.name} が {card.label()} の注文を請け負い、即納品（1点）")
+                self.log.append(f"{p.name} が {card.label()} をノルマ札にし、即達成（1点）")
             else:
                 p.quota = card
                 p.collection = []
                 self.log.append(
-                    f"{p.name} が {card.label()} の注文を請け負った（{card.rank}枚、{score_for(card.rank)}点）"
+                    f"{p.name} が {card.label()} をノルマ札にした（{card.rank}枚、{score_for(card.rank)}点）"
                 )
         elif isinstance(action, Collect):
             assert p.quota is not None and p.quota.rank is not None
@@ -189,18 +189,18 @@ class Game:
             gained = True
             p.collection.extend(taken)
             labels = "、".join(card.label() for card in taken)
-            self.log.append(f"{p.name} が {labels} を買い付け")
+            self.log.append(f"{p.name} が {labels} を収集")
             if 1 + len(p.collection) == p.quota.rank:
                 rank = p.quota.rank
                 cards = [p.quota, *p.collection]
                 self._achieve(p, cards, rank)
                 p.quota = None
                 p.collection = []
-                self.log.append(f"{p.name} が納品（{score_for(rank)}点）")
+                self.log.append(f"{p.name} がノルマ達成（{score_for(rank)}点）")
         elif isinstance(action, Abandon):
             assert p.quota is not None
             self.discard.extend([p.quota, *p.collection])
-            self.log.append(f"{p.name} が注文を取り消した")
+            self.log.append(f"{p.name} がノルマを放棄した")
             p.quota = None
             p.collection = []
         elif isinstance(action, Pass):
@@ -217,7 +217,7 @@ class Game:
                 if self.stall_flag:
                     self.finished = True
                     self.end_reason = "STALL"
-                    self.log.append("交易の途絶（膠着の連続）")
+                    self.log.append("膠着の連続")
                     return
                 self.deck.extend(self.market)
                 self.market = []
@@ -226,7 +226,7 @@ class Game:
                 self.no_gain_streak = 0
                 self.stall_flag = True
                 self.reshuffle_count += 1
-                self.log.append("新しい船団が入港した")
+                self.log.append("場を配り直した")
 
         self.current = (self.current + 1) % len(self.players)
         self.turn_number += 1
@@ -238,7 +238,7 @@ class Game:
             if not self.deck:
                 self.finished = True
                 self.end_reason = "DECK"
-                self.log.append("季節風の終わり（山札切れ）")
+                self.log.append("山札切れ")
                 return False
             self.market.append(self.deck.pop())
         return True

@@ -53,8 +53,8 @@ def main() -> None:
             p = game.players[seat]
             print(
                 f"{place}位 {p.name}  {game.final_score(p)}点  "
-                f"納品{p.achieve_count}回  最高{p.max_single_score}点"
-                + (f"  積み付け{game.sequence_points(p)}点" if game.config.sequence_rule else "")
+                f"達成{p.achieve_count}回  最高{p.max_single_score}点"
+                + (f"  並び順{game.sequence_points(p)}点" if game.config.sequence_rule else "")
             )
         place += len(group)
 
@@ -64,17 +64,17 @@ def _print_table(game: Game) -> None:
     print(
         f"--- 手番 {game.turn_number}  山札 {len(game.deck)}  "
         f"連続パス {game.no_gain_streak}  "
-        f"入港済み {'あり' if game.stall_flag else 'なし'} ---"
+        f"膠着済み {'あり' if game.stall_flag else 'なし'} ---"
     )
-    print("市場: " + " | ".join(c.label() for c in game.market))
+    print("場札: " + " | ".join(c.label() for c in game.market))
     for i, p in enumerate(game.players):
         mark = ">" if i == game.current and not game.finished else " "
-        quota = "注文なし" if p.quota is None else p.quota.label()
+        quota = "なし" if p.quota is None else p.quota.label()
         held = "、".join(c.label() for c in p.collection) or "なし"
         extra = ""
         if game.config.sequence_rule:
-            extra = f"  積み付け{game.sequence_points(p)}点"
-        print(f"{mark} {p.name}  {game.final_score(p)}点{extra}  注文: {quota}  買い付け: {held}")
+            extra = f"  並び順{game.sequence_points(p)}点"
+        print(f"{mark} {p.name}  {game.final_score(p)}点{extra}  ノルマ: {quota}  収集: {held}")
 
 
 def _ask(game: Game):
@@ -97,10 +97,10 @@ def _ask(game: Game):
         if c.suit == player.quota.suit or c.suit == "JOKER"
     ]
     need = player.quota.rank - 1 - len(player.collection)
-    print(f"買い付け（残り {need} 枚まで。番号を空白区切り）:")
+    print(f"集める（残り {need} 枚まで。番号を空白区切り）:")
     for i, card in enumerate(eligible, start=1):
         print(f"  {i}. {card.label()}")
-    print("  a. 注文を取り消す")
+    print("  a. 放棄")
     print("  p. パス")
     while True:
         raw = input("番号> ").strip().lower()
@@ -123,12 +123,12 @@ def _ask(game: Game):
 def _action_text(game: Game, action) -> str:
     if isinstance(action, TakeQuota):
         card = _find(game.market, action.card_id)
-        return f"注文を請け負う: {card.label()}"
+        return f"ノルマ札にする: {card.label()}"
     if isinstance(action, Collect):
         labels = "、".join(_find(game.market, card_id).label() for card_id in action.card_ids)
-        return f"買い付ける: {labels}"
+        return f"集める: {labels}"
     if isinstance(action, Abandon):
-        return "注文を取り消す"
+        return "放棄"
     if isinstance(action, Pass):
         return "パス"
     return str(action)
