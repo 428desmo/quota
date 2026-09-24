@@ -9,11 +9,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from quota.ai import choose_action
-from quota.cards import SUIT_NAME
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
+from quota.items import catalog, resolve_item_set
 
 ROOT = Path(__file__).resolve().parent.parent / "web"
-EMOJI = {"S": "🌶️", "H": "🎀", "D": "💎", "C": "🍵", "JOKER": "🪙"}
 
 
 class Table:
@@ -30,6 +29,7 @@ class Table:
         if players not in (3, 4) or not 0 <= humans <= players:
             raise ValueError("players must be 3 or 4, and humans within that")
         seed = body.get("seed")
+        theme = resolve_item_set(str(body.get("item_set") or "trade"))
         names = [f"席{i + 1}" if i < humans else f"CPU{i - humans + 1}" for i in range(players)]
         if humans == 1:
             names[0] = "あなた"
@@ -40,6 +40,7 @@ class Table:
                 names=names,
                 human_seats=list(range(humans)),
                 sequence_rule=bool(body.get("sequence")),
+                item_set=theme.id,
             )
         )
         self.phase = "playing"
@@ -80,8 +81,14 @@ class Table:
 
     def snapshot(self) -> dict:
         if self.game is None:
-            return {"phase": "lobby", "event_n": self.event_n, "event": self.event}
+            return {
+                "phase": "lobby",
+                "event_n": self.event_n,
+                "event": self.event,
+                "item_sets": _item_set_choices(),
+            }
         game = self.game
+        theme = resolve_item_set(game.config.item_set)
         view = {
             "phase": self.phase,
             "event_n": self.event_n,
@@ -93,9 +100,10 @@ class Table:
             "finished": game.finished,
             "end_reason": game.end_reason,
             "sequence_rule": game.config.sequence_rule,
+            "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
             "current_human": game.players[game.current].is_human and not game.finished,
-            "market": [_card(c) for c in game.market],
+            "market": [_card(c, theme) for c in game.market],
             "ranking": game.ranking() if game.finished else [],
             "players": [
                 {
@@ -106,12 +114,12 @@ class Table:
                     "sequence_bonus": game.sequence_points(p),
                     "achieve_count": p.achieve_count,
                     "max_single_score": p.max_single_score,
-                    "quota": None if p.quota is None else _card(p.quota),
+                    "quota": None if p.quota is None else _card(p.quota, theme),
                     "need": None
                     if p.quota is None or p.quota.rank is None
                     else p.quota.rank - 1 - len(p.collection),
-                    "collection": [_card(c) for c in p.collection],
-                    "achieved": [_card(c) for c in p.achieved],
+                    "collection": [_card(c, theme) for c in p.collection],
+                    "achieved": [_card(c, theme) for c in p.achieved],
                 }
                 for p in game.players
             ],
@@ -127,7 +135,7 @@ class Table:
         assert self.game is not None
         game = self.game
         seat = game.current
-        before = {c.id: _card(c) for c in game.market}
+        before = {c.id: _card(c, resolve_item_set(game.config.item_set)) for c in game.market}
         if isinstance(action, TakeQuota):
             cards = [before[action.card_id]]
             kind = "take"
@@ -147,13 +155,22 @@ class Table:
             self.phase = "finished"
 
 
-def _card(card) -> dict:
-    face = "＊" if card.rank is None else str(card.rank)
+def _item_set_choices() -> list[dict]:
+    return [
+        {"id": item.id, "name": item.name, "description": item.description, "default": item.default}
+        for item in catalog()
+    ]
+
+
+def _card(card, theme) -> dict:
+    face = theme.face_for(card)
     return {
         "id": card.id,
-        "emoji": EMOJI[card.suit],
-        "face": face,
-        "goods": SUIT_NAME[card.suit],
+        "emoji": face.emoji,
+        "face": theme.rank_label(card),
+        "rank": card.rank,
+        "goods": face.name,
+        "color": face.color,
         "joker": card.suit == "JOKER",
     }
 

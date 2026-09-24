@@ -10,7 +10,8 @@ let parked = new Set();
 function cardHtml(card, z = 1, marks = null) {
   const id = String(card.id);
   const hidden = hiding.has(id) || inFlight.has(id) ? "incoming" : "";
-  const rank = card.face ? `<div class="rank">${card.face}</div>` : "";
+  const wide = card.face && [...card.face].length > 2 ? " wide" : "";
+  const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
   const dots = marks
     ? [...Array(marks.yellow || 0).fill("🟡"), ...Array(marks.purple || 0).fill("🟣")]
     : [];
@@ -28,7 +29,7 @@ function deliveryMarks(cards, sequence) {
   let index = 0;
   while (index < cards.length) {
     const quota = cards[index];
-    const rank = Number(quota.face);
+    const rank = quota.rank;
     if (!rank) break;
     const yellow = rank <= 6 ? 0 : rank <= 9 ? 1 : rank <= 12 ? 3 : rank === 13 ? 6 : 0;
     if (yellow) marks.set(String(quota.id), { yellow, purple: 0 });
@@ -39,8 +40,8 @@ function deliveryMarks(cards, sequence) {
     const prev = cards[i - 1];
     const card = cards[i];
     if (prev.joker || card.joker) continue;
-    const left = Number(prev.face);
-    const right = Number(card.face);
+    const left = prev.rank;
+    const right = card.rank;
     const purple = left === right ? 2 : Math.abs(left - right) === 1 ? 1 : 0;
     if (!purple) continue;
     const key = String(card.id);
@@ -55,9 +56,14 @@ function render() {
   if (!state || state.phase === "lobby") {
     app.innerHTML = `
       <h1>Quota</h1>
-      <p>場札からノルマ札を取り、同じマークを集めてノルマを達成する。</p>
+      <p>場札からノルマ札を取り、同じ種類を集めてノルマを達成する。</p>
       <form class="panel" id="start">
         <div class="row">
+          <label>アイテムセット
+            <select name="item_set">
+              ${(state.item_sets || []).map((item) => `<option value="${item.id}" ${item.default ? "selected" : ""}>${item.name}</option>`).join("")}
+            </select>
+          </label>
           <label>人数
             <select name="players"><option value="3">3</option><option value="4">4</option></select>
           </label>
@@ -85,6 +91,7 @@ function render() {
         humans,
         seed: data.get("seed"),
         sequence: data.get("sequence") === "on",
+        item_set: data.get("item_set"),
       });
     };
     return;
@@ -138,7 +145,8 @@ function render() {
   const market = state.market.map((card) => {
     const on = picked.includes(card.id) ? "selected" : "";
     const mark = picked.includes(card.id) ? `<div>${picked.indexOf(card.id) + 1}</div>` : "";
-    const rank = card.face ? `<div class="rank">${card.face}</div>` : "";
+    const wide = card.face && [...card.face].length > 2 ? " wide" : "";
+    const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
     return `<div class="card ${card.joker ? "joker" : ""} ${on}" data-id="${card.id}">
       <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div><div>${card.goods}</div>${mark}</button>
     </div>`;
@@ -151,7 +159,8 @@ function render() {
     </div>
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count} / 連続パス ${state.no_gain_streak}
       / 膠着済み ${state.stall_flag ? "あり" : "なし"}
-      ${state.sequence_rule ? " / 上級ルール" : ""}</p>
+      ${state.sequence_rule ? " / 上級ルール" : ""}
+      ${state.item_set ? ` / ${state.item_set.name}` : ""}</p>
     <section class="panel">
       <div>場札</div>
       <div class="market" id="market">${market}</div>
@@ -311,7 +320,7 @@ function applyState(next) {
   if (event) seenEvent = event.n;
   let pause = null;
   if (fresh && event.kind === "take") {
-    const aceIds = event.cards.filter((card) => card.face === "1").map((card) => String(card.id));
+    const aceIds = event.cards.filter((card) => card.rank === 1).map((card) => String(card.id));
     aceIds.forEach((id) => parked.add(id));
     if (aceIds.length) pause = { ids: aceIds, ms: 100 };
   }
@@ -347,7 +356,7 @@ function applyState(next) {
 function bundleContaining(cards, ids) {
   let index = 0;
   while (index < cards.length) {
-    const rank = Number(cards[index].face);
+    const rank = cards[index].rank;
     if (!rank) break;
     const bundle = cards.slice(index, index + rank);
     if (bundle.some((card) => ids.has(String(card.id)))) return bundle;
@@ -372,5 +381,5 @@ async function poll() {
   if (changed) applyState(next);
 }
 
-render();
+poll();
 setInterval(poll, 700);
