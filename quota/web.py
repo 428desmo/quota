@@ -22,6 +22,8 @@ class Table:
         self.phase = "lobby"
         self.event_n = 0
         self.event: dict | None = None
+        self.hold_until = 0.0
+        self.settling_seat: int | None = None
 
     def start(self, body: dict) -> None:
         players = int(body.get("players", 3))
@@ -46,14 +48,20 @@ class Table:
         self.phase = "playing"
         self.event = None
         self.event_n += 1
+        self.hold_until = 0.0
+        self.settling_seat = None
 
     def reset(self) -> None:
         self.game = None
         self.phase = "lobby"
         self.event = None
         self.event_n += 1
+        self.hold_until = 0.0
+        self.settling_seat = None
 
     def act(self, body: dict) -> None:
+        if self._settling():
+            raise ValueError("実績へ移しています")
         game = self._require_playing()
         player = game.players[game.current]
         if not player.is_human:
@@ -73,7 +81,7 @@ class Table:
 
     def step_cpu(self) -> None:
         game = self.game
-        if self.phase != "playing" or game is None or game.finished:
+        if self.phase != "playing" or game is None or game.finished or self._settling():
             return
         if game.players[game.current].is_human:
             return
@@ -97,12 +105,15 @@ class Table:
             "turn_number": game.turn_number,
             "no_gain_streak": game.no_gain_streak,
             "stall_flag": game.stall_flag,
+            "stall_count": 1 if game.stall_flag else 0,
+            "settling": self._settling(),
+            "settling_seat": self.settling_seat if self._settling() else None,
             "finished": game.finished,
             "end_reason": game.end_reason,
             "sequence_rule": game.config.sequence_rule,
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
-            "current_human": game.players[game.current].is_human and not game.finished,
+            "current_human": game.players[game.current].is_human and not game.finished and not self._settling(),
             "market": [_card(c, theme) for c in game.market],
             "ranking": game.ranking() if game.finished else [],
             "players": [
@@ -125,6 +136,9 @@ class Table:
             ],
         }
         return view
+
+    def _settling(self) -> bool:
+        return time.monotonic() < self.hold_until
 
     def _require_playing(self) -> Game:
         if self.phase != "playing" or self.game is None or self.game.finished:
@@ -151,6 +165,10 @@ class Table:
         game.step(action)
         self.event_n += 1
         self.event = {"n": self.event_n, "kind": kind, "seat": seat, "cards": cards}
+        achieved = {c.id for c in game.players[seat].achieved}
+        if any(card["id"] in achieved for card in cards):
+            self.settling_seat = seat
+            self.hold_until = time.monotonic() + (0.75 if kind == "take" else 1.05)
         if game.finished:
             self.phase = "finished"
 

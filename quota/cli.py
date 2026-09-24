@@ -86,7 +86,7 @@ def _print_table(game: Game) -> None:
     print(
         f"--- 手番 {game.turn_number}  山札 {len(game.deck)}  "
         f"連続パス {game.no_gain_streak}  "
-        f"膠着済み {'あり' if game.stall_flag else 'なし'} ---"
+        f"膠着状態 {1 if game.stall_flag else 0} ---"
     )
     theme = _theme(game)
     print("場札: " + " | ".join(c.label(theme) for c in game.market))

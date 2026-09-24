@@ -34,7 +34,11 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   overflow-y: hidden;
   flex-wrap: nowrap;
 }
-.records { height: calc((var(--card-h) + 8px) * 2 - var(--card-h) / 4); }
+.records { height: calc(var(--card-h) + 8px); }
+.records.multi {
+  height: calc((var(--card-h) + 8px) * 2 - var(--card-h) / 4);
+  margin-top: calc(var(--card-h) * -1 / 8);
+}
 .line.record { position: relative; }
 .line.record + .line.record { margin-top: calc(var(--card-h) * -1 / 4); z-index: 1; }
 .card {

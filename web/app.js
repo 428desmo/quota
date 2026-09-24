@@ -72,7 +72,7 @@ function render() {
           <label>シード（空ならランダム）
             <input name="seed" inputmode="numeric">
           </label>
-          <label><span>上級ルール</span>
+          <label><span>上級</span>
             <input name="sequence" type="checkbox"> 並び順ボーナス
           </label>
         </div>
@@ -97,7 +97,8 @@ function render() {
   }
 
   const seats = state.players.map((player, index) => {
-    const turn = index === state.current && !state.finished ? " turn" : "";
+    const focus = state.settling ? state.settling_seat : state.current;
+    const turn = index === focus && !state.finished ? " turn" : "";
     const parkedHere = player.achieved.filter((card) => parked.has(String(card.id)));
     const recorded = player.achieved.filter((card) => !parked.has(String(card.id)));
     const orderCards = [];
@@ -109,7 +110,7 @@ function render() {
     const need = player.quota ? `あと${player.need}` : "";
     const marks = deliveryMarks(player.achieved, state.sequence_rule);
     const recordRows = achievedRows(recorded);
-    while (recordRows.length < 2) recordRows.push([]);
+    if (!recordRows.length) recordRows.push([]);
     const done = recordRows.map((row) => {
       const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)))).join("");
       return `<div class="line record">${cards}</div>`;
@@ -117,7 +118,7 @@ function render() {
     const seq = state.sequence_rule ? ` / 並び順 ${player.sequence_bonus}` : "";
     const alt = index % 2 ? " alt" : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
-      <div class="bar"><strong>${index === state.current && !state.finished ? "▶ " : ""}${player.name}</strong>
+      <div class="bar"><strong>${index === focus && !state.finished ? "▶ " : ""}${player.name}</strong>
         <span>${player.score}点${seq} / 達成 ${player.achieve_count}${need ? ` / ${need}` : ""}</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>
@@ -125,26 +126,29 @@ function render() {
       </div>
       <div class="band">
         <div class="vlabel">実績</div>
-        <div class="band-main"><div class="records">${done}</div></div>
+        <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}">${done}</div></div>
       </div>
     </section>`;
   }).join("");
 
   const me = state.players[state.current];
   let controls = "";
-  if (state.current_human) {
+  if (state.settling) {
+    controls = "";
+  } else if (state.current_human) {
     if (!me.quota) {
       controls = `<div class="controls">
         <div class="control-buttons"><button type="button" id="pass">パス</button></div>
-        <p>カードを押すとノルマ札にします。</p>
+        <p>カードを押すと<br>ノルマ札にします。</p>
       </div>`;
     } else {
+      const done = me.collection.length > 0;
       controls = `<div class="controls">
         <div class="control-buttons">
           <button type="button" id="abandon">放棄</button>
-          <button type="button" id="pass">パス</button>
+          <button type="button" id="pass">${done ? "次へ" : "パス"}</button>
         </div>
-        <p>有効なカードを押すと集めます（残り ${me.need} 枚）。取り終えたらパス。</p>
+        <p>有効なカードを押すと集めます（残り ${me.need} 枚）。${done ? "取り終えたら次へ。" : ""}</p>
       </div>`;
     }
   } else if (!state.finished) {
@@ -154,7 +158,7 @@ function render() {
   const market = state.market.map((card) => {
     const wide = card.face && [...card.face].length > 2 ? " wide" : "";
     const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
-    const idle = state.current_human && !canPlay(card, me) ? "idle" : "";
+    const idle = state.settling || (state.current_human && !canPlay(card, me)) ? "idle" : "";
     return `<div class="card ${card.joker ? "joker" : ""} ${idle}" data-id="${card.id}">
       <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div><div>${card.goods}</div></button>
     </div>`;
@@ -166,9 +170,8 @@ function render() {
       ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
     </div>
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count} / 連続パス ${state.no_gain_streak}
-      / 膠着済み ${state.stall_flag ? "あり" : "なし"}
-      ${state.sequence_rule ? " / 上級ルール" : ""}
-      ${state.item_set ? ` / ${state.item_set.name}` : ""}</p>
+      / 膠着状態 ${state.stall_count}
+      ${state.sequence_rule ? " / 上級" : ""}</p>
     <section class="panel">
       <div class="market-wrap">
         <div class="vlabel">場札</div>
@@ -208,7 +211,7 @@ function finishHtml() {
 
 function onPick(id) {
   const me = state.players[state.current];
-  if (!state.current_human) return;
+  if (!state.current_human || state.settling) return;
   if (!me.quota) {
     const card = state.market.find((item) => item.id === id);
     if (!card || card.joker) return;
@@ -377,7 +380,7 @@ async function post(url, body) {
 async function poll() {
   const response = await fetch("/api/state");
   const next = await response.json();
-  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase;
+  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling;
   if (changed) applyState(next);
 }
 
