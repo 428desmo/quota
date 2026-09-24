@@ -7,15 +7,48 @@ let hiding = new Set();
 let inFlight = new Set();
 let parked = new Set();
 
-function cardHtml(card, z = 1) {
+function cardHtml(card, z = 1, marks = null) {
   const id = String(card.id);
   const hidden = hiding.has(id) || inFlight.has(id) ? "incoming" : "";
   const rank = card.face ? `<div class="rank">${card.face}</div>` : "";
+  const dots = marks
+    ? [...Array(marks.yellow || 0).fill("🟡"), ...Array(marks.purple || 0).fill("🟣")]
+    : [];
+  const mark = dots.length ? `<div class="marks">${dots.map((dot) => `<span>${dot}</span>`).join("")}</div>` : "";
   return `<div class="card ${card.joker ? "joker" : ""} ${hidden}" data-id="${card.id}" style="z-index:${z}">
     ${rank}
+    ${mark}
     <div class="emoji">${card.emoji}</div>
     <div>${card.goods}</div>
   </div>`;
+}
+
+function deliveryMarks(cards, sequence) {
+  const marks = new Map();
+  let index = 0;
+  while (index < cards.length) {
+    const quota = cards[index];
+    const rank = Number(quota.face);
+    if (!rank) break;
+    const yellow = rank <= 6 ? 0 : rank <= 9 ? 1 : rank <= 12 ? 3 : rank === 13 ? 6 : 0;
+    if (yellow) marks.set(String(quota.id), { yellow, purple: 0 });
+    index += rank;
+  }
+  if (!sequence) return marks;
+  for (let i = 1; i < cards.length; i += 1) {
+    const prev = cards[i - 1];
+    const card = cards[i];
+    if (prev.joker || card.joker) continue;
+    const left = Number(prev.face);
+    const right = Number(card.face);
+    const purple = left === right ? 2 : Math.abs(left - right) === 1 ? 1 : 0;
+    if (!purple) continue;
+    const key = String(card.id);
+    const current = marks.get(key) || { yellow: 0, purple: 0 };
+    current.purple += purple;
+    marks.set(key, current);
+  }
+  return marks;
 }
 
 function render() {
@@ -68,8 +101,9 @@ function render() {
       ? orderCards.map((card, index) => cardHtml(card, index + 1)).join("")
       : "<span class='note'>注文なし</span>";
     const need = player.quota ? `<span class="note">あと ${player.need} 枚</span>` : "";
+    const marks = deliveryMarks(player.achieved, state.sequence_rule);
     const done = achievedRows(recorded).map((row) => {
-      const cards = row.map((card, index) => cardHtml(card, index + 1)).join("");
+      const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)))).join("");
       return `<div class="line record">${cards}</div>`;
     }).join("") || "<span class='note'>なし</span>";
     const seq = state.sequence_rule ? ` / 積み付け ${player.sequence_bonus}` : "";
