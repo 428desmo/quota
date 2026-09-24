@@ -19,8 +19,16 @@ button.primary { background: #111; color: #fff; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 :root { --card-w: 76px; }
-.market { display: flex; gap: 8px; flex-wrap: wrap; min-height: 96px; }
-.line { display: flex; align-items: stretch; min-height: 96px; }
+.market { display: flex; gap: 8px; flex-wrap: wrap; min-height: 104px; }
+.line {
+  display: flex;
+  align-items: center;
+  height: 104px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+}
+.records { height: 216px; }
 .line.record + .line.record { margin-top: 8px; }
 .card {
   width: var(--card-w);
