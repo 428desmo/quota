@@ -67,6 +67,7 @@ class GameConfig:
     names: list[str] | None = None
     human_seats: list[int] | None = None
     sequence_rule: bool = False
+    item_set: str = "trade"
 
     def resolved_market_size(self) -> int:
         if self.market_size is not None:
@@ -264,9 +265,13 @@ class Game:
 
     def public_view(self) -> dict:
         """Observation without deck order or removed cards."""
+        from quota.items import resolve_item_set
+
+        theme = resolve_item_set(self.config.item_set)
         return {
-            "market": [c.label() for c in self.market],
-            "discard": [c.label() for c in self.discard],
+            "item_set": theme.id,
+            "market": [c.label(theme) for c in self.market],
+            "discard": [c.label(theme) for c in self.discard],
             "deck_count": len(self.deck),
             "current": self.current,
             "no_gain_streak": self.no_gain_streak,
@@ -278,8 +283,8 @@ class Game:
             "players": [
                 {
                     "name": p.name,
-                    "quota": None if p.quota is None else p.quota.label(),
-                    "collection": [c.label() for c in p.collection],
+                    "quota": None if p.quota is None else p.quota.label(theme),
+                    "collection": [c.label(theme) for c in p.collection],
                     "score": self.final_score(p),
                     "delivery_score": p.score,
                     "sequence_bonus": self.sequence_points(p),

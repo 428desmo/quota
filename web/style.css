@@ -55,6 +55,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   line-height: 1;
   padding: 2px 0 0 4px;
 }
+.card .rank.wide { font-size: 12px; letter-spacing: -0.04em; }
 .marks {
   position: absolute;
   top: 28px;
