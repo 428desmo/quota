@@ -1,1 +1,23 @@
-# quota
+# Quota
+
+トランプ2セットで遊ぶカードゲーム。自分で注文（ノルマ）を引き受け、同じ商品をそろえて納品する。
+
+規則の正本は `quota_rule_v1.1.md`。
+
+## 遊び方
+
+```bash
+python -m quota.cli --players 3 --humans 1
+python -m quota.cli --players 4 --humans 2 --seed 7
+python -m quota.cli --auto --seed 1
+```
+
+カードは `♥4 絹` のように、トランプ表記と商品名を並べて表示する。
+
+- スペード: 香辛料
+- ハート: 絹
+- クラブ: 茶
+- ダイヤ: 宝石
+- ジョーカー: 銀貨
+
+人間の席は番号で行動を選ぶ。残りの席はCPU。

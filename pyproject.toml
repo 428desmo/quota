@@ -1,0 +1,12 @@
+[project]
+name = "quota"
+version = "0.1.0"
+description = "Quota card game engine and terminal client"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[project.scripts]
+quota = "quota.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
