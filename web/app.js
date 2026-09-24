@@ -5,6 +5,7 @@ let picked = [];
 
 let hiding = new Set();
 let inFlight = new Set();
+let parked = new Set();
 
 function cardHtml(card, z = 1) {
   const id = String(card.id);
@@ -58,11 +59,16 @@ function render() {
 
   const seats = state.players.map((player, index) => {
     const turn = index === state.current && !state.finished ? " turn" : "";
-    const order = player.quota
-      ? cardHtml(player.quota, 1) + player.collection.map((card, index) => cardHtml(card, index + 2)).join("")
+    const parkedHere = player.achieved.filter((card) => parked.has(String(card.id)));
+    const recorded = player.achieved.filter((card) => !parked.has(String(card.id)));
+    const orderCards = [];
+    if (player.quota) orderCards.push(player.quota);
+    orderCards.push(...player.collection, ...parkedHere);
+    const order = orderCards.length
+      ? orderCards.map((card, index) => cardHtml(card, index + 1)).join("")
       : "<span class='note'>注文なし</span>";
     const need = player.quota ? `<span class="note">あと ${player.need} 枚</span>` : "";
-    const done = achievedRows(player.achieved).map((row) => {
+    const done = achievedRows(recorded).map((row) => {
       const cards = row.map((card, index) => cardHtml(card, index + 1)).join("");
       return `<div class="line record">${cards}</div>`;
     }).join("") || "<span class='note'>なし</span>";
@@ -173,20 +179,23 @@ function onPick(id) {
   render();
 }
 
+function liftElement(el) {
+  const rect = el.getBoundingClientRect();
+  el.classList.add("lifting");
+  el.style.left = `${rect.left}px`;
+  el.style.top = `${rect.top}px`;
+  el.style.width = `${rect.width}px`;
+  el.style.height = `${rect.height}px`;
+  document.body.appendChild(el);
+  return el;
+}
+
 function liftMarketCards(cards) {
   if (!cards || !cards.length || !state || state.event_n === undefined) return [];
   const lifted = [];
   for (const card of cards) {
     const el = document.querySelector(`#market [data-id="${card.id}"]`);
-    if (!el) continue;
-    const rect = el.getBoundingClientRect();
-    el.classList.add("lifting");
-    el.style.left = `${rect.left}px`;
-    el.style.top = `${rect.top}px`;
-    el.style.width = `${rect.width}px`;
-    el.style.height = `${rect.height}px`;
-    document.body.appendChild(el);
-    lifted.push(el);
+    if (el) lifted.push(liftElement(el));
   }
   return lifted;
 }
@@ -194,20 +203,30 @@ function liftMarketCards(cards) {
 function achievedRows(cards) {
   if (!cards.length) return [];
   const width = app.clientWidth || 900;
-  const step = 76 * (2 / 3);
+  const step = 76 / 2;
   const perRow = Math.max(1, Math.floor((width - 48) / step));
   if (cards.length <= perRow) return [cards];
   const mid = Math.ceil(cards.length / 2);
   return [cards.slice(0, mid), cards.slice(mid)];
 }
 
-function flyLifted(lifted) {
+function flyLifted(lifted, onDone) {
+  let pending = lifted.length;
+  const oneDone = () => {
+    pending -= 1;
+    if (pending <= 0 && onDone) onDone();
+  };
+  if (!pending) {
+    if (onDone) onDone();
+    return;
+  }
   requestAnimationFrame(() => {
     for (const el of lifted) {
       const dest = document.querySelector(`[data-seat] [data-id="${el.dataset.id}"]`);
       if (!dest) {
         inFlight.delete(el.dataset.id);
         el.remove();
+        oneDone();
         continue;
       }
       const to = dest.getBoundingClientRect();
@@ -219,6 +238,7 @@ function flyLifted(lifted) {
         el.remove();
         const place = document.querySelector(`[data-seat] [data-id="${el.dataset.id}"]`);
         if (place) place.classList.remove("incoming");
+        oneDone();
       };
       el.addEventListener("transitionend", (ev) => {
         if (ev.propertyName === "left") finish();
@@ -230,11 +250,37 @@ function flyLifted(lifted) {
   });
 }
 
+function hopParked(ids) {
+  if (!state || state.phase === "lobby") return;
+  const lifted = [];
+  for (const id of ids) {
+    const el = document.querySelector(`.line.order [data-id="${id}"]`);
+    if (!el) {
+      parked.delete(id);
+      continue;
+    }
+    lifted.push(liftElement(el));
+    parked.delete(id);
+    inFlight.add(id);
+  }
+  render();
+  flyLifted(lifted);
+}
+
 function applyState(next) {
   const event = next.event;
   const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
   const lifted = fresh ? liftMarketCards(event.cards) : [];
   if (event) seenEvent = event.n;
+  const aceIds = [];
+  if (fresh && event.kind === "take") {
+    for (const card of event.cards) {
+      if (card.face === "1") {
+        parked.add(String(card.id));
+        aceIds.push(String(card.id));
+      }
+    }
+  }
   for (const el of lifted) inFlight.add(el.dataset.id);
   hiding = new Set(inFlight);
   state = next;
@@ -242,10 +288,16 @@ function applyState(next) {
     picked = [];
     inFlight = new Set();
     hiding = new Set();
+    parked = new Set();
   }
   render();
   hiding = new Set();
-  if (lifted.length) flyLifted(lifted);
+  if (lifted.length) {
+    flyLifted(lifted, () => {
+      const still = aceIds.filter((id) => parked.has(id));
+      if (still.length) setTimeout(() => hopParked(still), 100);
+    });
+  }
 }
 
 async function post(url, body) {
