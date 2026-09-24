@@ -4,9 +4,11 @@ let seenEvent = 0;
 let picked = [];
 
 let hiding = new Set();
+let inFlight = new Set();
 
 function cardHtml(card, z = 1) {
-  const hidden = hiding.has(card.id) ? "incoming" : "";
+  const id = String(card.id);
+  const hidden = hiding.has(id) || inFlight.has(id) ? "incoming" : "";
   const rank = card.face ? `<div class="rank">${card.face}</div>` : "";
   return `<div class="card ${card.joker ? "joker" : ""} ${hidden}" data-id="${card.id}" style="z-index:${z}">
     ${rank}
@@ -60,9 +62,10 @@ function render() {
       ? cardHtml(player.quota, 1) + player.collection.map((card, index) => cardHtml(card, index + 2)).join("")
       : "<span class='note'>注文なし</span>";
     const need = player.quota ? `<span class="note">あと ${player.need} 枚</span>` : "";
-    const done = player.achieved.length
-      ? player.achieved.map((card, index) => cardHtml(card, index + 1)).join("")
-      : "<span class='note'>なし</span>";
+    const done = achievedRows(player.achieved).map((row) => {
+      const cards = row.map((card, index) => cardHtml(card, index + 1)).join("");
+      return `<div class="line record">${cards}</div>`;
+    }).join("") || "<span class='note'>なし</span>";
     const seq = state.sequence_rule ? ` / 積み付け ${player.sequence_bonus}` : "";
     return `<section class="seat${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === state.current && !state.finished ? "▶ " : ""}${player.name}</strong>
@@ -70,7 +73,7 @@ function render() {
       <div class="note">注文 ${need}</div>
       <div class="line order">${order}</div>
       <div class="note">出荷記録</div>
-      <div class="line record">${done}</div>
+      ${done}
     </section>`;
   }).join("");
 
@@ -188,23 +191,41 @@ function liftMarketCards(cards) {
   return lifted;
 }
 
+function achievedRows(cards) {
+  if (!cards.length) return [];
+  const width = app.clientWidth || 900;
+  const step = 76 * (2 / 3);
+  const perRow = Math.max(1, Math.floor((width - 48) / step));
+  if (cards.length <= perRow) return [cards];
+  const mid = Math.ceil(cards.length / 2);
+  return [cards.slice(0, mid), cards.slice(mid)];
+}
+
 function flyLifted(lifted) {
   requestAnimationFrame(() => {
     for (const el of lifted) {
       const dest = document.querySelector(`[data-seat] [data-id="${el.dataset.id}"]`);
       if (!dest) {
+        inFlight.delete(el.dataset.id);
         el.remove();
         continue;
       }
       const to = dest.getBoundingClientRect();
-      const done = () => {
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        inFlight.delete(el.dataset.id);
         el.remove();
-        dest.classList.remove("incoming");
+        const place = document.querySelector(`[data-seat] [data-id="${el.dataset.id}"]`);
+        if (place) place.classList.remove("incoming");
       };
-      el.addEventListener("transitionend", done, { once: true });
+      el.addEventListener("transitionend", (ev) => {
+        if (ev.propertyName === "left") finish();
+      });
       el.style.left = `${to.left}px`;
       el.style.top = `${to.top}px`;
-      setTimeout(done, 600);
+      setTimeout(finish, 520);
     }
   });
 }
@@ -214,9 +235,14 @@ function applyState(next) {
   const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
   const lifted = fresh ? liftMarketCards(event.cards) : [];
   if (event) seenEvent = event.n;
-  hiding = new Set(lifted.map((el) => el.dataset.id));
+  for (const el of lifted) inFlight.add(el.dataset.id);
+  hiding = new Set(inFlight);
   state = next;
-  if (state.phase === "lobby") picked = [];
+  if (state.phase === "lobby") {
+    picked = [];
+    inFlight = new Set();
+    hiding = new Set();
+  }
   render();
   hiding = new Set();
   if (lifted.length) flyLifted(lifted);
