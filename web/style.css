@@ -34,11 +34,12 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   overflow-y: hidden;
   flex-wrap: nowrap;
 }
-.records { height: calc(var(--card-h) + 8px); }
-.records.multi {
-  height: calc((var(--card-h) + 8px) * 2 - var(--card-h) / 4);
-  margin-top: calc(var(--card-h) * -1 / 8);
+.records {
+  --rows: 1;
+  height: calc((var(--card-h) + 8px) * var(--rows) - (var(--card-h) / 4) * (var(--rows) - 1));
 }
+.records.multi { margin-top: calc(var(--card-h) * -1 / 8); }
+.gain { color: #c45c26; font-weight: 700; margin-right: 3px; }
 .line.record { position: relative; }
 .line.record + .line.record { margin-top: calc(var(--card-h) * -1 / 4); z-index: 1; }
 .card {
