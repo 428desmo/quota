@@ -159,8 +159,10 @@ function render() {
     const itemSet = saved.item_set || "";
     app.innerHTML = `
       <header class="hero">
-        <p class="ruby">ク ォ ー タ</p>
-        <h1><span class="word">QUOTA</span> <span class="sub">揃えて、達成。</span></h1>
+        <h1>
+          <span class="title-main"><span class="ruby">ク ォ ー タ</span><span class="word">QUOTA</span></span>
+          <span class="sub">揃えて、達成。</span>
+        </h1>
         <p class="catch">ノルマは、自分で決めろ。</p>
       </header>
       <p class="guide-buttons">
@@ -511,6 +513,15 @@ function hopParked(ids) {
 function applyState(next) {
   const event = next.event;
   const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
+  if (fresh && pendingMarket) {
+    const missing = event.cards.some((card) => !document.querySelector(`#market [data-id="${card.id}"]`));
+    const held = pendingMarket.some((card) => event.cards.some((item) => item.id === card.id));
+    if (missing && held) {
+      marketSlots = pendingMarket.map((card) => card);
+      pendingMarket = null;
+      render();
+    }
+  }
   const lifted = fresh ? liftMarketCards(event.cards) : [];
   if (event) seenEvent = event.n;
   if (fresh) {
@@ -704,7 +715,7 @@ function layoutMarket(next) {
 
 function flushMarket() {
   if (!pendingMarket) return;
-  if ((state && state.settling) || inFlight.size || parked.size || gathering) return;
+  if (inFlight.size || parked.size || gathering) return;
   marketSlots = pendingMarket.map((card) => card);
   pendingMarket = null;
   if (state && state.phase !== "lobby") render();
