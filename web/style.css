@@ -34,8 +34,20 @@ h1.brand .sub { font-size: 0.64em; }
   background: rgba(0, 0, 0, 0.28);
 }
 .rollover .panel { width: min(520px, 92vw); }
-.title-cheer .panel { text-align: center; background: #fff8e6; border-width: 3px; }
-.title-plus { font-size: 42px; margin: 8px 0 0; color: #c45c26; }
+.title-cheer {
+  padding-left: max(16px, calc((100% - 980px) / 2 + 16px));
+  padding-right: max(calc(16px + 6.5rem), calc((100% - 980px) / 2 + 16px + 6.5rem));
+}
+.title-cheer .panel {
+  width: min(22em, 100%);
+  margin: 0;
+  padding: 10px 14px;
+  text-align: center;
+  background: #fff8e6;
+  border-width: 3px;
+}
+.title-cheer .panel p { margin: 0.25em 0; }
+.title-plus { font-size: 24px; margin: 4px 0 0; color: #c45c26; }
 button, select, input {
   font: inherit;
   border: 2px solid #222;
