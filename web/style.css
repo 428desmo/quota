@@ -118,9 +118,9 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .vlabel { font-size: 13px; color: #444; margin: 2px 0; }
 .market-label { font-size: 13px; color: #444; margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; }
 .thinking { margin-left: auto; font-size: 11px; font-weight: 400; text-align: right; }
-.market-panel { position: relative; }
+.market-panel { position: relative; z-index: 2; }
 .controls {
-  position: absolute; right: 8px; bottom: 8px; z-index: 4; margin: 0;
+  position: absolute; right: 8px; bottom: -12px; z-index: 4; margin: 0;
   display: flex; justify-content: flex-end;
 }
 .controls.left-hand { right: auto; left: 8px; justify-content: flex-start; }
