@@ -116,7 +116,8 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .seat.turn { background: #fff3d6; }
 .band { min-width: 0; }
 .vlabel { font-size: 13px; color: #444; margin: 2px 0; }
-.market-label { font-size: 13px; color: #444; margin: 0 0 4px; }
+.market-label { font-size: 13px; color: #444; margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; }
+.thinking { font-size: 11px; font-weight: 400; }
 .controls { display: flex; align-items: center; margin-top: 8px; }
 .control-buttons { width: 40%; flex: none; display: flex; gap: 6px; align-items: center; }
 .control-buttons button, #restart { padding: 3px 8px; font-size: 12px; }

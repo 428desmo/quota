@@ -218,9 +218,10 @@ function render() {
         <p>ノルマ達成まであと${me.need}枚。</p>
       </div>`;
     }
-  } else if (!state.finished) {
-    controls = `<p class="note">${me.name} が考えています。</p>`;
   }
+  const thinking = !state.settling && !state.current_human && !state.finished
+    ? `<span class="thinking">${me.name} が考えています</span>`
+    : "";
 
   const market = marketSlots.map((card) => {
     if (!card) return `<div class="card gap"></div>`;
@@ -242,7 +243,7 @@ function render() {
       ${state.sequence_rule ? " / 上級" : ""}</p>
     ${gateHtml()}
     <section class="panel">
-      <div class="market-label">場札</div>
+      <div class="market-label">場札${thinking}</div>
       <div class="market" id="market">${market}</div>
       ${controls}
     </section>
