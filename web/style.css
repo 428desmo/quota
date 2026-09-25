@@ -48,6 +48,15 @@ h1.brand .sub { font-size: 0.64em; }
 }
 .title-cheer .panel p { margin: 0.25em 0; }
 .title-plus { font-size: 24px; margin: 4px 0 0; color: #c45c26; }
+.pass-ask .panel {
+  width: min(14em, 92vw);
+  margin: 0;
+  padding: 8px 10px;
+  text-align: center;
+}
+.pass-ask .panel p { margin: 0.25em 0; font-size: 13px; }
+.pass-ask .ask-buttons { display: flex; gap: 8px; justify-content: center; }
+.pass-ask button { padding: 3px 8px; font-size: 12px; }
 button, select, input {
   font: inherit;
   border: 2px solid #222;

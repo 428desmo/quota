@@ -22,6 +22,7 @@ let pendingBonusSeat = null;
 let bonusNote = null;
 let titleCheer = null;
 let guide = null;
+let passAsk = false;
 let coverSeen = 0;
 let coverUntil = 0;
 let coverText = "";
@@ -179,7 +180,12 @@ function savedOptions() {
   }
 }
 
+function pickingQuota() {
+  return state && state.phase !== "hall" && state.phase !== "recruiting" && !state.finished && !state.settling && state.your_turn && state.players && !state.players[state.current].quota;
+}
+
 function render() {
+  if (passAsk && !pickingQuota()) passAsk = false;
   if (!state || state.phase === "hall") {
     const saved = savedOptions() || {};
     const players = String(saved.players || 3);
@@ -385,6 +391,7 @@ function render() {
     ${state.finished && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
     ${coverHtml()}
+    ${passAskHtml()}
     <button type="button" id="leave">ゲームから抜ける</button>
     `;
 
@@ -394,7 +401,24 @@ function render() {
     button.onclick = () => onPick(Number(button.parentElement.dataset.id));
   });
   const pass = app.querySelector("#pass");
-  if (pass) pass.onclick = () => post("/api/action", { kind: "pass" });
+  if (pass) pass.onclick = () => {
+    if (pickingQuota()) {
+      passAsk = true;
+      render();
+      return;
+    }
+    post("/api/action", { kind: "pass" });
+  };
+  const passYes = app.querySelector("#pass-yes");
+  if (passYes) passYes.onclick = () => {
+    passAsk = false;
+    post("/api/action", { kind: "pass" });
+  };
+  const passNo = app.querySelector("#pass-no");
+  if (passNo) passNo.onclick = () => {
+    passAsk = false;
+    render();
+  };
   const abandon = app.querySelector("#abandon");
   if (abandon) abandon.onclick = () => post("/api/action", { kind: "abandon" });
   const ack = app.querySelector("#ack");
@@ -435,6 +459,11 @@ function renderRecruiting() {
   if (begin) begin.onclick = () => post("/api/start", {});
   const leave = app.querySelector("#leave");
   if (leave) leave.onclick = () => post("/api/leave", {});
+}
+
+function passAskHtml() {
+  if (!passAsk) return "";
+  return `<div class="rollover pass-ask"><div class="panel"><p>本当にパスしますか？</p><p class="ask-buttons"><button type="button" id="pass-yes">パスする</button><button type="button" class="primary" id="pass-no">キャンセル</button></p></div></div>`;
 }
 
 function coverHtml() {
