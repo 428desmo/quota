@@ -309,7 +309,6 @@ function render() {
   app.innerHTML = `
     <div class="bar">
       <h1 class="brand"><span class="word">QUOTA</span><span class="sub">揃えて、達成。</span></h1>
-      ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
     </div>
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count}
       / 膠着状態 ${state.stall_count} / 連続パス ${state.no_gain_streak}/${state.player_count}
@@ -323,6 +322,7 @@ function render() {
     ${seats}
     ${state.finished && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
+    ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
     `;
 
   const restart = app.querySelector("#restart");
