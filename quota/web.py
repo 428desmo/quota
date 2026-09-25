@@ -30,12 +30,20 @@ class Table:
         self.seat_acked: set[int] = set()
         self.notice_at: float | None = None
         self.gate_released = False
+        self.ok_timeout = 3.0
 
     def start(self, body: dict, client_id: str = "") -> None:
         players = int(body.get("players", 3))
         humans = int(body.get("humans", players))
         if players not in (3, 4) or not 0 <= humans <= players:
             raise ValueError("players must be 3 or 4, and humans within that")
+        timeout = body.get("ok_timeout", 3)
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError):
+            raise ValueError("OKタイムアウトは0以上の秒数です") from None
+        if timeout < 0:
+            raise ValueError("OKタイムアウトは0以上の秒数です")
         seed = body.get("seed")
         theme = resolve_item_set(str(body.get("item_set") or "trade"))
         names = [f"席{i + 1}" if i < humans else f"CPU{i - humans + 1}" for i in range(players)]
@@ -61,7 +69,9 @@ class Table:
             "humans": humans,
             "sequence": bool(body.get("sequence")),
             "item_set": theme.id,
+            "ok_timeout": timeout,
         }
+        self.ok_timeout = timeout
         self.seat_owner = {i: client_id for i, p in enumerate(self.game.players) if p.is_human}
         self.seat_acked = set()
         self.notice_at = None
@@ -230,7 +240,8 @@ class Table:
         humans = [i for i, p in enumerate(game.players) if p.is_human]
         cpus = [i for i, p in enumerate(game.players) if not p.is_human]
         cpu_ready = not cpus or time.monotonic() >= self.notice_at + 0.5
-        if cpu_ready and all(i in self.seat_acked for i in humans):
+        humans_ready = time.monotonic() >= self.notice_at + self.ok_timeout or all(i in self.seat_acked for i in humans)
+        if cpu_ready and humans_ready:
             self.gate_released = True
 
     def _score_gate(self, client_id: str) -> dict | None:

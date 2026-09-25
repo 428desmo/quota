@@ -125,6 +125,9 @@ function render() {
           <label>シード（空ならランダム）
             <input name="seed" inputmode="numeric">
           </label>
+          <label>OKタイムアウト（秒）
+            <input name="ok_timeout" type="number" min="0" step="0.5" value="${saved.ok_timeout ?? 3}">
+          </label>
           <label><span>上級</span>
             <input name="sequence" type="checkbox" ${saved.sequence ? "checked" : ""}> 並び順ボーナス
           </label>
@@ -144,6 +147,7 @@ function render() {
         seed: data.get("seed"),
         sequence: data.get("sequence") === "on",
         item_set: data.get("item_set"),
+        ok_timeout: Number(data.get("ok_timeout")),
       });
     };
     return;
