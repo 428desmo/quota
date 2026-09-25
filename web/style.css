@@ -118,10 +118,10 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .vlabel { font-size: 13px; color: #444; margin: 2px 0; }
 .market-label { font-size: 13px; color: #444; margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; }
 .thinking { font-size: 11px; font-weight: 400; }
-.controls { display: flex; align-items: center; margin-top: 8px; }
-.control-buttons { width: 40%; flex: none; display: flex; gap: 6px; align-items: center; }
+.controls { display: flex; justify-content: flex-end; margin-top: 8px; }
+.controls.left-hand { justify-content: flex-start; }
+.control-buttons { display: flex; gap: 6px; align-items: center; }
 .control-buttons button, #restart { padding: 3px 8px; font-size: 12px; }
-.controls p { width: 60%; margin: 0; line-height: 1.35; }
 @media (orientation: portrait) and (max-width: 700px) {
   .panel { padding: 8px; margin: 8px 0; }
   .band { display: flex; align-items: center; gap: 4px; }

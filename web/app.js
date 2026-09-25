@@ -142,6 +142,9 @@ function render() {
           <label><span>上級</span>
             <input name="sequence" type="checkbox" ${saved.sequence ? "checked" : ""}> 並び順ボーナス
           </label>
+          <label><span>左利き</span>
+            <input name="left_handed" type="checkbox" ${saved.left_handed ? "checked" : ""}> ボタンを左に置く
+          </label>
         </div>
         <p><button class="primary" type="submit">スタート</button></p>
         <p class="note">この画面を開いた端末が同じ盤面を共有します。同じネットワークの他の端末からも操作できます。</p>
@@ -159,6 +162,7 @@ function render() {
         sequence: data.get("sequence") === "on",
         item_set: data.get("item_set"),
         ok_timeout: Number(data.get("ok_timeout")),
+        left_handed: data.get("left_handed") === "on",
       });
     };
     return;
@@ -199,29 +203,25 @@ function render() {
   }).join("");
 
   const me = state.players[state.current];
+  const hand = state.left_handed ? " left-hand" : "";
   let controls = "";
-  if (state.settling) {
-    controls = "";
-  } else if (state.current_human) {
+  let hint = "";
+  if (!state.settling && !state.finished) {
+    if (state.current_human && !me.quota) hint = "場札からノルマ札を選びましょう。";
+    else if (state.current_human) hint = `ノルマ達成まであと${me.need}枚。`;
+    else hint = `${me.name} が考えています`;
+  }
+  if (!state.settling && state.current_human) {
     if (!me.quota) {
-      controls = `<div class="controls">
-        <div class="control-buttons"><button type="button" id="pass">パス</button></div>
-        <p>場札からノルマ札を選びましょう。</p>
-      </div>`;
+      controls = `<div class="controls${hand}"><div class="control-buttons"><button type="button" id="pass">パス</button></div></div>`;
     } else {
       const done = me.collection.length > 0;
-      controls = `<div class="controls">
-        <div class="control-buttons">
+      controls = `<div class="controls${hand}"><div class="control-buttons">
           <button type="button" id="abandon">放棄</button>
           <button type="button" id="pass">${done ? "次へ" : "パス"}</button>
-        </div>
-        <p>ノルマ達成まであと${me.need}枚。</p>
-      </div>`;
+        </div></div>`;
     }
   }
-  const thinking = !state.settling && !state.current_human && !state.finished
-    ? `<span class="thinking">${me.name} が考えています</span>`
-    : "";
 
   const market = marketSlots.map((card) => {
     if (!card) return `<div class="card gap"></div>`;
@@ -243,7 +243,7 @@ function render() {
       ${state.sequence_rule ? " / 上級" : ""}</p>
     ${gateHtml()}
     <section class="panel">
-      <div class="market-label">場札${thinking}</div>
+      <div class="market-label">場札${hint ? `<span class="thinking">${hint}</span>` : ""}</div>
       <div class="market" id="market">${market}</div>
       ${controls}
     </section>

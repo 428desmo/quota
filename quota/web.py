@@ -31,6 +31,7 @@ class Table:
         self.notice_at: float | None = None
         self.gate_released = False
         self.ok_timeout = 3.0
+        self.left_handed = False
         self.refresh_hold: list | None = None
         self.refresh_acked: set[int] = set()
         self.refresh_notice_at: float | None = None
@@ -74,8 +75,10 @@ class Table:
             "sequence": bool(body.get("sequence")),
             "item_set": theme.id,
             "ok_timeout": timeout,
+            "left_handed": bool(body.get("left_handed")),
         }
         self.ok_timeout = timeout
+        self.left_handed = bool(body.get("left_handed"))
         self.seat_owner = {i: client_id for i, p in enumerate(self.game.players) if p.is_human}
         self.seat_acked = set()
         self.notice_at = None
@@ -176,6 +179,7 @@ class Table:
             "finished": game.finished,
             "end_reason": game.end_reason,
             "sequence_rule": game.config.sequence_rule,
+            "left_handed": self.left_handed,
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
             "current_human": game.players[game.current].is_human and not game.finished and not self._settling() and not self._refresh_waiting(),
