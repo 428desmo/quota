@@ -60,7 +60,6 @@ button.primary { background: #111; color: #fff; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 #start .tight { flex-wrap: nowrap; }
 #start .short { width: 6.5em; padding: 6px 8px; }
-#start .names input { width: 8em; }
 #start .submit { text-align: center; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 :root { --card-scale: 1; --card-w: 76px; --card-h: 96px; }
