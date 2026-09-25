@@ -437,6 +437,7 @@ function applyState(next) {
   const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
   const lifted = fresh ? liftMarketCards(event.cards) : [];
   if (event) seenEvent = event.n;
+  if (fresh) pendingBonus = 0;
   let pause = null;
   if (fresh && event.kind === "take") {
     const aceIds = event.cards.filter((card) => card.rank === 1).map((card) => String(card.id));
