@@ -699,7 +699,7 @@ function applyState(next) {
     return;
   }
   const event = next.event;
-  const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
+  const fresh = state && state.phase === "playing" && event && event.n !== seenEvent && event.cards && event.cards.length;
   if (fresh && pendingMarket) {
     const missing = event.cards.some((card) => !document.querySelector(`#market [data-id="${card.id}"]`));
     const held = pendingMarket.some((card) => event.cards.some((item) => item.id === card.id));
@@ -979,6 +979,7 @@ function clientId() {
 async function post(url, body) {
   const response = await fetch(url, {
     method: "POST",
+    cache: "no-store",
     headers: { "Content-Type": "application/json", "X-Quota-Client": clientId() },
     body: JSON.stringify(body),
   });
@@ -986,13 +987,14 @@ async function post(url, body) {
 }
 
 async function poll() {
-  const response = await fetch("/api/state", { headers: { "X-Quota-Client": clientId() } });
+  const response = await fetch("/api/state", { cache: "no-store", headers: { "X-Quota-Client": clientId() } });
   const next = await response.json();
   noteTurn(next);
   const gate = JSON.stringify(next.score_gate || null);
   const refresh = JSON.stringify(next.refresh_gate || null);
-  const presence = JSON.stringify({ you: next.you, observers: next.observers, your_turn: next.your_turn, cover: next.cover, tables: next.tables, seats: next.seats, names: (next.players || []).map((p) => p.name) });
-  const prevPresence = JSON.stringify({ you: state && state.you, observers: state && state.observers, your_turn: state && state.your_turn, cover: state && state.cover, tables: state && state.tables, seats: state && state.seats, names: state && state.players ? state.players.map((p) => p.name) : [] });
+  const namesOf = (snap) => Array.isArray(snap && snap.players) ? snap.players.map((p) => p.name) : [];
+  const presence = JSON.stringify({ you: next.you, observers: next.observers, your_turn: next.your_turn, cover: next.cover, tables: next.tables, seats: next.seats, names: namesOf(next) });
+  const prevPresence = JSON.stringify({ you: state && state.you, observers: state && state.observers, your_turn: state && state.your_turn, cover: state && state.cover, tables: state && state.tables, seats: state && state.seats, names: namesOf(state) });
   const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null) || refresh !== JSON.stringify(state.refresh_gate || null) || presence !== prevPresence;
   if (changed) applyState(next);
   else paintClock();
