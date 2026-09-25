@@ -22,6 +22,9 @@ let pendingBonusSeat = null;
 let bonusNote = null;
 let titleCheer = null;
 let guide = null;
+let coverSeen = 0;
+let coverUntil = 0;
+let coverText = "";
 
 function cardHtml(card, z = 1, marks = null, compact = false) {
   const id = String(card.id);
@@ -174,10 +177,9 @@ function savedOptions() {
 }
 
 function render() {
-  if (!state || state.phase === "lobby") {
+  if (!state || state.phase === "hall") {
     const saved = savedOptions() || {};
     const players = String(saved.players || 3);
-    const humans = String(saved.humans ?? 3);
     const itemSet = saved.item_set || "";
     app.innerHTML = `
       <header class="hero">
@@ -205,11 +207,6 @@ function render() {
               ${[3, 4].map((n) => `<option value="${n}" ${String(n) === players ? "selected" : ""}>${n}</option>`).join("")}
             </select>
           </label>
-          <label>人間の席
-            <select name="humans">
-              ${[4, 3, 2, 1, 0].map((n) => `<option ${String(n) === humans ? "selected" : ""}>${n}</option>`).join("")}
-            </select>
-          </label>
         </div>
         <div class="row">
           <label>あなたの名前
@@ -222,6 +219,9 @@ function render() {
           </label>
           <label>OKタイムアウト（秒）
             <input class="short" name="ok_timeout" type="number" min="0" step="0.5" value="${saved.ok_timeout ?? 3}">
+          </label>
+          <label>手番タイムアウト（秒）
+            <input class="short" name="turn_timeout" type="number" min="1" step="1" value="${saved.turn_timeout ?? 30}">
           </label>
         </div>
         <div class="row tight">
@@ -237,9 +237,15 @@ function render() {
             <input name="left_handed" type="checkbox" ${saved.left_handed ? "checked" : ""}> ボタンを左に置く
           </label>
         </div>
-        <p class="submit"><button class="primary" type="submit">スタート</button></p>
-        <p class="note">この画面を開いた端末が同じ盤面を共有します。同じネットワークの他の端末からも操作できます。</p>
-      </form>`;
+        <p class="submit"><button class="primary" type="submit">卓を新設</button></p>
+      </form>
+      <section class="panel">
+        <h2>参加できる卓</h2>
+        ${(state.tables || []).length ? (state.tables || []).map((table) => `<div class="row table-line">
+          <span>${escapeText(table.leader)}の卓　${table.status}　${table.seated}/${table.players}人${table.observers ? `　観戦${table.observers}` : ""}</span>
+          <button type="button" data-join="${escapeAttr(table.id)}">${table.status === "募集中" && table.seated < table.players ? "参加" : "観戦"}</button>
+        </div>`).join("") : `<p class="note">いま開ける卓はありません。</p>`}
+      </section>`;
     app.querySelectorAll("[data-guide]").forEach((button) => {
       button.onclick = () => {
         guide = button.dataset.guide;
@@ -256,22 +262,32 @@ function render() {
       event.preventDefault();
       const data = new FormData(event.target);
       const players = Number(data.get("players"));
-      let humans = Number(data.get("humans"));
-      if (humans > players) humans = players;
       const name = String(data.get("player_name") || "");
       rememberName(name);
-      await post("/api/start", {
+      await post("/api/table", {
         players,
-        humans,
         name,
         seed: data.get("seed"),
         sequence: data.get("sequence") === "on",
         title: data.get("title") === "on",
         item_set: data.get("item_set"),
         ok_timeout: Number(data.get("ok_timeout")),
+        turn_timeout: Number(data.get("turn_timeout")),
         left_handed: data.get("left_handed") === "on",
       });
     };
+    app.querySelectorAll("[data-join]").forEach((button) => {
+      button.onclick = () => {
+        const name = String(new FormData(form).get("player_name") || "");
+        rememberName(name);
+        post("/api/join", { table: button.dataset.join, name });
+      };
+    });
+    return;
+  }
+
+  if (state.phase === "recruiting") {
+    renderRecruiting();
     return;
   }
 
@@ -361,18 +377,12 @@ function render() {
     ${seats}
     ${state.finished && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
-    ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
+    ${coverHtml()}
+    <button type="button" id="leave">ゲームから抜ける</button>
     `;
 
-  const join = app.querySelector("#join");
-  if (join) join.onsubmit = async (event) => {
-    event.preventDefault();
-    const name = String(new FormData(event.target).get("player_name") || "");
-    rememberName(name);
-    await post("/api/join", { name });
-  };
-  const restart = app.querySelector("#restart");
-  if (restart) restart.onclick = () => post("/api/reset", {});
+  const leave = app.querySelector("#leave");
+  if (leave) leave.onclick = () => post("/api/leave", {});
   app.querySelectorAll(".pick").forEach((button) => {
     button.onclick = () => onPick(Number(button.parentElement.dataset.id));
   });
@@ -383,12 +393,44 @@ function render() {
   const ack = app.querySelector("#ack");
   if (ack) ack.onclick = () => post("/api/ack", {});
   const ok = app.querySelector("#ok");
-  if (ok) ok.onclick = () => post("/api/reset", {});
+  if (ok) ok.onclick = () => post("/api/again", {});
   if (!recordPrimed && state.phase === "playing") {
     document.querySelectorAll(".line.record .card").forEach((card) => recordSeen.add(card.dataset.id));
     recordPrimed = true;
   }
   maybeTally();
+}
+
+function renderRecruiting() {
+  const you = state.you || {};
+  const seats = state.seats || [];
+  const open = Math.max(0, state.players - seats.length);
+  app.innerHTML = `
+    <header class="hero">
+      <h1>
+        <span class="title-main"><span class="word">QUOTA</span></span>
+        <span class="sub">揃えて、達成。</span>
+      </h1>
+    </header>
+    <section class="panel">
+      <p>${state.players}人卓　参加 ${seats.length}人${open ? `　空き ${open}` : ""}</p>
+      <ul class="roster">
+        ${seats.map((seat) => `<li>${escapeText(seat.name)}${seat.leader ? "（リーダー）" : ""}</li>`).join("")}
+        ${open ? `<li class="note">参加待ち</li>` : ""}
+      </ul>
+      ${watcherHtml()}
+      ${you.leader ? `<p class="submit"><button class="primary" type="button" id="begin">ゲーム開始</button></p>` : `<p class="note">リーダーの開始を待っています。</p>`}
+    </section>
+    <button type="button" id="leave">ゲームから抜ける</button>`;
+  const begin = app.querySelector("#begin");
+  if (begin) begin.onclick = () => post("/api/start", {});
+  const leave = app.querySelector("#leave");
+  if (leave) leave.onclick = () => post("/api/leave", {});
+}
+
+function coverHtml() {
+  if (!coverText || Date.now() >= coverUntil) return "";
+  return `<div class="rollover cpu-cover"><div class="panel"><p>${escapeText(coverText)}</p></div></div>`;
 }
 
 function watcherHtml() {
@@ -436,11 +478,11 @@ function showBonus(rank, seat) {
   const text = bonusLine(rank);
   if (!text) return;
   bonusNote = { text, until: Date.now() + 1000, seat };
-  if (state && state.phase !== "lobby") render();
+  if (state && state.phase !== "hall") render();
   setTimeout(() => {
     if (!bonusNote || Date.now() < bonusNote.until) return;
     bonusNote = null;
-    if (state && state.phase !== "lobby") render();
+    if (state && state.phase !== "hall") render();
   }, 1000);
 }
 
@@ -550,7 +592,7 @@ function flyLifted(lifted, onDone) {
 }
 
 function hopParked(ids) {
-  if (!state || state.phase === "lobby") return;
+  if (!state || state.phase !== "playing") return;
   const lifted = [];
   for (const id of ids) {
     const el = document.querySelector(`.line.order [data-id="${id}"]`);
@@ -572,7 +614,44 @@ function hopParked(ids) {
   });
 }
 
+function noteCover(next) {
+  const cover = next && next.cover;
+  if (!cover || cover.n === coverSeen) return;
+  coverSeen = cover.n;
+  coverText = cover.text;
+  coverUntil = Date.now() + 1000;
+  setTimeout(() => {
+    if (Date.now() >= coverUntil && state) render();
+  }, 1000);
+}
+
 function applyState(next) {
+  noteCover(next);
+  if (!next || next.phase === "hall" || next.phase === "recruiting") {
+    state = next;
+    if (next && next.phase !== "playing") {
+      scoreAnim.clear();
+      marketSlots = [];
+      pendingMarket = null;
+      marksTaken.clear();
+      tallyScores.clear();
+      tally = null;
+      recordSeen.clear();
+      recordPrimed = false;
+      gathering = false;
+      bonusCashed = false;
+      lockedScore.clear();
+      inFlight = new Set();
+      hiding = new Set();
+      parked = new Set();
+      pendingBonus = 0;
+      pendingBonusSeat = null;
+      bonusNote = null;
+      titleCheer = null;
+    }
+    render();
+    return;
+  }
   const event = next.event;
   const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
   if (fresh && pendingMarket) {
@@ -613,7 +692,7 @@ function applyState(next) {
   noteScores(next);
   layoutMarket(next);
   state = next;
-  if (state.phase === "lobby") {
+  if (state.phase === "hall" || state.phase === "recruiting") {
     scoreAnim.clear();
     marketSlots = [];
     pendingMarket = null;
@@ -655,7 +734,7 @@ function finishSeat(index) {
 }
 
 function showTitle(index, titles, n) {
-  if (!state || state.phase === "lobby") return;
+  if (!state || state.phase !== "playing") return;
   if (n >= titles.length) {
     titleCheer = null;
     scoreSeat(index + 1);
@@ -671,7 +750,7 @@ function showTitle(index, titles, n) {
   let step = 0;
   render();
   const tick = () => {
-    if (!state || state.phase === "lobby") return;
+    if (!state || state.phase !== "playing") return;
     step += 1;
     tallyScores.set(index, from + step);
     render();
@@ -690,7 +769,7 @@ function maybeTally() {
 }
 
 function scoreSeat(index) {
-  if (!state || state.phase === "lobby") return;
+  if (!state || state.phase !== "playing") return;
   if (index >= state.players.length) {
     tally = { phase: "done" };
     bonusCashed = true;
@@ -709,7 +788,7 @@ function scoreSeat(index) {
   let n = 0;
   const points = seat.querySelector(".points");
   const flyOne = () => {
-    if (!state || state.phase === "lobby") return;
+    if (!state || state.phase !== "playing") return;
     if (n >= dots.length) {
       gathering = false;
       finishSeat(index);
@@ -754,7 +833,7 @@ function layoutMarket(next) {
     pendingMarket = null;
     return;
   }
-  const sameTurn = state && state.phase === "playing" && next.phase !== "lobby" && state.turn_number === next.turn_number;
+  const sameTurn = state && state.phase === "playing" && next.phase !== "hall" && state.turn_number === next.turn_number;
   if (!sameTurn && marketSlots.length && (next.settling || inFlight.size || parked.size)) {
     pendingMarket = incoming;
     const byId = new Map(incoming.map((card) => [card.id, card]));
@@ -780,7 +859,7 @@ function flushMarket() {
   if (inFlight.size || parked.size || gathering) return;
   marketSlots = pendingMarket.map((card) => card);
   pendingMarket = null;
-  if (state && state.phase !== "lobby") render();
+  if (state && state.phase !== "hall") render();
 }
 
 function noteScores(next) {
@@ -827,7 +906,7 @@ function tickScores() {
     scoreTimer = 0;
     return;
   }
-  if (state && state.phase !== "lobby") render();
+  if (state && state.phase !== "hall") render();
 }
 
 function bundleContaining(cards, ids) {
@@ -865,8 +944,8 @@ async function poll() {
   const next = await response.json();
   const gate = JSON.stringify(next.score_gate || null);
   const refresh = JSON.stringify(next.refresh_gate || null);
-  const presence = JSON.stringify({ you: next.you, observers: next.observers, your_turn: next.your_turn, names: (next.players || []).map((p) => p.name) });
-  const prevPresence = JSON.stringify({ you: state && state.you, observers: state && state.observers, your_turn: state && state.your_turn, names: state && state.players ? state.players.map((p) => p.name) : [] });
+  const presence = JSON.stringify({ you: next.you, observers: next.observers, your_turn: next.your_turn, cover: next.cover, tables: next.tables, seats: next.seats, names: (next.players || []).map((p) => p.name) });
+  const prevPresence = JSON.stringify({ you: state && state.you, observers: state && state.observers, your_turn: state && state.your_turn, cover: state && state.cover, tables: state && state.tables, seats: state && state.seats, names: state && state.players ? state.players.map((p) => p.name) : [] });
   const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null) || refresh !== JSON.stringify(state.refresh_gate || null) || presence !== prevPresence;
   if (changed) applyState(next);
 }

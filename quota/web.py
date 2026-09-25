@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import threading
 import time
 from urllib.parse import quote
@@ -37,30 +38,75 @@ class Table:
         self.refresh_notice_at: float | None = None
         self.refresh_released = False
         self.observers: list[dict] = []
+        self.roster: list[dict] = []
+        self.capacity = 3
+        self.turn_timeout = 30.0
+        self.turn_deadline: float | None = None
+        self.cover: dict | None = None
+        self.cover_n = 0
+        self.idle_at = time.monotonic()
+        self.table_id = ""
+        self.seed = None
+        self.item_set_id = "trade"
 
-    def start(self, body: dict, client_id: str = "") -> None:
+    def touch(self) -> None:
+        self.idle_at = time.monotonic()
+
+    def open(self, body: dict, client_id: str) -> None:
         players = int(body.get("players", 3))
-        humans = int(body.get("humans", players))
-        if players not in (3, 4) or not 0 <= humans <= players:
-            raise ValueError("players must be 3 or 4, and humans within that")
-        timeout = body.get("ok_timeout", 3)
-        try:
-            timeout = float(timeout)
-        except (TypeError, ValueError):
-            raise ValueError("OKタイムアウトは0以上の秒数です") from None
-        if timeout < 0:
-            raise ValueError("OKタイムアウトは0以上の秒数です")
-        seed = body.get("seed")
+        if players not in (3, 4):
+            raise ValueError("人数は3か4です")
+        if not client_id:
+            raise ValueError("参加できません")
+        self.capacity = players
+        self.ok_timeout = _seconds(body.get("ok_timeout"), 3, minimum=0)
+        self.turn_timeout = _seconds(body.get("turn_timeout"), 30, minimum=1)
+        self.left_handed = bool(body.get("left_handed"))
+        self.seed = body.get("seed")
         theme = resolve_item_set(str(body.get("item_set") or "trade"))
-        names = _seat_names(body.get("name"), players, humans)
+        self.item_set_id = theme.id
+        self.last_options = {
+            "players": players,
+            "sequence": bool(body.get("sequence")),
+            "title": bool(body.get("title")),
+            "item_set": theme.id,
+            "ok_timeout": self.ok_timeout,
+            "turn_timeout": self.turn_timeout,
+            "left_handed": self.left_handed,
+        }
+        self.phase = "recruiting"
+        self.game = None
+        self.roster = [{
+            "client": client_id,
+            "name": _clean_name(body.get("name"), "あなた"),
+            "joined_at": time.monotonic(),
+        }]
+        self.observers = []
+        self.seat_owner = {}
+        self.touch()
+
+    def begin(self, client_id: str) -> None:
+        if self.phase != "recruiting":
+            raise ValueError("募集中ではありません")
+        if self.leader_id() != client_id:
+            raise ValueError("リーダーだけが開始できます")
+        if not self.roster:
+            raise ValueError("参加者がいません")
+        players = self.capacity
+        humans = len(self.roster)
+        names = [member["name"] for member in self.roster]
+        names += [f"CPU{i + 1}" for i in range(players - humans)]
+        theme = resolve_item_set(self.item_set_id)
+        seed = self.seed
+        self.seed = None
         self.game = Game.start(
             GameConfig(
                 num_players=players,
                 seed=None if seed in (None, "") else int(seed),
                 names=names,
                 human_seats=list(range(humans)),
-                sequence_rule=bool(body.get("sequence")),
-                title_rule=bool(body.get("title")),
+                sequence_rule=bool(self.last_options and self.last_options.get("sequence")),
+                title_rule=bool(self.last_options and self.last_options.get("title")),
                 item_set=theme.id,
             )
         )
@@ -69,19 +115,9 @@ class Table:
         self.event_n += 1
         self.hold_until = 0.0
         self.settling_seat = None
-        self.last_options = {
-            "players": players,
-            "humans": humans,
-            "sequence": bool(body.get("sequence")),
-            "title": bool(body.get("title")),
-            "item_set": theme.id,
-            "ok_timeout": timeout,
-            "left_handed": bool(body.get("left_handed")),
-        }
-        self.ok_timeout = timeout
-        self.left_handed = bool(body.get("left_handed"))
-        self.seat_owner = {0: client_id} if humans >= 1 and client_id else {}
-        self.observers = []
+        self.seat_owner = {i: self.roster[i]["client"] for i in range(humans)}
+        self.turn_deadline = None
+        self.touch()
         self.seat_acked = set()
         self.notice_at = None
         self.gate_released = False
@@ -90,9 +126,13 @@ class Table:
         self.refresh_notice_at = None
         self.refresh_released = False
 
-    def reset(self) -> None:
+    def again(self, client_id: str) -> None:
+        if self.phase != "finished":
+            raise ValueError("対局はまだ終わっていません")
+        if not any(member["client"] == client_id for member in self.roster):
+            raise ValueError("参加者ではありません")
         self.game = None
-        self.phase = "lobby"
+        self.phase = "recruiting"
         self.event = None
         self.event_n += 1
         self.hold_until = 0.0
@@ -105,27 +145,60 @@ class Table:
         self.refresh_acked = set()
         self.refresh_notice_at = None
         self.refresh_released = False
-        self.observers = []
+        self.turn_deadline = None
+        self.touch()
 
-    def join(self, body: dict, client_id: str = "") -> None:
+    def admit(self, client_id: str, name: str) -> None:
         if not client_id:
             raise ValueError("参加できません")
-        game = self._require_playing()
-        name = _clean_name(body.get("name"), "あなた")
-        for seat, owner in self.seat_owner.items():
-            if owner == client_id:
-                game.players[seat].name = name
+        name = _clean_name(name, "あなた")
+        for member in self.roster:
+            if member["client"] == client_id:
+                member["name"] = name
+                self.touch()
                 return
         for obs in self.observers:
             if obs["client"] == client_id:
                 obs["name"] = name
+                self.touch()
                 return
-        for i, player in enumerate(game.players):
-            if player.is_human and i not in self.seat_owner:
-                self.seat_owner[i] = client_id
-                player.name = name
-                return
-        self.observers.append({"client": client_id, "name": name})
+        if self.phase == "recruiting" and len(self.roster) < self.capacity:
+            self.roster.append({"client": client_id, "name": name, "joined_at": time.monotonic()})
+        else:
+            self.observers.append({"client": client_id, "name": name})
+        self.touch()
+
+    def leave(self, client_id: str) -> None:
+        self.observers = [obs for obs in self.observers if obs["client"] != client_id]
+        member = next((item for item in self.roster if item["client"] == client_id), None)
+        if member is None:
+            self.touch()
+            return
+        self.roster = [item for item in self.roster if item["client"] != client_id]
+        seat = next((i for i, owner in self.seat_owner.items() if owner == client_id), None)
+        self.seat_owner = {i: owner for i, owner in self.seat_owner.items() if owner != client_id}
+        game = self.game
+        if game is not None and seat is not None and self.phase in ("playing", "finished"):
+            player = game.players[seat]
+            player.is_human = False
+            self._announce(f"{player.name}が抜けたので、CPUが代わりにプレイしました")
+            self._touch_gate()
+            self._touch_refresh()
+            if (
+                self.phase == "playing"
+                and not game.finished
+                and game.current == seat
+                and not self._settling()
+                and not self._refresh_waiting()
+            ):
+                self.turn_deadline = None
+                self._apply(choose_action(game))
+        self.touch()
+
+    def leader_id(self) -> str | None:
+        if not self.roster:
+            return None
+        return min(self.roster, key=lambda member: member["joined_at"])["client"]
 
     def act(self, body: dict, client_id: str = "") -> None:
         if self._refresh_waiting():
@@ -149,6 +222,8 @@ class Table:
             raise ValueError("unknown action")
         if self.seat_owner.get(game.current) != client_id:
             raise ValueError("あなたの手番ではありません")
+        self.turn_deadline = None
+        self.touch()
         self._apply(action)
 
     def ack(self, client_id: str) -> None:
@@ -164,6 +239,7 @@ class Table:
         if not client_id or not mine:
             raise ValueError("参加者ではありません")
         acked.add(mine[0])
+        self.touch()
         if self._refresh_waiting():
             self._touch_refresh()
         else:
@@ -175,16 +251,32 @@ class Table:
             return
         if game.players[game.current].is_human:
             return
+        self.turn_deadline = None
+        self._apply(choose_action(game))
+
+    def step_timeout(self) -> None:
+        game = self.game
+        if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
+            self.turn_deadline = None
+            return
+        player = game.players[game.current]
+        if not player.is_human:
+            self.turn_deadline = None
+            return
+        now = time.monotonic()
+        if self.turn_deadline is None:
+            self.turn_deadline = now + self.turn_timeout
+            return
+        if now < self.turn_deadline:
+            return
+        self.turn_deadline = None
+        self._announce(f"{player.name}が応答しないので、CPUが代わりにプレイしました")
+        self.touch()
         self._apply(choose_action(game))
 
     def snapshot(self, client_id: str = "") -> dict:
-        if self.game is None:
-            return {
-                "phase": "lobby",
-                "event_n": self.event_n,
-                "event": self.event,
-                "item_sets": _item_set_choices(),
-            }
+        if self.phase == "recruiting" or self.game is None:
+            return self._recruiting_view(client_id)
         game = self.game
         theme = resolve_item_set(game.config.item_set)
         view = {
@@ -211,6 +303,8 @@ class Table:
             "your_turn": self._your_turn(client_id),
             "you": self._you(client_id),
             "observers": [obs["name"] for obs in self.observers],
+            "cover": self._cover_view(),
+            "table_id": self.table_id,
             "ranking": game.ranking() if game.finished else [],
             "score_gate": self._score_gate(client_id),
             "refresh_gate": self._refresh_gate(client_id),
@@ -342,7 +436,12 @@ class Table:
     def _you(self, client_id: str) -> dict:
         seat = next((i for i, owner in self.seat_owner.items() if owner == client_id), None)
         observer = any(obs["client"] == client_id for obs in self.observers)
-        return {"seat": seat, "observer": observer, "joined": seat is not None or observer}
+        return {
+            "seat": seat,
+            "observer": observer,
+            "joined": seat is not None or observer,
+            "leader": client_id == self.leader_id() and seat is not None,
+        }
 
     def _your_turn(self, client_id: str) -> bool:
         game = self.game
@@ -366,21 +465,72 @@ class Table:
         }
 
 
+    def _announce(self, text: str) -> None:
+        self.cover_n += 1
+        self.cover = {"n": self.cover_n, "text": text, "until": time.monotonic() + 1.5}
+
+    def _cover_view(self) -> dict | None:
+        if self.cover is None or time.monotonic() >= self.cover["until"]:
+            return None
+        return {"n": self.cover["n"], "text": self.cover["text"]}
+
+    def _recruiting_view(self, client_id: str) -> dict:
+        leader = self.leader_id()
+        seat = next((i for i, member in enumerate(self.roster) if member["client"] == client_id), None)
+        observer = any(obs["client"] == client_id for obs in self.observers)
+        return {
+            "phase": "recruiting",
+            "table_id": self.table_id,
+            "event_n": self.event_n,
+            "players": self.capacity,
+            "seats": [
+                {"name": member["name"], "leader": member["client"] == leader}
+                for member in self.roster
+            ],
+            "observers": [obs["name"] for obs in self.observers],
+            "you": {
+                "seat": seat,
+                "observer": observer,
+                "joined": True,
+                "leader": client_id == leader and seat is not None,
+            },
+            "item_sets": _item_set_choices(),
+            "sequence_rule": bool(self.last_options and self.last_options.get("sequence")),
+            "title_rule": bool(self.last_options and self.last_options.get("title")),
+            "left_handed": self.left_handed,
+            "ok_timeout": self.ok_timeout,
+            "turn_timeout": self.turn_timeout,
+        }
+
+    def summary(self) -> dict:
+        if self.phase == "recruiting" or self.game is None:
+            seated = len(self.roster)
+        else:
+            seated = sum(1 for player in self.game.players if player.is_human)
+        leader = next((member["name"] for member in self.roster if member["client"] == self.leader_id()), "")
+        return {
+            "id": self.table_id,
+            "leader": leader,
+            "players": self.capacity,
+            "seated": seated,
+            "status": "募集中" if self.phase == "recruiting" else "対局中",
+            "observers": len(self.observers),
+        }
+
+
 def _clean_name(raw, fallback: str) -> str:
     text = " ".join(str(raw or "").split())[:24]
     return text or fallback
 
 
-def _seat_names(host_name, players: int, humans: int) -> list[str]:
-    names = []
-    for i in range(players):
-        if not i < humans:
-            names.append(f"CPU{i - humans + 1}")
-        elif i == 0:
-            names.append(_clean_name(host_name, "あなた"))
-        else:
-            names.append("参加待ち")
-    return names
+def _seconds(raw, default: float, minimum: float) -> float:
+    try:
+        value = float(default if raw in (None, "") else raw)
+    except (TypeError, ValueError):
+        raise ValueError("秒数で指定してください") from None
+    if value < minimum:
+        raise ValueError("秒数で指定してください")
+    return value
 
 
 def _item_set_choices() -> list[dict]:
@@ -404,28 +554,122 @@ def _card(card, theme) -> dict:
 
 
 def _options_cookie() -> str | None:
-    options = TABLE.last_options
+    options = HALL.last_options
     if not options:
         return None
     raw = quote(json.dumps(options, separators=(",", ":")))
     return f"quota_options={raw}; Path=/; Max-Age=31536000; SameSite=Lax"
 
 
-TABLE = Table()
+class Hall:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.tables: dict[str, Table] = {}
+        self.where: dict[str, str] = {}
+        self.last_options: dict | None = None
+
+    def sweep(self) -> None:
+        now = time.monotonic()
+        dead = [tid for tid, table in self.tables.items() if now - table.idle_at >= 180]
+        for tid in dead:
+            self.tables.pop(tid, None)
+            for client, loc in list(self.where.items()):
+                if loc == tid:
+                    del self.where[client]
+
+    def _table(self, client: str) -> Table | None:
+        self.sweep()
+        tid = self.where.get(client)
+        table = self.tables.get(tid) if tid else None
+        if tid and table is None:
+            self.where.pop(client, None)
+        return table
+
+    def _require(self, client: str) -> Table:
+        table = self._table(client)
+        if table is None:
+            raise ValueError("卓に入っていません")
+        return table
+
+    def _detach(self, client: str) -> None:
+        current = self.tables.get(self.where.get(client, ""))
+        if current is not None:
+            current.leave(client)
+        self.where.pop(client, None)
+
+    def snapshot(self, client: str) -> dict:
+        table = self._table(client)
+        if table is None:
+            return {
+                "phase": "hall",
+                "item_sets": _item_set_choices(),
+                "tables": [item.summary() for item in self.tables.values()],
+            }
+        return table.snapshot(client)
+
+    def create(self, body: dict, client: str) -> None:
+        if not client:
+            raise ValueError("参加できません")
+        self._detach(client)
+        table = Table()
+        table.table_id = secrets.token_hex(3)
+        table.open(body, client)
+        self.tables[table.table_id] = table
+        self.where[client] = table.table_id
+        self.last_options = dict(table.last_options or {})
+
+    def join(self, body: dict, client: str) -> None:
+        if not client:
+            raise ValueError("参加できません")
+        self.sweep()
+        table = self.tables.get(str(body.get("table") or ""))
+        if table is None:
+            raise ValueError("その卓はありません")
+        self._detach(client)
+        table.admit(client, body.get("name"))
+        self.where[client] = table.table_id
+
+    def leave(self, client: str) -> None:
+        table = self._table(client)
+        if table is None:
+            return
+        table.leave(client)
+        self.where.pop(client, None)
+
+    def begin(self, client: str) -> None:
+        self._require(client).begin(client)
+
+    def act(self, body: dict, client: str) -> None:
+        self._require(client).act(body, client)
+
+    def ack(self, client: str) -> None:
+        self._require(client).ack(client)
+
+    def again(self, client: str) -> None:
+        self._require(client).again(client)
+
+    def step(self) -> None:
+        self.sweep()
+        for table in list(self.tables.values()):
+            table.step_cpu()
+            table.step_timeout()
+
+
+HALL = Hall()
 
 
 def _cpu_loop() -> None:
     while True:
         time.sleep(0.7)
-        with TABLE.lock:
-            TABLE.step_cpu()
+        with HALL.lock:
+            HALL.step()
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/api/state":
-            with TABLE.lock:
-                payload = TABLE.snapshot(self.headers.get("X-Quota-Client", ""))
+            with HALL.lock:
+                payload = HALL.snapshot(self.headers.get("X-Quota-Client", ""))
             self._json(payload)
             return
         rel = "index.html" if self.path in ("/", "") else self.path.lstrip("/")
@@ -451,21 +695,25 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body = json.loads(raw.decode() or "{}")
             client = self.headers.get("X-Quota-Client", "")
-            with TABLE.lock:
-                if self.path == "/api/start":
-                    TABLE.start(body, client)
+            with HALL.lock:
+                if self.path == "/api/table":
+                    HALL.create(body, client)
+                elif self.path == "/api/start":
+                    HALL.begin(client)
                 elif self.path == "/api/action":
-                    TABLE.act(body, client)
+                    HALL.act(body, client)
                 elif self.path == "/api/join":
-                    TABLE.join(body, client)
+                    HALL.join(body, client)
+                elif self.path == "/api/leave":
+                    HALL.leave(client)
                 elif self.path == "/api/ack":
-                    TABLE.ack(client)
-                elif self.path == "/api/reset":
-                    TABLE.reset()
+                    HALL.ack(client)
+                elif self.path == "/api/again":
+                    HALL.again(client)
                 else:
                     self.send_error(404)
                     return
-                payload = TABLE.snapshot(client)
+                payload = HALL.snapshot(client)
             self._json(payload)
         except (ValueError, KeyError, json.JSONDecodeError) as exc:
             self._json({"error": str(exc)}, status=400)
