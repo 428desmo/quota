@@ -103,6 +103,7 @@ class Table:
             "event": self.event,
             "deck_count": len(game.deck),
             "turn_number": game.turn_number,
+            "player_count": len(game.players),
             "no_gain_streak": game.no_gain_streak,
             "stall_flag": game.stall_flag,
             "stall_count": 1 if game.stall_flag else 0,
@@ -162,13 +163,21 @@ class Table:
         else:
             kind = "pass"
             cards = []
+        turn_before = game.turn_number
         game.step(action)
         self.event_n += 1
         self.event = {"n": self.event_n, "kind": kind, "seat": seat, "cards": cards}
+        ended = game.turn_number != turn_before or game.finished
         achieved = {c.id for c in game.players[seat].achieved}
-        if any(card["id"] in achieved for card in cards):
+        filed = any(card["id"] in achieved for card in cards)
+        delay = 0.0
+        if filed:
+            delay = 1.7 if kind == "take" else 2.1
+        elif ended and cards:
+            delay = 0.7
+        if delay:
             self.settling_seat = seat
-            self.hold_until = time.monotonic() + (0.75 if kind == "take" else 1.05)
+            self.hold_until = time.monotonic() + delay
         if game.finished:
             self.phase = "finished"
 

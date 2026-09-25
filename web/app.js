@@ -4,32 +4,64 @@ let seenEvent = 0;
 const scoreAnim = new Map();
 let scoreTimer = 0;
 let marketSlots = [];
+let pendingMarket = null;
+const banks = new Map();
+const marksTaken = new Set();
+const recordSeen = new Set();
+let recordPrimed = false;
+let gathering = false;
+let bonusCashed = false;
+const lockedScore = new Map();
 
 let hiding = new Set();
 let inFlight = new Set();
 let parked = new Set();
 
-function cardHtml(card, z = 1, marks = null) {
+function cardHtml(card, z = 1, marks = null, compact = false) {
   const id = String(card.id);
   const hidden = hiding.has(id) || inFlight.has(id) ? "incoming" : "";
+  const fresh = compact && recordPrimed && !recordSeen.has(id) ? " just-in" : "";
+  if (compact && recordPrimed) recordSeen.add(id);
   const wide = card.face && [...card.face].length > 2 ? " wide" : "";
   const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
-  const dots = marks
-    ? [...Array(marks.yellow || 0).fill("🟡"), ...Array(marks.purple || 0).fill("🟣")]
+  const show = marks && !marksTaken.has(id) ? marks : null;
+  const dots = show
+    ? [...Array(show.yellow || 0).fill("🟡"), ...Array(show.purple || 0).fill("🟣")]
     : [];
   const mark = dots.length ? `<div class="marks">${dots.map((dot) => `<span>${dot}</span>`).join("")}</div>` : "";
-  return `<div class="card ${card.joker ? "joker" : ""} ${hidden}" data-id="${card.id}" style="z-index:${z}">
+  return `<div class="card ${card.joker ? "joker" : ""} ${hidden}${fresh}" data-id="${card.id}" style="z-index:${z}">
     ${rank}
     ${mark}
     <div class="emoji">${card.emoji}</div>
-    ${goodsHtml(card)}
+    ${goodsHtml(card, compact)}
   </div>`;
 }
 
-function goodsHtml(card) {
+function goodsHtml(card, compact = false) {
   const n = [...card.goods].length;
   const scale = n >= 5 ? 0.168 : n === 4 ? 0.2 : 0.24;
-  return `<div class="goods" style="font-size:calc(var(--card-w) * ${scale})">${card.goods}</div>`;
+  const width = compact ? "var(--card-w) * 0.68" : "var(--card-w)";
+  return `<div class="goods" style="font-size:calc((${width}) * ${scale})">${card.goods}</div>`;
+}
+
+function baseScore(player) {
+  let total = 0;
+  let index = 0;
+  const cards = player && player.achieved ? player.achieved : [];
+  while (index < cards.length) {
+    const rank = cards[index].rank;
+    if (!rank) break;
+    total += rank;
+    index += rank;
+  }
+  return total;
+}
+
+function bankHtml(index) {
+  const bank = banks.get(index) || { yellow: 0, purple: 0 };
+  const dots = [...Array(bank.yellow).fill("🟡"), ...Array(bank.purple).fill("🟣")];
+  if (!dots.length) return "";
+  return `<span class="marker-bank">${dots.join("")}</span>`;
 }
 
 function deliveryMarks(cards, sequence) {
@@ -116,20 +148,18 @@ function render() {
     const order = orderCards.length
       ? orderCards.map((card, index) => cardHtml(card, index + 1)).join("")
       : "<span class='note'>ノルマなし</span>";
-    const need = player.quota ? `あと${player.need}` : "";
     const marks = deliveryMarks(player.achieved, state.sequence_rule);
     const recordRows = achievedRows(recorded);
     if (!recordRows.length) recordRows.push([]);
     const done = recordRows.map((row, rowIndex) => {
-      const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)))).join("");
+      const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)), true)).join("");
       return `<div class="line record" style="z-index:${rowIndex + 1}">${cards}</div>`;
     }).join("");
-    const score = scoreBits(index, player.score);
-    const seq = state.sequence_rule ? ` / 並び順 ${player.sequence_bonus}` : "";
+    const score = scoreBits(index, baseScore(player));
     const alt = index % 2 ? " alt" : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === focus && !state.finished ? "▶ " : ""}${player.name}</strong>
-        <span>${score.plus}<span class="points">${score.points}</span>点${seq} / 達成 ${player.achieve_count}${need ? ` / ${need}` : ""}</span></div>
+        <span>${score.plus}<span class="points">${score.points}</span>点${bankHtml(index)}</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>
         <div class="band-main"><div class="line order">${order}</div></div>
@@ -180,8 +210,8 @@ function render() {
       <h1>Quota</h1>
       ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
     </div>
-    <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count} / 連続パス ${state.no_gain_streak}
-      / 膠着状態 ${state.stall_count}
+    <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count}
+      / 膠着状態 ${state.stall_count} / 連続パス ${state.no_gain_streak}/${state.player_count}
       ${state.sequence_rule ? " / 上級" : ""}</p>
     <section class="panel">
       <div class="market-label">場札</div>
@@ -189,7 +219,7 @@ function render() {
       ${controls}
     </section>
     ${seats}
-    ${state.finished ? finishHtml() : ""}`;
+    ${state.finished && bonusCashed && !scoreAnim.size ? finishHtml() : ""}`;
 
   const restart = app.querySelector("#restart");
   if (restart) restart.onclick = () => post("/api/reset", {});
@@ -202,6 +232,12 @@ function render() {
   if (abandon) abandon.onclick = () => post("/api/action", { kind: "abandon" });
   const ok = app.querySelector("#ok");
   if (ok) ok.onclick = () => post("/api/reset", {});
+  if (!recordPrimed && state.phase === "playing") {
+    document.querySelectorAll(".line.record .card").forEach((card) => recordSeen.add(card.dataset.id));
+    recordPrimed = true;
+  }
+  queueGather();
+  maybeCash();
 }
 
 function finishHtml() {
@@ -262,7 +298,7 @@ function achievedRows(cards) {
   if (!cards.length) return [];
   const width = app.clientWidth || 900;
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-w")) || 76;
-  const step = cardW / 2;
+  const step = cardW * 0.68 / 2;
   const perRow = Math.max(1, Math.floor((width - 48) / step));
   const rows = [];
   for (let i = 0; i < cards.length; i += perRow) rows.push(cards.slice(i, i + perRow));
@@ -323,7 +359,11 @@ function hopParked(ids) {
     inFlight.add(id);
   }
   render();
-  flyLifted(lifted);
+  flyLifted(lifted, () => {
+    flushMarket();
+    queueGather();
+    maybeCash();
+  });
 }
 
 function applyState(next) {
@@ -355,6 +395,14 @@ function applyState(next) {
   if (state.phase === "lobby") {
     scoreAnim.clear();
     marketSlots = [];
+    pendingMarket = null;
+    banks.clear();
+    marksTaken.clear();
+    recordSeen.clear();
+    recordPrimed = false;
+    gathering = false;
+    bonusCashed = false;
+    lockedScore.clear();
     inFlight = new Set();
     hiding = new Set();
     parked = new Set();
@@ -362,39 +410,128 @@ function applyState(next) {
   render();
   hiding = new Set();
   const afterFlight = () => {
-    if (!pause) return;
-    setTimeout(() => hopParked(pause.ids.filter((id) => parked.has(id))), pause.ms);
+    if (pause) {
+      setTimeout(() => hopParked(pause.ids.filter((id) => parked.has(id))), pause.ms);
+      return;
+    }
+    flushMarket();
+    queueGather();
+    maybeCash();
   };
   if (lifted.length) flyLifted(lifted, afterFlight);
   else afterFlight();
+  if (!next.settling && !inFlight.size && !parked.size) flushMarket();
+}
+
+function queueGather() {
+  if (gathering) return;
+  const dots = [...document.querySelectorAll(".line.record .marks span")];
+  if (!dots.length) return;
+  gathering = true;
+  let left = dots.length;
+  const gained = new Map();
+  for (const dot of dots) {
+    const card = dot.closest(".card");
+    const seat = dot.closest("[data-seat]");
+    const seatIndex = seat ? Number(seat.dataset.seat) : 0;
+    const kind = dot.textContent === "🟣" ? "purple" : "yellow";
+    const box = gained.get(seatIndex) || { yellow: 0, purple: 0, ids: [] };
+    box[kind] += 1;
+    if (card) box.ids.push(card.dataset.id);
+    gained.set(seatIndex, box);
+    const from = dot.getBoundingClientRect();
+    const park = seat && (seat.querySelector(".marker-bank") || seat.querySelector(".points"));
+    const ghost = document.createElement("span");
+    ghost.className = "gain-dot";
+    ghost.textContent = dot.textContent;
+    ghost.style.left = `${from.left}px`;
+    ghost.style.top = `${from.top}px`;
+    document.body.appendChild(ghost);
+    const finish = () => {
+      ghost.remove();
+      left -= 1;
+      if (left > 0) return;
+      for (const [index, box] of gained) {
+        const banked = banks.get(index) || { yellow: 0, purple: 0 };
+        banked.yellow += box.yellow;
+        banked.purple += box.purple;
+        banks.set(index, banked);
+        box.ids.forEach((id) => marksTaken.add(id));
+      }
+      gathering = false;
+      render();
+      flushMarket();
+      maybeCash();
+    };
+    requestAnimationFrame(() => {
+      const target = park ? park.getBoundingClientRect() : from;
+      ghost.style.left = `${target.left}px`;
+      ghost.style.top = `${target.top}px`;
+      setTimeout(finish, 450);
+    });
+  }
+}
+
+function maybeCash() {
+  if (!state || !state.finished || bonusCashed || gathering) return;
+  if (state.settling || inFlight.size || parked.size) return;
+  if (document.querySelector(".line.record .marks span")) {
+    queueGather();
+    return;
+  }
+  bonusCashed = true;
+  state.players.forEach((player, index) => {
+    const bank = banks.get(index) || { yellow: 0, purple: 0 };
+    const extra = bank.yellow + bank.purple;
+    banks.set(index, { yellow: 0, purple: 0 });
+    if (!extra) return;
+    const from = baseScore(player);
+    scoreAnim.set(index, { from, to: from + extra, at: Date.now() });
+  });
+  if (scoreAnim.size && !scoreTimer) scoreTimer = setInterval(tickScores, 80);
+  render();
 }
 
 function layoutMarket(next) {
-  const sameTurn = state && state.phase === "playing" && next.phase === "playing" && state.turn_number === next.turn_number;
-  if (!sameTurn) {
-    marketSlots = (next.market || []).map((card) => card);
+  const incoming = next.market || [];
+  const sameTurn = state && state.phase === "playing" && next.phase !== "lobby" && state.turn_number === next.turn_number;
+  if (!sameTurn && marketSlots.length && (next.settling || inFlight.size || parked.size)) {
+    pendingMarket = incoming;
+    const byId = new Map(incoming.map((card) => [card.id, card]));
+    marketSlots = marketSlots.map((slot) => (slot && byId.has(slot.id) ? byId.get(slot.id) : slot ? null : null));
     return;
   }
-  const byId = new Map((next.market || []).map((card) => [card.id, card]));
+  if (!sameTurn) {
+    marketSlots = incoming.map((card) => card);
+    pendingMarket = null;
+    return;
+  }
+  const byId = new Map(incoming.map((card) => [card.id, card]));
   const used = new Set();
   marketSlots = marketSlots.map((slot) => {
     if (!slot || !byId.has(slot.id)) return null;
     used.add(slot.id);
     return byId.get(slot.id);
   });
-  for (const card of next.market || []) {
-    if (!used.has(card.id)) marketSlots.push(card);
-  }
+}
+
+function flushMarket() {
+  if (!pendingMarket) return;
+  if ((state && state.settling) || inFlight.size || parked.size || gathering) return;
+  marketSlots = pendingMarket.map((card) => card);
+  pendingMarket = null;
+  if (state && state.phase !== "lobby") render();
 }
 
 function noteScores(next) {
   if (!state || !state.players || !next.players) return;
   next.players.forEach((player, index) => {
     const prev = state.players[index];
-    if (!prev || player.score <= prev.score) return;
+    const gained = baseScore(player) - baseScore(prev);
+    if (!prev || gained <= 0) return;
     const current = scoreAnim.get(index);
-    const from = current ? shownPoints(current) : prev.score;
-    scoreAnim.set(index, { from, to: player.score, at: Date.now() });
+    const from = current ? shownPoints(current) : baseScore(prev);
+    scoreAnim.set(index, { from, to: from + gained, at: Date.now() });
   });
   if (scoreAnim.size && !scoreTimer) scoreTimer = setInterval(tickScores, 80);
 }
@@ -407,13 +544,14 @@ function shownPoints(anim) {
 
 function scoreBits(index, target) {
   const anim = scoreAnim.get(index);
-  if (!anim) return { points: target, plus: "" };
+  if (!anim) return { points: lockedScore.has(index) ? lockedScore.get(index) : target, plus: "" };
   const steps = Math.max(anim.to - anim.from, 1);
   const countMs = steps * 80;
   const t = Date.now() - anim.at;
   if (t > countMs + 650) {
+    if (anim.to !== target) lockedScore.set(index, anim.to);
     scoreAnim.delete(index);
-    return { points: target, plus: "" };
+    return { points: anim.to, plus: "" };
   }
   const opacity = t <= countMs ? 1 : Math.max(0, 1 - (t - countMs) / 650);
   return {
