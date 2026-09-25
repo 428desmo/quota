@@ -117,9 +117,17 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .band { min-width: 0; }
 .vlabel { font-size: 13px; color: #444; margin: 2px 0; }
 .market-label { font-size: 13px; color: #444; margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; }
-.thinking { font-size: 11px; font-weight: 400; }
-.controls { display: flex; justify-content: flex-end; margin-top: 8px; }
-.controls.left-hand { justify-content: flex-start; }
+.thinking { margin-left: auto; font-size: 11px; font-weight: 400; text-align: right; }
+.market-panel { position: relative; }
+.controls {
+  position: absolute; right: 8px; bottom: 8px; z-index: 4; margin: 0;
+  display: flex; justify-content: flex-end;
+}
+.controls.left-hand { right: auto; left: 8px; justify-content: flex-start; }
+.tally-note.rollover {
+  position: fixed; left: 50%; top: 18%; transform: translateX(-50%);
+  z-index: 60; margin: 0; width: max-content; max-width: 92vw;
+}
 .control-buttons { display: flex; gap: 6px; align-items: center; }
 .control-buttons button, #restart { padding: 3px 8px; font-size: 12px; }
 @media (orientation: portrait) and (max-width: 700px) {

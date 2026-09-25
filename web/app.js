@@ -215,10 +215,9 @@ function render() {
     if (!me.quota) {
       controls = `<div class="controls${hand}"><div class="control-buttons"><button type="button" id="pass">パス</button></div></div>`;
     } else {
-      const done = me.collection.length > 0;
       controls = `<div class="controls${hand}"><div class="control-buttons">
           <button type="button" id="abandon">放棄</button>
-          <button type="button" id="pass">${done ? "次へ" : "パス"}</button>
+          <button type="button" id="pass">${state.turn_gain ? "次へ" : "パス"}</button>
         </div></div>`;
     }
   }
@@ -242,7 +241,7 @@ function render() {
       / 膠着状態 ${state.stall_count} / 連続パス ${state.no_gain_streak}/${state.player_count}
       ${state.sequence_rule ? " / 上級" : ""}</p>
     ${gateHtml()}
-    <section class="panel">
+    <section class="panel market-panel">
       <div class="market-label">場札${hint ? `<span class="thinking">${hint}</span>` : ""}</div>
       <div class="market" id="market">${market}</div>
       ${controls}
@@ -271,10 +270,10 @@ function render() {
   maybeTally();
 }
 
-function confirmHtml(message, gate) {
+function confirmHtml(message, gate, rollover) {
   if (!gate || gate.released) return "";
   const waiting = (gate.waiting || []).join("、");
-  return `<section class="panel tally-note">
+  return `<section class="panel tally-note${rollover ? " rollover" : ""}">
     <p>${message}</p>
     <p><button type="button" id="ack" ${gate.you_can_ack ? "" : "disabled"}>OK</button></p>
     ${waiting ? `<p class="note">${waiting} のOKを待っています。</p>` : ""}
@@ -282,10 +281,10 @@ function confirmHtml(message, gate) {
 }
 
 function gateHtml() {
-  const refresh = confirmHtml("全員がパスをしたので、場札をリフレッシュします", state.refresh_gate);
+  const refresh = confirmHtml("全員がパスをしたので、場札をリフレッシュします", state.refresh_gate, true);
   if (refresh) return refresh;
   if (!state.finished || state.end_reason !== "DECK") return "";
-  return confirmHtml("山札がなくなりました。得点計算に映ります", state.score_gate);
+  return confirmHtml("山札がなくなりました。得点計算に映ります", state.score_gate, false);
 }
 
 function bonusLine(rank) {
