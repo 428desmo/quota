@@ -26,7 +26,7 @@ h1.brand { font-size: 22px; margin: 0; }
 h1.brand .sub { font-size: 0.64em; }
 .hero .catch { margin: 4.9px 0 0; font-size: 14px; line-height: 1; text-align: center; }
 .guide .panel > p { text-align: center; }
-.guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: calc(1em + 14px); }
 .guide ul { margin: 8px 0; padding-left: 1.2em; }
 .rollover {
   position: fixed; inset: 0; z-index: 75;
