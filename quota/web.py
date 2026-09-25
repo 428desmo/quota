@@ -170,6 +170,7 @@ class Table:
             "event": self.event,
             "deck_count": len(game.deck),
             "turn_number": game.turn_number,
+            "turn_gain": game.turn_gain,
             "player_count": len(game.players),
             "no_gain_streak": game.no_gain_streak,
             "stall_flag": game.stall_flag,
