@@ -141,6 +141,28 @@ function guideHtml() {
   return `<div class="rollover guide"><div class="panel"><h2>${page.title}</h2><ul>${lines}</ul><p><button type="button" class="primary" id="guide-ok">OK</button></p></div></div>`;
 }
 
+function escapeAttr(value) {
+  return String(value).replace(/[&"<>]/g, (ch) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" }[ch]));
+}
+
+function humanSeatCount(players, humans) {
+  const seats = Number(players);
+  const people = Number(humans);
+  return Math.max(0, Math.min(people, seats));
+}
+
+function nameFields(count, names) {
+  const saved = Array.isArray(names) ? names : [];
+  const shown = count >= 2 ? count : 0;
+  const fields = Array.from({ length: shown }, (_, i) => {
+    const value = saved[i] ? escapeAttr(saved[i]) : "";
+    return `<label>席${i + 1}
+      <input name="name" maxlength="24" placeholder="席${i + 1}" autocomplete="nickname" value="${value}">
+    </label>`;
+  }).join("");
+  return `<div class="row names" id="names"${shown ? "" : " hidden"}>${fields}</div>`;
+}
+
 function savedOptions() {
   const match = document.cookie.match(/(?:^|; )quota_options=([^;]*)/);
   if (!match) return null;
@@ -157,6 +179,7 @@ function render() {
     const players = String(saved.players || 3);
     const humans = String(saved.humans ?? 3);
     const itemSet = saved.item_set || "";
+    const named = humanSeatCount(players, humans);
     app.innerHTML = `
       <header class="hero">
         <h1>
@@ -188,23 +211,30 @@ function render() {
               ${[4, 3, 2, 1, 0].map((n) => `<option ${String(n) === humans ? "selected" : ""}>${n}</option>`).join("")}
             </select>
           </label>
+        </div>
+        ${nameFields(named, saved.names)}
+        <div class="row tight">
           <label>シード（空ならランダム）
-            <input name="seed" inputmode="numeric">
+            <input class="short" name="seed" inputmode="numeric">
           </label>
           <label>OKタイムアウト（秒）
-            <input name="ok_timeout" type="number" min="0" step="0.5" value="${saved.ok_timeout ?? 3}">
+            <input class="short" name="ok_timeout" type="number" min="0" step="0.5" value="${saved.ok_timeout ?? 3}">
           </label>
+        </div>
+        <div class="row tight">
           <label><span>上級</span>
             <input name="sequence" type="checkbox" ${saved.sequence ? "checked" : ""}> 並び順ボーナス
           </label>
           <label><span>称号</span>
             <input name="title" type="checkbox" ${saved.title ? "checked" : ""}> 称号ボーナス
           </label>
+        </div>
+        <div class="row">
           <label><span>左利き</span>
             <input name="left_handed" type="checkbox" ${saved.left_handed ? "checked" : ""}> ボタンを左に置く
           </label>
         </div>
-        <p><button class="primary" type="submit">スタート</button></p>
+        <p class="submit"><button class="primary" type="submit">スタート</button></p>
         <p class="note">この画面を開いた端末が同じ盤面を共有します。同じネットワークの他の端末からも操作できます。</p>
       </form>`;
     app.querySelectorAll("[data-guide]").forEach((button) => {
@@ -218,7 +248,18 @@ function render() {
       guide = null;
       render();
     };
-    app.querySelector("#start").onsubmit = async (event) => {
+    const form = app.querySelector("#start");
+    const nameMemory = Array.isArray(saved.names) ? saved.names.slice() : [];
+    const refreshNames = () => {
+      const count = humanSeatCount(form.players.value, form.humans.value);
+      [...form.querySelectorAll('input[name="name"]')].forEach((el, i) => {
+        nameMemory[i] = el.value;
+      });
+      form.querySelector("#names").outerHTML = nameFields(count, nameMemory);
+    };
+    form.players.onchange = refreshNames;
+    form.humans.onchange = refreshNames;
+    form.onsubmit = async (event) => {
       event.preventDefault();
       const data = new FormData(event.target);
       const players = Number(data.get("players"));
@@ -227,6 +268,7 @@ function render() {
       await post("/api/start", {
         players,
         humans,
+        names: data.getAll("name").slice(0, humans),
         seed: data.get("seed"),
         sequence: data.get("sequence") === "on",
         title: data.get("title") === "on",
