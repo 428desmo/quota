@@ -92,6 +92,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .card.selected { outline: 3px solid #c45c26; }
 .card .emoji { font-size: calc(26px * var(--card-scale)); }
 .card.idle { opacity: 0.4; }
+.card.gap { visibility: hidden; }
 .seat { border: 0; padding: 8px 4px; margin: 0; background: #fff; }
 .seat.alt { background: #efeae0; }
 .seat.turn { background: #fff3d6; }
