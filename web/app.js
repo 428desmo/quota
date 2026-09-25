@@ -25,6 +25,7 @@ let guide = null;
 let coverSeen = 0;
 let coverUntil = 0;
 let coverText = "";
+let rosterNote = "";
 
 function cardHtml(card, z = 1, marks = null, compact = false) {
   const id = String(card.id);
@@ -418,6 +419,7 @@ function renderRecruiting() {
         ${seats.map((seat) => `<li>${escapeText(seat.name)}${seat.leader ? "（リーダー）" : ""}</li>`).join("")}
         ${open ? `<li class="note">参加待ち</li>` : ""}
       </ul>
+      ${rosterNote ? `<p class="note">${escapeText(rosterNote)}</p>` : ""}
       ${watcherHtml()}
       ${you.leader ? `<p class="submit"><button class="primary" type="button" id="begin">ゲーム開始</button></p>` : `<p class="note">リーダーの開始を待っています。</p>`}
     </section>
@@ -625,9 +627,25 @@ function noteCover(next) {
   }, 1000);
 }
 
+function noteRoster(next) {
+  if (!next || next.phase !== "recruiting" || !state || state.phase !== "recruiting") {
+    if (!next || next.phase !== "recruiting") rosterNote = "";
+    return;
+  }
+  const before = (state.seats || []).map((seat) => seat.name);
+  const after = (next.seats || []).map((seat) => seat.name);
+  const arrived = after.filter((name) => !before.includes(name));
+  const left = before.filter((name) => !after.includes(name));
+  const bits = [];
+  if (arrived.length) bits.push(`${arrived.join("、")}が参加しました`);
+  if (left.length) bits.push(`${left.join("、")}が抜けました`);
+  if (bits.length) rosterNote = bits.join("。");
+}
+
 function applyState(next) {
   noteCover(next);
   if (!next || next.phase === "hall" || next.phase === "recruiting") {
+    noteRoster(next);
     state = next;
     if (next && next.phase !== "playing") {
       scoreAnim.clear();
@@ -950,5 +968,14 @@ async function poll() {
   if (changed) applyState(next);
 }
 
-poll();
-setInterval(poll, 700);
+async function pollLoop() {
+  try {
+    await poll();
+  } catch {
+    // 次の間隔で取り直す
+  }
+  const wait = state && state.phase === "recruiting" ? 100 : 700;
+  setTimeout(pollLoop, wait);
+}
+
+pollLoop();
