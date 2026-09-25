@@ -26,8 +26,12 @@ class Table:
         self.hold_until = 0.0
         self.settling_seat: int | None = None
         self.last_options: dict | None = None
+        self.seat_owner: dict[int, str] = {}
+        self.seat_acked: set[int] = set()
+        self.notice_at: float | None = None
+        self.gate_released = False
 
-    def start(self, body: dict) -> None:
+    def start(self, body: dict, client_id: str = "") -> None:
         players = int(body.get("players", 3))
         humans = int(body.get("humans", players))
         if players not in (3, 4) or not 0 <= humans <= players:
@@ -58,6 +62,10 @@ class Table:
             "sequence": bool(body.get("sequence")),
             "item_set": theme.id,
         }
+        self.seat_owner = {i: client_id for i, p in enumerate(self.game.players) if p.is_human}
+        self.seat_acked = set()
+        self.notice_at = None
+        self.gate_released = False
 
     def reset(self) -> None:
         self.game = None
@@ -66,8 +74,12 @@ class Table:
         self.event_n += 1
         self.hold_until = 0.0
         self.settling_seat = None
+        self.seat_owner = {}
+        self.seat_acked = set()
+        self.notice_at = None
+        self.gate_released = False
 
-    def act(self, body: dict) -> None:
+    def act(self, body: dict, client_id: str = "") -> None:
         if self._settling():
             raise ValueError("実績へ移しています")
         game = self._require_playing()
@@ -85,7 +97,19 @@ class Table:
             action = Pass()
         else:
             raise ValueError("unknown action")
+        if client_id and player.is_human:
+            self.seat_owner[game.current] = client_id
         self._apply(action)
+
+    def ack(self, client_id: str) -> None:
+        self._touch_gate()
+        if not self._gate_waiting():
+            raise ValueError("確認中ではありません")
+        mine = [seat for seat, owner in self.seat_owner.items() if owner == client_id and seat not in self.seat_acked]
+        if not client_id or not mine:
+            raise ValueError("参加者ではありません")
+        self.seat_acked.add(mine[0])
+        self._touch_gate()
 
     def step_cpu(self) -> None:
         game = self.game
@@ -95,7 +119,7 @@ class Table:
             return
         self._apply(choose_action(game))
 
-    def snapshot(self) -> dict:
+    def snapshot(self, client_id: str = "") -> dict:
         if self.game is None:
             return {
                 "phase": "lobby",
@@ -125,6 +149,7 @@ class Table:
             "current_human": game.players[game.current].is_human and not game.finished and not self._settling(),
             "market": [_card(c, theme) for c in game.market],
             "ranking": game.ranking() if game.finished else [],
+            "score_gate": self._score_gate(client_id),
             "players": [
                 {
                     "name": p.name,
@@ -188,6 +213,38 @@ class Table:
             self.hold_until = time.monotonic() + delay
         if game.finished:
             self.phase = "finished"
+            if game.end_reason == "DECK" and self.notice_at is None:
+                self.notice_at = time.monotonic()
+            self._touch_gate()
+
+    def _gate_waiting(self) -> bool:
+        game = self.game
+        return game is not None and game.finished and game.end_reason == "DECK" and not self.gate_released
+
+    def _touch_gate(self) -> None:
+        game = self.game
+        if game is None or not game.finished or game.end_reason != "DECK" or self.gate_released:
+            return
+        if self.notice_at is None:
+            self.notice_at = time.monotonic()
+        humans = [i for i, p in enumerate(game.players) if p.is_human]
+        cpus = [i for i, p in enumerate(game.players) if not p.is_human]
+        cpu_ready = not cpus or time.monotonic() >= self.notice_at + 0.5
+        if cpu_ready and all(i in self.seat_acked for i in humans):
+            self.gate_released = True
+
+    def _score_gate(self, client_id: str) -> dict | None:
+        game = self.game
+        if game is None or not game.finished or game.end_reason != "DECK":
+            return None
+        self._touch_gate()
+        waiting = [game.players[i].name for i in range(len(game.players)) if game.players[i].is_human and i not in self.seat_acked]
+        mine = [seat for seat, owner in self.seat_owner.items() if owner == client_id and seat not in self.seat_acked]
+        return {
+            "released": self.gate_released,
+            "you_can_ack": bool(client_id) and bool(mine) and not self.gate_released,
+            "waiting": waiting,
+        }
 
 
 def _item_set_choices() -> list[dict]:
@@ -232,7 +289,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/api/state":
             with TABLE.lock:
-                payload = TABLE.snapshot()
+                payload = TABLE.snapshot(self.headers.get("X-Quota-Client", ""))
             self._json(payload)
             return
         rel = "index.html" if self.path in ("/", "") else self.path.lstrip("/")
@@ -257,17 +314,20 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b"{}"
         try:
             body = json.loads(raw.decode() or "{}")
+            client = self.headers.get("X-Quota-Client", "")
             with TABLE.lock:
                 if self.path == "/api/start":
-                    TABLE.start(body)
+                    TABLE.start(body, client)
                 elif self.path == "/api/action":
-                    TABLE.act(body)
+                    TABLE.act(body, client)
+                elif self.path == "/api/ack":
+                    TABLE.ack(client)
                 elif self.path == "/api/reset":
                     TABLE.reset()
                 else:
                     self.send_error(404)
                     return
-                payload = TABLE.snapshot()
+                payload = TABLE.snapshot(client)
             self._json(payload)
         except (ValueError, KeyError, json.JSONDecodeError) as exc:
             self._json({"error": str(exc)}, status=400)
