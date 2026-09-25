@@ -163,7 +163,14 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 }
 .controls.left-hand { right: auto; left: 8px; justify-content: flex-start; }
 .control-buttons { display: flex; gap: 6px; align-items: center; }
-.control-buttons button, #restart { padding: 3px 8px; font-size: 12px; }
+.control-buttons button { padding: 3px 8px; font-size: 12px; }
+#restart {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  width: 100%; margin: 0; white-space: nowrap;
+  padding: 8px 12px; font-size: 12px; text-align: center;
+  border-width: 2px 0 0; background: #fff;
+}
+main:has(#restart) { padding-bottom: 44px; }
 @media (orientation: portrait) and (max-width: 700px) {
   .panel { padding: 8px; margin: 8px 0; }
   .band { display: flex; align-items: center; gap: 4px; }
