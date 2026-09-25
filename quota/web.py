@@ -31,6 +31,10 @@ class Table:
         self.notice_at: float | None = None
         self.gate_released = False
         self.ok_timeout = 3.0
+        self.refresh_hold: list | None = None
+        self.refresh_acked: set[int] = set()
+        self.refresh_notice_at: float | None = None
+        self.refresh_released = False
 
     def start(self, body: dict, client_id: str = "") -> None:
         players = int(body.get("players", 3))
@@ -76,6 +80,10 @@ class Table:
         self.seat_acked = set()
         self.notice_at = None
         self.gate_released = False
+        self.refresh_hold = None
+        self.refresh_acked = set()
+        self.refresh_notice_at = None
+        self.refresh_released = False
 
     def reset(self) -> None:
         self.game = None
@@ -88,8 +96,14 @@ class Table:
         self.seat_acked = set()
         self.notice_at = None
         self.gate_released = False
+        self.refresh_hold = None
+        self.refresh_acked = set()
+        self.refresh_notice_at = None
+        self.refresh_released = False
 
     def act(self, body: dict, client_id: str = "") -> None:
+        if self._refresh_waiting():
+            raise ValueError("場札の入れ替えを待っています")
         if self._settling():
             raise ValueError("実績へ移しています")
         game = self._require_playing()
@@ -112,18 +126,26 @@ class Table:
         self._apply(action)
 
     def ack(self, client_id: str) -> None:
-        self._touch_gate()
-        if not self._gate_waiting():
-            raise ValueError("確認中ではありません")
-        mine = [seat for seat, owner in self.seat_owner.items() if owner == client_id and seat not in self.seat_acked]
+        if self._refresh_waiting():
+            self._touch_refresh()
+            acked = self.refresh_acked
+        else:
+            self._touch_gate()
+            if not self._gate_waiting():
+                raise ValueError("確認中ではありません")
+            acked = self.seat_acked
+        mine = [seat for seat, owner in self.seat_owner.items() if owner == client_id and seat not in acked]
         if not client_id or not mine:
             raise ValueError("参加者ではありません")
-        self.seat_acked.add(mine[0])
-        self._touch_gate()
+        acked.add(mine[0])
+        if self._refresh_waiting():
+            self._touch_refresh()
+        else:
+            self._touch_gate()
 
     def step_cpu(self) -> None:
         game = self.game
-        if self.phase != "playing" or game is None or game.finished or self._settling():
+        if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
             return
         if game.players[game.current].is_human:
             return
@@ -156,10 +178,11 @@ class Table:
             "sequence_rule": game.config.sequence_rule,
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
-            "current_human": game.players[game.current].is_human and not game.finished and not self._settling(),
-            "market": [_card(c, theme) for c in game.market],
+            "current_human": game.players[game.current].is_human and not game.finished and not self._settling() and not self._refresh_waiting(),
             "ranking": game.ranking() if game.finished else [],
             "score_gate": self._score_gate(client_id),
+            "refresh_gate": self._refresh_gate(client_id),
+            "market": self.refresh_hold if self._refresh_waiting() else [_card(c, theme) for c in game.market],
             "players": [
                 {
                     "name": p.name,
@@ -207,7 +230,14 @@ class Table:
             kind = "pass"
             cards = []
         turn_before = game.turn_number
+        reshuffles = game.reshuffle_count
+        market_before = [_card(c, resolve_item_set(game.config.item_set)) for c in game.market]
         game.step(action)
+        if game.reshuffle_count > reshuffles and not game.finished:
+            self.refresh_hold = market_before
+            self.refresh_acked = set()
+            self.refresh_notice_at = time.monotonic()
+            self.refresh_released = False
         self.event_n += 1
         self.event = {"n": self.event_n, "kind": kind, "seat": seat, "cards": cards}
         ended = game.turn_number != turn_before or game.finished
@@ -237,12 +267,44 @@ class Table:
             return
         if self.notice_at is None:
             self.notice_at = time.monotonic()
+        if self._confirm_ready(self.notice_at, self.seat_acked):
+            self.gate_released = True
+
+    def _refresh_waiting(self) -> bool:
+        return self.refresh_hold is not None and not self.refresh_released
+
+    def _touch_refresh(self) -> None:
+        if not self._refresh_waiting() or self.refresh_notice_at is None:
+            return
+        if self._confirm_ready(self.refresh_notice_at, self.refresh_acked):
+            self.refresh_released = True
+            self.refresh_hold = None
+
+    def _confirm_ready(self, notice_at: float, acked: set[int]) -> bool:
+        game = self.game
+        if game is None:
+            return False
         humans = [i for i, p in enumerate(game.players) if p.is_human]
         cpus = [i for i, p in enumerate(game.players) if not p.is_human]
-        cpu_ready = not cpus or time.monotonic() >= self.notice_at + 0.5
-        humans_ready = time.monotonic() >= self.notice_at + self.ok_timeout or all(i in self.seat_acked for i in humans)
-        if cpu_ready and humans_ready:
-            self.gate_released = True
+        cpu_ready = not cpus or time.monotonic() >= notice_at + 0.5
+        humans_ready = time.monotonic() >= notice_at + self.ok_timeout or all(i in acked for i in humans)
+        return cpu_ready and humans_ready
+
+    def _refresh_gate(self, client_id: str) -> dict | None:
+        if self.refresh_hold is None and not self.refresh_released:
+            return None
+        self._touch_refresh()
+        if self.refresh_hold is None:
+            return {"released": True, "you_can_ack": False, "waiting": []}
+        game = self.game
+        assert game is not None
+        waiting = [game.players[i].name for i in range(len(game.players)) if game.players[i].is_human and i not in self.refresh_acked]
+        mine = [seat for seat, owner in self.seat_owner.items() if owner == client_id and seat not in self.refresh_acked]
+        return {
+            "released": False,
+            "you_can_ack": bool(client_id) and bool(mine),
+            "waiting": waiting,
+        }
 
     def _score_gate(self, client_id: str) -> dict | None:
         game = self.game

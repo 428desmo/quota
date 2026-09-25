@@ -267,15 +267,21 @@ function render() {
   maybeTally();
 }
 
-function gateHtml() {
-  const gate = state.score_gate;
-  if (!state.finished || state.end_reason !== "DECK" || !gate || gate.released) return "";
+function confirmHtml(message, gate) {
+  if (!gate || gate.released) return "";
   const waiting = (gate.waiting || []).join("、");
   return `<section class="panel tally-note">
-    <p>山札がなくなりました。得点計算に映ります</p>
+    <p>${message}</p>
     <p><button type="button" id="ack" ${gate.you_can_ack ? "" : "disabled"}>OK</button></p>
     ${waiting ? `<p class="note">${waiting} のOKを待っています。</p>` : ""}
   </section>`;
+}
+
+function gateHtml() {
+  const refresh = confirmHtml("全員がパスをしたので、場札をリフレッシュします", state.refresh_gate);
+  if (refresh) return refresh;
+  if (!state.finished || state.end_reason !== "DECK") return "";
+  return confirmHtml("山札がなくなりました。得点計算に映ります", state.score_gate);
 }
 
 function finishHtml() {
@@ -527,6 +533,12 @@ function scoreSeat(index) {
 
 function layoutMarket(next) {
   const incoming = next.market || [];
+  const refreshOpen = (gate) => gate && !gate.released;
+  if (refreshOpen(next.refresh_gate) || (state && refreshOpen(state.refresh_gate) && !refreshOpen(next.refresh_gate))) {
+    marketSlots = incoming.map((card) => card);
+    pendingMarket = null;
+    return;
+  }
   const sameTurn = state && state.phase === "playing" && next.phase !== "lobby" && state.turn_number === next.turn_number;
   if (!sameTurn && marketSlots.length && (next.settling || inFlight.size || parked.size)) {
     pendingMarket = incoming;
@@ -637,7 +649,8 @@ async function poll() {
   const response = await fetch("/api/state", { headers: { "X-Quota-Client": clientId() } });
   const next = await response.json();
   const gate = JSON.stringify(next.score_gate || null);
-  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null);
+  const refresh = JSON.stringify(next.refresh_gate || null);
+  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null) || refresh !== JSON.stringify(state.refresh_gate || null);
   if (changed) applyState(next);
 }
 
