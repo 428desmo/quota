@@ -10,6 +10,7 @@ const marksTaken = new Set();
 const recordSeen = new Set();
 let recordPrimed = false;
 let gathering = false;
+let gatherTimer = 0;
 let bonusCashed = false;
 const lockedScore = new Map();
 
@@ -92,8 +93,22 @@ function deliveryMarks(cards, sequence) {
   return marks;
 }
 
+function savedOptions() {
+  const match = document.cookie.match(/(?:^|; )quota_options=([^;]*)/);
+  if (!match) return null;
+  try {
+    return JSON.parse(decodeURIComponent(match[1]));
+  } catch {
+    return null;
+  }
+}
+
 function render() {
   if (!state || state.phase === "lobby") {
+    const saved = savedOptions() || {};
+    const players = String(saved.players || 3);
+    const humans = String(saved.humans ?? 3);
+    const itemSet = saved.item_set || "";
     app.innerHTML = `
       <h1>Quota</h1>
       <p>場札からノルマ札を取り、同じ種類を集めてノルマを達成する。</p>
@@ -101,20 +116,24 @@ function render() {
         <div class="row">
           <label>アイテムセット
             <select name="item_set">
-              ${(state.item_sets || []).map((item) => `<option value="${item.id}" ${item.default ? "selected" : ""}>${item.name}</option>`).join("")}
+              ${(state.item_sets || []).map((item) => `<option value="${item.id}" ${(itemSet ? item.id === itemSet : item.default) ? "selected" : ""}>${item.name}</option>`).join("")}
             </select>
           </label>
           <label>人数
-            <select name="players"><option value="3">3</option><option value="4">4</option></select>
+            <select name="players">
+              ${[3, 4].map((n) => `<option value="${n}" ${String(n) === players ? "selected" : ""}>${n}</option>`).join("")}
+            </select>
           </label>
           <label>人間の席
-            <select name="humans"><option>4</option><option selected>3</option><option>2</option><option>1</option><option>0</option></select>
+            <select name="humans">
+              ${[4, 3, 2, 1, 0].map((n) => `<option ${String(n) === humans ? "selected" : ""}>${n}</option>`).join("")}
+            </select>
           </label>
           <label>シード（空ならランダム）
             <input name="seed" inputmode="numeric">
           </label>
           <label><span>上級</span>
-            <input name="sequence" type="checkbox"> 並び順ボーナス
+            <input name="sequence" type="checkbox" ${saved.sequence ? "checked" : ""}> 並び順ボーナス
           </label>
         </div>
         <p><button class="primary" type="submit">スタート</button></p>
@@ -401,6 +420,8 @@ function applyState(next) {
     recordSeen.clear();
     recordPrimed = false;
     gathering = false;
+    if (gatherTimer) clearTimeout(gatherTimer);
+    gatherTimer = 0;
     bonusCashed = false;
     lockedScore.clear();
     inFlight = new Set();
@@ -424,7 +445,21 @@ function applyState(next) {
 }
 
 function queueGather() {
+  if (gathering || gatherTimer) return;
+  if (document.querySelector(".line.record .card.incoming .marks span")) return;
+  if (!document.querySelector(".line.record .marks span")) return;
+  gatherTimer = setTimeout(() => {
+    gatherTimer = 0;
+    flyGatheredMarks();
+  }, 100);
+}
+
+function flyGatheredMarks() {
   if (gathering) return;
+  if (document.querySelector(".line.record .card.incoming .marks span")) {
+    queueGather();
+    return;
+  }
   const dots = [...document.querySelectorAll(".line.record .marks span")];
   if (!dots.length) return;
   gathering = true;

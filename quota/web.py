@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from urllib.parse import quote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -24,6 +25,7 @@ class Table:
         self.event: dict | None = None
         self.hold_until = 0.0
         self.settling_seat: int | None = None
+        self.last_options: dict | None = None
 
     def start(self, body: dict) -> None:
         players = int(body.get("players", 3))
@@ -50,6 +52,12 @@ class Table:
         self.event_n += 1
         self.hold_until = 0.0
         self.settling_seat = None
+        self.last_options = {
+            "players": players,
+            "humans": humans,
+            "sequence": bool(body.get("sequence")),
+            "item_set": theme.id,
+        }
 
     def reset(self) -> None:
         self.game = None
@@ -202,6 +210,14 @@ def _card(card, theme) -> dict:
     }
 
 
+def _options_cookie() -> str | None:
+    options = TABLE.last_options
+    if not options:
+        return None
+    raw = quote(json.dumps(options, separators=(",", ":")))
+    return f"quota_options={raw}; Path=/; Max-Age=31536000; SameSite=Lax"
+
+
 TABLE = Table()
 
 
@@ -261,6 +277,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
+        cookie = _options_cookie()
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(data)
 
