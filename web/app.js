@@ -600,8 +600,12 @@ function flyLifted(lifted, onDone) {
   });
 }
 
+function onBoard() {
+  return state && (state.phase === "playing" || state.phase === "finished");
+}
+
 function hopParked(ids) {
-  if (!state || state.phase !== "playing") return;
+  if (!onBoard()) return;
   const lifted = [];
   for (const id of ids) {
     const el = document.querySelector(`.line.order [data-id="${id}"]`);
@@ -780,7 +784,7 @@ function finishSeat(index) {
 }
 
 function showTitle(index, titles, n) {
-  if (!state || state.phase !== "playing") return;
+  if (!onBoard()) return;
   if (n >= titles.length) {
     titleCheer = null;
     scoreSeat(index + 1);
@@ -796,7 +800,7 @@ function showTitle(index, titles, n) {
   let step = 0;
   render();
   const tick = () => {
-    if (!state || state.phase !== "playing") return;
+    if (!onBoard()) return;
     step += 1;
     tallyScores.set(index, from + step);
     render();
@@ -815,7 +819,7 @@ function maybeTally() {
 }
 
 function scoreSeat(index) {
-  if (!state || state.phase !== "playing") return;
+  if (!onBoard()) return;
   if (index >= state.players.length) {
     tally = { phase: "done" };
     bonusCashed = true;
@@ -834,7 +838,7 @@ function scoreSeat(index) {
   let n = 0;
   const points = seat.querySelector(".points");
   const flyOne = () => {
-    if (!state || state.phase !== "playing") return;
+    if (!onBoard()) return;
     if (n >= dots.length) {
       gathering = false;
       finishSeat(index);
