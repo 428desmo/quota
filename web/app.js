@@ -27,7 +27,7 @@ function cardHtml(card, z = 1, marks = null, compact = false) {
   const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
   const show = marks && !marksTaken.has(id) ? marks : null;
   const dots = show
-    ? [...Array(show.yellow || 0).fill("🟡"), ...Array(show.purple || 0).fill("🟣")]
+    ? [...Array(show.green || 0).fill("🟢"), ...Array(show.purple || 0).fill("🟣")]
     : [];
   const mark = dots.length ? `<div class="marks">${dots.map((dot) => `<span>${dot}</span>`).join("")}</div>` : "";
   return `<div class="card ${card.joker ? "joker" : ""} ${hidden}${fresh}" data-id="${card.id}" style="z-index:${z}">
@@ -58,6 +58,14 @@ function baseScore(player) {
   return total;
 }
 
+function addMark(marks, card, kind, count) {
+  if (!card || !count) return;
+  const key = String(card.id);
+  const current = marks.get(key) || { green: 0, purple: 0 };
+  current[kind] = (current[kind] || 0) + count;
+  marks.set(key, current);
+}
+
 function deliveryMarks(cards, sequence) {
   const marks = new Map();
   let index = 0;
@@ -65,8 +73,9 @@ function deliveryMarks(cards, sequence) {
     const quota = cards[index];
     const rank = quota.rank;
     if (!rank) break;
-    const yellow = rank <= 6 ? 0 : rank <= 9 ? 1 : rank <= 12 ? 3 : rank === 13 ? 6 : 0;
-    if (yellow) marks.set(String(quota.id), { yellow, purple: 0 });
+    if (rank >= 7) addMark(marks, cards[index + 6], "green", 1);
+    if (rank >= 10) addMark(marks, cards[index + 9], "green", 2);
+    if (rank === 13) addMark(marks, cards[index + 12], "green", 3);
     index += rank;
   }
   if (!sequence) return marks;
@@ -79,7 +88,7 @@ function deliveryMarks(cards, sequence) {
     const purple = left === right ? 2 : Math.abs(left - right) === 1 ? 1 : 0;
     if (!purple) continue;
     const key = String(card.id);
-    const current = marks.get(key) || { yellow: 0, purple: 0 };
+    const current = marks.get(key) || { green: 0, purple: 0 };
     current.purple += purple;
     marks.set(key, current);
   }
