@@ -5,12 +5,12 @@ const scoreAnim = new Map();
 let scoreTimer = 0;
 let marketSlots = [];
 let pendingMarket = null;
-const banks = new Map();
 const marksTaken = new Set();
+const tallyScores = new Map();
+let tally = null;
 const recordSeen = new Set();
 let recordPrimed = false;
 let gathering = false;
-let gatherTimer = 0;
 let bonusCashed = false;
 const lockedScore = new Map();
 
@@ -56,13 +56,6 @@ function baseScore(player) {
     index += rank;
   }
   return total;
-}
-
-function bankHtml(index) {
-  const bank = banks.get(index) || { yellow: 0, purple: 0 };
-  const dots = [...Array(bank.yellow).fill("🟡"), ...Array(bank.purple).fill("🟣")];
-  if (!dots.length) return "";
-  return `<span class="marker-bank">${dots.join("")}</span>`;
 }
 
 function deliveryMarks(cards, sequence) {
@@ -178,7 +171,7 @@ function render() {
     const alt = index % 2 ? " alt" : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
       <div class="bar"><strong>${index === focus && !state.finished ? "▶ " : ""}${player.name}</strong>
-        <span>${score.plus}<span class="points">${score.points}</span>点${bankHtml(index)}</span></div>
+        <span>${score.plus}<span class="points">${score.points}</span>点</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>
         <div class="band-main"><div class="line order">${order}</div></div>
@@ -238,7 +231,8 @@ function render() {
       ${controls}
     </section>
     ${seats}
-    ${state.finished && bonusCashed && !scoreAnim.size ? finishHtml() : ""}`;
+    ${state.finished && state.end_reason === "DECK" && !(tally && tally.phase === "done") ? `<p class="tally-note">山札がなくなりました。得点計算に映ります</p>` : ""}
+    ${state.finished && tally && tally.phase === "done" && !scoreAnim.size ? finishHtml() : ""}`;
 
   const restart = app.querySelector("#restart");
   if (restart) restart.onclick = () => post("/api/reset", {});
@@ -255,8 +249,7 @@ function render() {
     document.querySelectorAll(".line.record .card").forEach((card) => recordSeen.add(card.dataset.id));
     recordPrimed = true;
   }
-  queueGather();
-  maybeCash();
+  maybeTally();
 }
 
 function finishHtml() {
@@ -270,7 +263,7 @@ function finishHtml() {
     place += group.length;
     return text;
   }).join("<br>");
-  return `<div class="overlay"><div class="panel"><h2>${reason}</h2><p>${lines}</p><button class="primary" id="ok">OK</button></div></div>`;
+  return `<div class="overlay"><div class="panel"><h2>${reason}</h2><p>${lines}</p><button class="primary" id="ok">次のゲームを始める</button></div></div>`;
 }
 
 function onPick(id) {
@@ -317,7 +310,7 @@ function achievedRows(cards) {
   if (!cards.length) return [];
   const width = app.clientWidth || 900;
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-w")) || 76;
-  const step = cardW * 0.68 / 2;
+  const step = cardW * 0.68 * 0.3;
   const perRow = Math.max(1, Math.floor((width - 48) / step));
   const rows = [];
   for (let i = 0; i < cards.length; i += perRow) rows.push(cards.slice(i, i + perRow));
@@ -380,8 +373,7 @@ function hopParked(ids) {
   render();
   flyLifted(lifted, () => {
     flushMarket();
-    queueGather();
-    maybeCash();
+    maybeTally();
   });
 }
 
@@ -415,13 +407,12 @@ function applyState(next) {
     scoreAnim.clear();
     marketSlots = [];
     pendingMarket = null;
-    banks.clear();
     marksTaken.clear();
+    tallyScores.clear();
+    tally = null;
     recordSeen.clear();
     recordPrimed = false;
     gathering = false;
-    if (gatherTimer) clearTimeout(gatherTimer);
-    gatherTimer = 0;
     bonusCashed = false;
     lockedScore.clear();
     inFlight = new Set();
@@ -436,95 +427,76 @@ function applyState(next) {
       return;
     }
     flushMarket();
-    queueGather();
-    maybeCash();
+    maybeTally();
   };
   if (lifted.length) flyLifted(lifted, afterFlight);
   else afterFlight();
   if (!next.settling && !inFlight.size && !parked.size) flushMarket();
 }
 
-function queueGather() {
-  if (gathering || gatherTimer) return;
-  if (document.querySelector(".line.record .card.incoming .marks span")) return;
-  if (!document.querySelector(".line.record .marks span")) return;
-  gatherTimer = setTimeout(() => {
-    gatherTimer = 0;
-    flyGatheredMarks();
-  }, 100);
+function maybeTally() {
+  if (!state || !state.finished || tally || gathering) return;
+  if (state.settling || inFlight.size || parked.size || scoreAnim.size) return;
+  tally = { phase: "announce" };
+  render();
+  setTimeout(() => scoreSeat(0), state.end_reason === "DECK" ? 1100 : 0);
 }
 
-function flyGatheredMarks() {
-  if (gathering) return;
-  if (document.querySelector(".line.record .card.incoming .marks span")) {
-    queueGather();
+function scoreSeat(index) {
+  if (!state || state.phase === "lobby") return;
+  if (index >= state.players.length) {
+    tally = { phase: "done" };
+    bonusCashed = true;
+    gathering = false;
+    render();
     return;
   }
-  const dots = [...document.querySelectorAll(".line.record .marks span")];
-  if (!dots.length) return;
+  tally = { phase: "seats", seat: index };
+  const seat = document.querySelector(`[data-seat="${index}"]`);
+  const dots = seat ? [...seat.querySelectorAll(".line.record .marks span")] : [];
+  if (!dots.length) {
+    scoreSeat(index + 1);
+    return;
+  }
   gathering = true;
-  let left = dots.length;
-  const gained = new Map();
-  for (const dot of dots) {
-    const card = dot.closest(".card");
-    const seat = dot.closest("[data-seat]");
-    const seatIndex = seat ? Number(seat.dataset.seat) : 0;
-    const kind = dot.textContent === "🟣" ? "purple" : "yellow";
-    const box = gained.get(seatIndex) || { yellow: 0, purple: 0, ids: [] };
-    box[kind] += 1;
-    if (card) box.ids.push(card.dataset.id);
-    gained.set(seatIndex, box);
+  let n = 0;
+  const points = seat.querySelector(".points");
+  const flyOne = () => {
+    if (!state || state.phase === "lobby") return;
+    if (n >= dots.length) {
+      gathering = false;
+      scoreSeat(index + 1);
+      return;
+    }
+    const dot = dots[n];
+    n += 1;
     const from = dot.getBoundingClientRect();
-    const park = seat && (seat.querySelector(".marker-bank") || seat.querySelector(".points"));
     const ghost = document.createElement("span");
-    ghost.className = "gain-dot";
+    ghost.className = "gain-dot fast";
     ghost.textContent = dot.textContent;
     ghost.style.left = `${from.left}px`;
     ghost.style.top = `${from.top}px`;
     document.body.appendChild(ghost);
-    const finish = () => {
-      ghost.remove();
-      left -= 1;
-      if (left > 0) return;
-      for (const [index, box] of gained) {
-        const banked = banks.get(index) || { yellow: 0, purple: 0 };
-        banked.yellow += box.yellow;
-        banked.purple += box.purple;
-        banks.set(index, banked);
-        box.ids.forEach((id) => marksTaken.add(id));
-      }
-      gathering = false;
-      render();
-      flushMarket();
-      maybeCash();
-    };
+    dot.style.visibility = "hidden";
+    const card = dot.closest(".card");
+    if (card && ![...card.querySelectorAll(".marks span")].some((span) => span.style.visibility !== "hidden")) {
+      marksTaken.add(card.dataset.id);
+    }
     requestAnimationFrame(() => {
-      const target = park ? park.getBoundingClientRect() : from;
+      const target = points ? points.getBoundingClientRect() : from;
       ghost.style.left = `${target.left}px`;
       ghost.style.top = `${target.top}px`;
-      setTimeout(finish, 450);
+      setTimeout(() => {
+        ghost.remove();
+        const shown = tallyScores.has(index) ? tallyScores.get(index) : baseScore(state.players[index]);
+        const next = shown + 1;
+        tallyScores.set(index, next);
+        if (points) points.textContent = String(next);
+        flyOne();
+      }, 180);
     });
-  }
-}
-
-function maybeCash() {
-  if (!state || !state.finished || bonusCashed || gathering) return;
-  if (state.settling || inFlight.size || parked.size) return;
-  if (document.querySelector(".line.record .marks span")) {
-    queueGather();
-    return;
-  }
-  bonusCashed = true;
-  state.players.forEach((player, index) => {
-    const bank = banks.get(index) || { yellow: 0, purple: 0 };
-    const extra = bank.yellow + bank.purple;
-    banks.set(index, { yellow: 0, purple: 0 });
-    if (!extra) return;
-    const from = baseScore(player);
-    scoreAnim.set(index, { from, to: from + extra, at: Date.now() });
-  });
-  if (scoreAnim.size && !scoreTimer) scoreTimer = setInterval(tickScores, 80);
-  render();
+  };
+  flyOne();
 }
 
 function layoutMarket(next) {
@@ -578,6 +550,7 @@ function shownPoints(anim) {
 }
 
 function scoreBits(index, target) {
+  if (tallyScores.has(index)) return { points: tallyScores.get(index), plus: "" };
   const anim = scoreAnim.get(index);
   if (!anim) return { points: lockedScore.has(index) ? lockedScore.get(index) : target, plus: "" };
   const steps = Math.max(anim.to - anim.from, 1);

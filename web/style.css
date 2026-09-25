@@ -44,11 +44,11 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .line.record .card {
   width: calc(var(--card-w) * 0.68);
   height: calc(var(--card-h) * 0.68);
-  margin-left: calc(var(--card-w) * 0.68 * -0.5);
+  margin-left: calc(var(--card-w) * 0.68 * -0.7);
 }
 .line.record .card:first-child { margin-left: 0; }
 .line.record .emoji { font-size: calc(26px * var(--card-scale) * 0.68); }
-.line.record .rank { font-size: calc(18px * var(--card-scale) * 0.68); }
+.line.record .rank { font-size: calc(18px * var(--card-scale) * 0.68); padding: 0; }
 .line.record .rank.wide { font-size: calc(12px * var(--card-scale) * 0.68); }
 .line.record + .line.record { margin-top: calc(var(--card-h) * 0.68 * -1 / 4); z-index: 1; }
 @keyframes shrink-in { from { transform: scale(1.45); } to { transform: scale(1); } }
@@ -59,6 +59,8 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   position: fixed; z-index: 40; pointer-events: none;
   transition: left .4s ease, top .4s ease;
 }
+.gain-dot.fast { transition: left .16s linear, top .16s linear; }
+.tally-note { font-weight: 700; margin: 8px 0; }
 .card {
   width: var(--card-w);
   height: var(--card-h);
@@ -81,7 +83,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   font-weight: 700;
   font-size: calc(18px * var(--card-scale));
   line-height: 1;
-  padding: 2px 0 0 4px;
+  padding: 1px 0 0 1px;
 }
 .card .rank.wide { font-size: calc(12px * var(--card-scale)); letter-spacing: -0.04em; }
 .marks {
