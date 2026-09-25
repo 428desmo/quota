@@ -138,6 +138,11 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   h1 { font-size: 22px; }
 }
 .bar { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.bonus-toast {
+  position: fixed; left: 50%; top: 16%; transform: translateX(-50%);
+  z-index: 70; background: #fff; border: 2px solid #222;
+  padding: 6px 10px; font-size: 13px; pointer-events: none; white-space: nowrap;
+}
 .overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.35);
   display: flex; align-items: center; justify-content: center;

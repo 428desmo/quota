@@ -17,6 +17,8 @@ const lockedScore = new Map();
 let hiding = new Set();
 let inFlight = new Set();
 let parked = new Set();
+let pendingBonus = 0;
+let bonusNote = null;
 
 function cardHtml(card, z = 1, marks = null, compact = false) {
   const id = String(card.id);
@@ -245,7 +247,8 @@ function render() {
       ${controls}
     </section>
     ${seats}
-    ${state.finished && tally && tally.phase === "done" && !scoreAnim.size ? finishHtml() : ""}`;
+    ${state.finished && tally && tally.phase === "done" && !scoreAnim.size ? finishHtml() : ""}
+    ${bonusNote && Date.now() < bonusNote.until ? `<div class="bonus-toast">${bonusNote.text}</div>` : ""}`;
 
   const restart = app.querySelector("#restart");
   if (restart) restart.onclick = () => post("/api/reset", {});
@@ -282,6 +285,24 @@ function gateHtml() {
   if (refresh) return refresh;
   if (!state.finished || state.end_reason !== "DECK") return "";
   return confirmHtml("山札がなくなりました。得点計算に映ります", state.score_gate);
+}
+
+function bonusLine(rank) {
+  if (rank >= 13) return "ひと組13枚の達成ボーナス🟢🟢🟢🟢🟢🟢";
+  if (rank >= 10) return "ひと組10枚以上の達成ボーナス🟢🟢🟢";
+  if (rank >= 7) return "ひと組7枚以上の達成ボーナス🟢";
+  return "";
+}
+
+function showBonus(rank) {
+  const text = bonusLine(rank);
+  if (!text) return;
+  bonusNote = { text, until: Date.now() + 1000 };
+  setTimeout(() => {
+    if (!bonusNote || Date.now() < bonusNote.until) return;
+    bonusNote = null;
+    if (state && state.phase !== "lobby") render();
+  }, 1000);
 }
 
 function finishHtml() {
@@ -404,6 +425,8 @@ function hopParked(ids) {
   }
   render();
   flyLifted(lifted, () => {
+    if (pendingBonus >= 7) showBonus(pendingBonus);
+    pendingBonus = 0;
     flushMarket();
     maybeTally();
   });
@@ -428,6 +451,7 @@ function applyState(next) {
       const ids = bundle.map((card) => String(card.id));
       ids.forEach((id) => parked.add(id));
       pause = { ids, ms: 400 };
+      pendingBonus = bundle[0].rank || 0;
     }
   }
   for (const el of lifted) inFlight.add(el.dataset.id);
@@ -450,6 +474,8 @@ function applyState(next) {
     inFlight = new Set();
     hiding = new Set();
     parked = new Set();
+    pendingBonus = 0;
+    bonusNote = null;
   }
   render();
   hiding = new Set();
