@@ -3,6 +3,7 @@ let state = null;
 let seenEvent = 0;
 const scoreAnim = new Map();
 let scoreTimer = 0;
+let marketSlots = [];
 
 let hiding = new Set();
 let inFlight = new Set();
@@ -164,7 +165,8 @@ function render() {
     controls = `<p class="note">${me.name} が考えています。</p>`;
   }
 
-  const market = state.market.map((card) => {
+  const market = marketSlots.map((card) => {
+    if (!card) return `<div class="card gap"></div>`;
     const wide = card.face && [...card.face].length > 2 ? " wide" : "";
     const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
     const idle = state.settling || (state.current_human && !canPlay(card, me)) ? "idle" : "";
@@ -348,9 +350,11 @@ function applyState(next) {
   for (const el of lifted) inFlight.add(el.dataset.id);
   hiding = new Set(inFlight);
   noteScores(next);
+  layoutMarket(next);
   state = next;
   if (state.phase === "lobby") {
     scoreAnim.clear();
+    marketSlots = [];
     inFlight = new Set();
     hiding = new Set();
     parked = new Set();
@@ -363,6 +367,24 @@ function applyState(next) {
   };
   if (lifted.length) flyLifted(lifted, afterFlight);
   else afterFlight();
+}
+
+function layoutMarket(next) {
+  const sameTurn = state && state.phase === "playing" && next.phase === "playing" && state.turn_number === next.turn_number;
+  if (!sameTurn) {
+    marketSlots = (next.market || []).map((card) => card);
+    return;
+  }
+  const byId = new Map((next.market || []).map((card) => [card.id, card]));
+  const used = new Set();
+  marketSlots = marketSlots.map((slot) => {
+    if (!slot || !byId.has(slot.id)) return null;
+    used.add(slot.id);
+    return byId.get(slot.id);
+  });
+  for (const card of next.market || []) {
+    if (!used.has(card.id)) marketSlots.push(card);
+  }
 }
 
 function noteScores(next) {
