@@ -193,6 +193,11 @@ main:has(#leave) { padding-bottom: 44px; }
   h1 { font-size: 22px; }
 }
 .bar { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.who { display: flex; align-items: baseline; gap: 0.35em; }
+.you-tag { font-weight: 700; }
+.you-tag.live { animation: you-blink 0.8s steps(1) infinite; }
+@keyframes you-blink { 50% { opacity: 0; } }
+#turn-clock { margin-left: 0.6em; font-size: 13px; color: #c45c26; font-weight: 700; }
 .bonus-toast {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   z-index: 6; background: #fff; border: 2px solid #222;

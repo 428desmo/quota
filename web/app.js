@@ -26,6 +26,8 @@ let coverSeen = 0;
 let coverUntil = 0;
 let coverText = "";
 let rosterNote = "";
+let turnLeft = null;
+let turnLeftAt = 0;
 
 function cardHtml(card, z = 1, marks = null, compact = false) {
   const id = String(card.id);
@@ -312,12 +314,16 @@ function render() {
     }).join("");
     const score = scoreBits(index, baseScore(player));
     const alt = index % 2 ? " alt" : "";
+    const mine = state.you && state.you.seat === index;
+    const onClock = index === state.current && state.current_human;
+    const youTag = mine ? `<span class="you-tag${state.your_turn && onClock ? " live" : ""}">【あなた】</span>` : "";
+    const clock = onClock ? `<span id="turn-clock"></span>` : "";
     const toast = bonusNote && bonusNote.seat === index && Date.now() < bonusNote.until
       ? `<div class="bonus-toast">${bonusNote.text}</div>`
       : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
       ${toast}
-      <div class="bar"><strong>${index === focus && !state.finished ? "▶ " : ""}${player.name}</strong>
+      <div class="bar"><span class="who"><strong>${escapeText(player.name)}</strong>${youTag}${clock}</span>
         <span>${score.plus}<span class="points">${score.points}</span>点</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>
@@ -400,6 +406,7 @@ function render() {
     recordPrimed = true;
   }
   maybeTally();
+  paintClock();
 }
 
 function renderRecruiting() {
@@ -616,6 +623,26 @@ function hopParked(ids) {
   });
 }
 
+function noteTurn(next) {
+  if (!next || next.turn_left == null) {
+    turnLeft = null;
+    return;
+  }
+  turnLeft = Number(next.turn_left);
+  turnLeftAt = Date.now();
+}
+
+function paintClock() {
+  const el = document.querySelector("#turn-clock");
+  if (!el) return;
+  if (turnLeft == null) {
+    el.textContent = "";
+    return;
+  }
+  const left = Math.max(0, turnLeft - (Date.now() - turnLeftAt) / 1000);
+  el.textContent = `残り${Math.ceil(left)}秒`;
+}
+
 function noteCover(next) {
   const cover = next && next.cover;
   if (!cover || cover.n === coverSeen) return;
@@ -643,6 +670,7 @@ function noteRoster(next) {
 }
 
 function applyState(next) {
+  noteTurn(next);
   noteCover(next);
   if (!next || next.phase === "hall" || next.phase === "recruiting") {
     noteRoster(next);
@@ -960,12 +988,14 @@ async function post(url, body) {
 async function poll() {
   const response = await fetch("/api/state", { headers: { "X-Quota-Client": clientId() } });
   const next = await response.json();
+  noteTurn(next);
   const gate = JSON.stringify(next.score_gate || null);
   const refresh = JSON.stringify(next.refresh_gate || null);
   const presence = JSON.stringify({ you: next.you, observers: next.observers, your_turn: next.your_turn, cover: next.cover, tables: next.tables, seats: next.seats, names: (next.players || []).map((p) => p.name) });
   const prevPresence = JSON.stringify({ you: state && state.you, observers: state && state.observers, your_turn: state && state.your_turn, cover: state && state.cover, tables: state && state.tables, seats: state && state.seats, names: state && state.players ? state.players.map((p) => p.name) : [] });
   const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null) || refresh !== JSON.stringify(state.refresh_gate || null) || presence !== prevPresence;
   if (changed) applyState(next);
+  else paintClock();
 }
 
 async function pollLoop() {
@@ -979,3 +1009,4 @@ async function pollLoop() {
 }
 
 pollLoop();
+setInterval(paintClock, 200);

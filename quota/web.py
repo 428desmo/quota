@@ -300,6 +300,7 @@ class Table:
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
             "current_human": game.players[game.current].is_human and not game.finished and not self._settling() and not self._refresh_waiting(),
+            "turn_left": self._turn_left(),
             "your_turn": self._your_turn(client_id),
             "you": self._you(client_id),
             "observers": [obs["name"] for obs in self.observers],
@@ -442,6 +443,16 @@ class Table:
             "joined": seat is not None or observer,
             "leader": client_id == self.leader_id() and seat is not None,
         }
+
+    def _turn_left(self) -> float | None:
+        game = self.game
+        if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
+            return None
+        if not game.players[game.current].is_human:
+            return None
+        if self.turn_deadline is None:
+            return self.turn_timeout
+        return max(0.0, self.turn_deadline - time.monotonic())
 
     def _your_turn(self, client_id: str) -> bool:
         game = self.game
