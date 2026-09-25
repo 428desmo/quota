@@ -2,7 +2,7 @@
 
 4種類とワイルドを集めてノルマを達成するカードゲーム。名前と絵柄はアイテムセットで差し替える。既定は交易品（香辛料・絹・茶・宝石・銀貨）。
 
-規則の正本は `quota_rule_v1.10.md`。アイテムセットは `quota_item_sets_v1.0.json`。ターミナル版の操作は `quota_cli_spec_v1.1.md`。ブラウザ版は `quota_web_spec_v1.1.md`。
+規則の正本は `quota_rule_v1.11.md`。アイテムセットは `quota_item_sets_v1.0.json`。ターミナル版の操作は `quota_cli_spec_v1.1.md`。ブラウザ版は `quota_web_spec_v1.1.md`。
 
 ## ブラウザで遊ぶ
 
