@@ -86,6 +86,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   padding: 1px 0 0 1px;
 }
 .card .rank.wide { font-size: calc(12px * var(--card-scale)); letter-spacing: -0.04em; }
+.line.record .marks { left: 0; }
 .marks {
   position: absolute;
   top: calc(28px * var(--card-scale));

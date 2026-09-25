@@ -225,13 +225,13 @@ function render() {
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count}
       / 膠着状態 ${state.stall_count} / 連続パス ${state.no_gain_streak}/${state.player_count}
       ${state.sequence_rule ? " / 上級" : ""}</p>
+    ${gateHtml()}
     <section class="panel">
       <div class="market-label">場札</div>
       <div class="market" id="market">${market}</div>
       ${controls}
     </section>
     ${seats}
-    ${state.finished && state.end_reason === "DECK" && !(tally && tally.phase === "done") ? `<p class="tally-note">山札がなくなりました。得点計算に映ります</p>` : ""}
     ${state.finished && tally && tally.phase === "done" && !scoreAnim.size ? finishHtml() : ""}`;
 
   const restart = app.querySelector("#restart");
@@ -243,6 +243,8 @@ function render() {
   if (pass) pass.onclick = () => post("/api/action", { kind: "pass" });
   const abandon = app.querySelector("#abandon");
   if (abandon) abandon.onclick = () => post("/api/action", { kind: "abandon" });
+  const ack = app.querySelector("#ack");
+  if (ack) ack.onclick = () => post("/api/ack", {});
   const ok = app.querySelector("#ok");
   if (ok) ok.onclick = () => post("/api/reset", {});
   if (!recordPrimed && state.phase === "playing") {
@@ -252,8 +254,19 @@ function render() {
   maybeTally();
 }
 
+function gateHtml() {
+  const gate = state.score_gate;
+  if (!state.finished || state.end_reason !== "DECK" || !gate || gate.released) return "";
+  const waiting = (gate.waiting || []).join("、");
+  return `<section class="panel tally-note">
+    <p>山札がなくなりました。得点計算に映ります</p>
+    <p><button type="button" id="ack" ${gate.you_can_ack ? "" : "disabled"}>OK</button></p>
+    ${waiting ? `<p class="note">${waiting} のOKを待っています。</p>` : ""}
+  </section>`;
+}
+
 function finishHtml() {
-  const reason = state.end_reason === "DECK" ? "山札切れ" : "膠着の連続";
+  const reason = state.end_reason === "DECK" ? "ゲーム終了" : "膠着の連続";
   let place = 1;
   const lines = state.ranking.map((group) => {
     const text = group.map((seat) => {
@@ -437,9 +450,9 @@ function applyState(next) {
 function maybeTally() {
   if (!state || !state.finished || tally || gathering) return;
   if (state.settling || inFlight.size || parked.size || scoreAnim.size) return;
-  tally = { phase: "announce" };
-  render();
-  setTimeout(() => scoreSeat(0), state.end_reason === "DECK" ? 1100 : 0);
+  if (state.end_reason === "DECK" && !(state.score_gate && state.score_gate.released)) return;
+  tally = { phase: "scoring" };
+  scoreSeat(0);
 }
 
 function scoreSeat(index) {
@@ -589,19 +602,29 @@ function bundleContaining(cards, ids) {
   return [];
 }
 
+function clientId() {
+  let id = localStorage.getItem("quota_client");
+  if (!id) {
+    id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem("quota_client", id);
+  }
+  return id;
+}
+
 async function post(url, body) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Quota-Client": clientId() },
     body: JSON.stringify(body),
   });
   applyState(await response.json());
 }
 
 async function poll() {
-  const response = await fetch("/api/state");
+  const response = await fetch("/api/state", { headers: { "X-Quota-Client": clientId() } });
   const next = await response.json();
-  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling;
+  const gate = JSON.stringify(next.score_gate || null);
+  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null);
   if (changed) applyState(next);
 }
 
