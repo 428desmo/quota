@@ -51,9 +51,7 @@ class Table:
             raise ValueError("OKタイムアウトは0以上の秒数です")
         seed = body.get("seed")
         theme = resolve_item_set(str(body.get("item_set") or "trade"))
-        names = [f"席{i + 1}" if i < humans else f"CPU{i - humans + 1}" for i in range(players)]
-        if humans == 1:
-            names[0] = "あなた"
+        names = _player_names(body.get("names"), players, humans)
         self.game = Game.start(
             GameConfig(
                 num_players=players,
@@ -78,6 +76,7 @@ class Table:
             "item_set": theme.id,
             "ok_timeout": timeout,
             "left_handed": bool(body.get("left_handed")),
+            "names": _remembered_names(names, humans, self.last_options),
         }
         self.ok_timeout = timeout
         self.left_handed = bool(body.get("left_handed"))
@@ -327,6 +326,29 @@ class Table:
             "you_can_ack": bool(client_id) and bool(mine) and not self.gate_released,
             "waiting": waiting,
         }
+
+
+def _player_names(raw, players: int, humans: int) -> list[str]:
+    given = raw if isinstance(raw, list) else []
+    names = []
+    for i in range(players):
+        if i >= humans:
+            names.append(f"CPU{i - humans + 1}")
+            continue
+        text = given[i] if i < len(given) and given[i] is not None else ""
+        text = " ".join(str(text).split())[:24]
+        if humans == 1:
+            names.append(text or "あなた")
+        else:
+            names.append(text or f"席{i + 1}")
+    return names
+
+
+def _remembered_names(names: list[str], humans: int, previous: dict | None) -> list[str]:
+    if humans >= 2:
+        return names[:humans]
+    kept = (previous or {}).get("names")
+    return kept if isinstance(kept, list) else []
 
 
 def _item_set_choices() -> list[dict]:
