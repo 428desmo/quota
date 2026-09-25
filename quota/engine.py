@@ -43,6 +43,12 @@ class Pass:
 Action = TakeQuota | Collect | Abandon | Pass
 
 
+@dataclass(frozen=True)
+class Bundle:
+    kind: str
+    has_wild: bool
+
+
 @dataclass
 class Player:
     name: str
@@ -53,6 +59,7 @@ class Player:
     achieve_count: int = 0
     max_single_score: int = 0
     is_human: bool = True
+    bundles: list[Bundle] = field(default_factory=list)
 
 
 @dataclass
@@ -67,6 +74,10 @@ class GameConfig:
     names: list[str] | None = None
     human_seats: list[int] | None = None
     sequence_rule: bool = False
+    title_rule: bool = False
+    title_min_achieves: int = 3
+    title_mono_bonus: int = 15
+    title_purist_bonus: int = 5
     item_set: str = "trade"
 
     def resolved_market_size(self) -> int:
@@ -323,7 +334,23 @@ class Game:
         return ids
 
     def final_score(self, player: Player) -> int:
-        return player.score + self.sequence_points(player)
+        return player.score + self.sequence_points(player) + self.title_points(player)
+
+    def title_awards(self, player: Player) -> list[tuple[str, int]]:
+        if not self.config.title_rule:
+            return []
+        bundles = player.bundles
+        if len(bundles) < self.config.title_min_achieves:
+            return []
+        awards: list[tuple[str, int]] = []
+        if len({bundle.kind for bundle in bundles}) == 1:
+            awards.append(("単色達成", self.config.title_mono_bonus))
+        if not any(bundle.has_wild for bundle in bundles):
+            awards.append(("生粋の買い付け", self.config.title_purist_bonus))
+        return awards
+
+    def title_points(self, player: Player) -> int:
+        return sum(points for _, points in self.title_awards(player))
 
     def sequence_points(self, player: Player) -> int:
         if not self.config.sequence_rule:
@@ -363,6 +390,7 @@ class Game:
 
     def _achieve(self, player: Player, cards: list[Card], rank: int) -> None:
         player.achieved.extend(cards)
+        player.bundles.append(Bundle(cards[0].suit, any(card.suit == "JOKER" for card in cards)))
         pts = len(cards) + bonus(rank)
         player.score += pts
         player.achieve_count += 1

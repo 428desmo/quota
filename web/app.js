@@ -20,6 +20,8 @@ let parked = new Set();
 let pendingBonus = 0;
 let pendingBonusSeat = null;
 let bonusNote = null;
+let titleCheer = null;
+let guide = null;
 
 function cardHtml(card, z = 1, marks = null, compact = false) {
   const id = String(card.id);
@@ -98,6 +100,47 @@ function deliveryMarks(cards, sequence) {
   return marks;
 }
 
+const GUIDES = {
+  basic: {
+    title: "基本ルール",
+    lines: [
+      "場札から1枚選び、ノルマ札にする。",
+      "ノルマ札と同じ種類の札を、書かれた数字の枚数だけ集めたら達成。",
+      "集める札は、場札から何枚取ってもよい。",
+      "ワイルドはどの種類の代わりにもなる。",
+      "達成が難しければ、ノルマ札を放棄して選び直せる。",
+      "取れる札も取りたい札もなければパス。",
+      "全員が続けてパスしたら配り直し。配り直した後も誰も取れなければ、そこで終了。",
+      "山札がなくなったら終了。集めた枚数が多い人の勝ち。",
+    ],
+  },
+  advanced: {
+    title: "上級モード",
+    lines: [
+      "7枚以上のノルマ達成で、枚数に応じて＋1／＋3／＋6点。",
+      "達成の記録の並びで、前後する数字なら＋1点、同じ数字なら＋2点（組をまたいでもよい）。",
+      "ワイルド不使用で3組以上達成したら、終了時に＋5点。",
+      "同じ種類だけ（ワイルドは可）で3組以上達成したら、終了時に＋15点。",
+    ],
+  },
+  hint: {
+    title: "ヒント",
+    lines: [
+      "カードは(4種類×13＋ワイルド2)×2セット＝108枚。うち8枚をランダムに除外して遊ぶ。",
+      "放棄すると、次のノルマ札を選べるのは次の自分の手番から。",
+      "場札は自分の手番の始めに自動で補充される。数えて減っていても気にしなくてよい。",
+      "配り直しでは、場札をすべて山札に戻してシャッフルし、同じ枚数を並べ直す。中身は総入れ替えになる。",
+    ],
+  },
+};
+
+function guideHtml() {
+  const page = GUIDES[guide];
+  if (!page) return "";
+  const lines = page.lines.map((line) => `<li>${line}</li>`).join("");
+  return `<div class="rollover guide"><div class="panel"><h2>${page.title}</h2><ul>${lines}</ul><p><button type="button" class="primary" id="guide-ok">OK</button></p></div></div>`;
+}
+
 function savedOptions() {
   const match = document.cookie.match(/(?:^|; )quota_options=([^;]*)/);
   if (!match) return null;
@@ -115,8 +158,17 @@ function render() {
     const humans = String(saved.humans ?? 3);
     const itemSet = saved.item_set || "";
     app.innerHTML = `
-      <h1>Quota</h1>
-      <p>場札からノルマ札を取り、同じ種類を集めてノルマを達成する。</p>
+      <header class="hero">
+        <p class="ruby">ク ォ ー タ</p>
+        <h1><span class="word">QUOTA</span> <span class="sub">揃えて、達成。</span></h1>
+        <p class="catch">ノルマは、自分で決めろ。</p>
+      </header>
+      <p class="guide-buttons">
+        <button type="button" data-guide="basic">基本ルール</button>
+        <button type="button" data-guide="advanced">上級モード</button>
+        <button type="button" data-guide="hint">ヒント</button>
+      </p>
+      ${guideHtml()}
       <form class="panel" id="start">
         <div class="row">
           <label>アイテムセット
@@ -143,6 +195,9 @@ function render() {
           <label><span>上級</span>
             <input name="sequence" type="checkbox" ${saved.sequence ? "checked" : ""}> 並び順ボーナス
           </label>
+          <label><span>称号</span>
+            <input name="title" type="checkbox" ${saved.title ? "checked" : ""}> 称号ボーナス
+          </label>
           <label><span>左利き</span>
             <input name="left_handed" type="checkbox" ${saved.left_handed ? "checked" : ""}> ボタンを左に置く
           </label>
@@ -150,6 +205,17 @@ function render() {
         <p><button class="primary" type="submit">スタート</button></p>
         <p class="note">この画面を開いた端末が同じ盤面を共有します。同じネットワークの他の端末からも操作できます。</p>
       </form>`;
+    app.querySelectorAll("[data-guide]").forEach((button) => {
+      button.onclick = () => {
+        guide = button.dataset.guide;
+        render();
+      };
+    });
+    const guideOk = app.querySelector("#guide-ok");
+    if (guideOk) guideOk.onclick = () => {
+      guide = null;
+      render();
+    };
     app.querySelector("#start").onsubmit = async (event) => {
       event.preventDefault();
       const data = new FormData(event.target);
@@ -161,6 +227,7 @@ function render() {
         humans,
         seed: data.get("seed"),
         sequence: data.get("sequence") === "on",
+        title: data.get("title") === "on",
         item_set: data.get("item_set"),
         ok_timeout: Number(data.get("ok_timeout")),
         left_handed: data.get("left_handed") === "on",
@@ -244,7 +311,7 @@ function render() {
     </div>
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count}
       / 膠着状態 ${state.stall_count} / 連続パス ${state.no_gain_streak}/${state.player_count}
-      ${state.sequence_rule ? " / 上級" : ""}</p>
+      ${state.sequence_rule ? " / 並び順" : ""}${state.title_rule ? " / 称号" : ""}</p>
     ${gateHtml()}
     <section class="panel market-panel">
       <div class="market-label">場札${hint ? `<span class="thinking">${hint}</span>` : ""}</div>
@@ -252,7 +319,8 @@ function render() {
       ${controls}
     </section>
     ${seats}
-    ${state.finished && tally && tally.phase === "done" && !scoreAnim.size ? finishHtml() : ""}
+    ${state.finished && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
+    ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
     `;
 
   const restart = app.querySelector("#restart");
@@ -278,11 +346,12 @@ function render() {
 function confirmHtml(message, gate, rollover) {
   if (!gate || gate.released) return "";
   const waiting = (gate.waiting || []).join("、");
-  return `<section class="panel tally-note${rollover ? " rollover" : ""}">
+  const body = `<section class="panel tally-note">
     <p>${message}</p>
     <p><button type="button" id="ack" ${gate.you_can_ack ? "" : "disabled"}>OK</button></p>
     ${waiting ? `<p class="note">${waiting} のOKを待っています。</p>` : ""}
   </section>`;
+  return rollover ? `<div class="rollover">${body}</div>` : body;
 }
 
 function gateHtml() {
@@ -489,6 +558,8 @@ function applyState(next) {
     pendingBonus = 0;
     pendingBonusSeat = null;
     bonusNote = null;
+    titleCheer = null;
+    guide = null;
   }
   render();
   hiding = new Set();
@@ -503,6 +574,38 @@ function applyState(next) {
   if (lifted.length) flyLifted(lifted, afterFlight);
   else afterFlight();
   if (!next.settling && !inFlight.size && !parked.size) flushMarket();
+}
+
+function finishSeat(index) {
+  const titles = (state.players[index] && state.players[index].titles) || [];
+  showTitle(index, titles, 0);
+}
+
+function showTitle(index, titles, n) {
+  if (!state || state.phase === "lobby") return;
+  if (n >= titles.length) {
+    titleCheer = null;
+    scoreSeat(index + 1);
+    return;
+  }
+  const title = titles[n];
+  const player = state.players[index];
+  titleCheer = {
+    text: `${player.name}が『${title.name}』を達成したので+${title.points}のボーナス獲得`,
+    plus: title.points,
+  };
+  const from = tallyScores.has(index) ? tallyScores.get(index) : baseScore(player);
+  let step = 0;
+  render();
+  const tick = () => {
+    if (!state || state.phase === "lobby") return;
+    step += 1;
+    tallyScores.set(index, from + step);
+    render();
+    if (step < title.points) setTimeout(tick, 80);
+    else setTimeout(() => showTitle(index, titles, n + 1), 700);
+  };
+  setTimeout(tick, 450);
 }
 
 function maybeTally() {
@@ -526,7 +629,7 @@ function scoreSeat(index) {
   const seat = document.querySelector(`[data-seat="${index}"]`);
   const dots = seat ? [...seat.querySelectorAll(".line.record .marks span")] : [];
   if (!dots.length) {
-    scoreSeat(index + 1);
+    finishSeat(index);
     return;
   }
   gathering = true;
@@ -536,7 +639,7 @@ function scoreSeat(index) {
     if (!state || state.phase === "lobby") return;
     if (n >= dots.length) {
       gathering = false;
-      scoreSeat(index + 1);
+      finishSeat(index);
       return;
     }
     const dot = dots[n];
