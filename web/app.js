@@ -18,6 +18,7 @@ let hiding = new Set();
 let inFlight = new Set();
 let parked = new Set();
 let pendingBonus = 0;
+let pendingBonusSeat = null;
 let bonusNote = null;
 
 function cardHtml(card, z = 1, marks = null, compact = false) {
@@ -188,7 +189,11 @@ function render() {
     }).join("");
     const score = scoreBits(index, baseScore(player));
     const alt = index % 2 ? " alt" : "";
+    const toast = bonusNote && bonusNote.seat === index && Date.now() < bonusNote.until
+      ? `<div class="bonus-toast">${bonusNote.text}</div>`
+      : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
+      ${toast}
       <div class="bar"><strong>${index === focus && !state.finished ? "▶ " : ""}${player.name}</strong>
         <span>${score.plus}<span class="points">${score.points}</span>点</span></div>
       <div class="band">
@@ -248,7 +253,7 @@ function render() {
     </section>
     ${seats}
     ${state.finished && tally && tally.phase === "done" && !scoreAnim.size ? finishHtml() : ""}
-    ${bonusNote && Date.now() < bonusNote.until ? `<div class="bonus-toast">${bonusNote.text}</div>` : ""}`;
+    `;
 
   const restart = app.querySelector("#restart");
   if (restart) restart.onclick = () => post("/api/reset", {});
@@ -294,10 +299,11 @@ function bonusLine(rank) {
   return "";
 }
 
-function showBonus(rank) {
+function showBonus(rank, seat) {
   const text = bonusLine(rank);
   if (!text) return;
-  bonusNote = { text, until: Date.now() + 1000 };
+  bonusNote = { text, until: Date.now() + 1000, seat };
+  if (state && state.phase !== "lobby") render();
   setTimeout(() => {
     if (!bonusNote || Date.now() < bonusNote.until) return;
     bonusNote = null;
@@ -425,8 +431,9 @@ function hopParked(ids) {
   }
   render();
   flyLifted(lifted, () => {
-    if (pendingBonus >= 7) showBonus(pendingBonus);
+    if (pendingBonus >= 7) showBonus(pendingBonus, pendingBonusSeat);
     pendingBonus = 0;
+    pendingBonusSeat = null;
     flushMarket();
     maybeTally();
   });
@@ -437,7 +444,10 @@ function applyState(next) {
   const fresh = event && event.n !== seenEvent && event.cards && event.cards.length;
   const lifted = fresh ? liftMarketCards(event.cards) : [];
   if (event) seenEvent = event.n;
-  if (fresh) pendingBonus = 0;
+  if (fresh) {
+    pendingBonus = 0;
+    pendingBonusSeat = null;
+  }
   let pause = null;
   if (fresh && event.kind === "take") {
     const aceIds = event.cards.filter((card) => card.rank === 1).map((card) => String(card.id));
@@ -453,6 +463,7 @@ function applyState(next) {
       ids.forEach((id) => parked.add(id));
       pause = { ids, ms: 400 };
       pendingBonus = bundle[0].rank || 0;
+      pendingBonusSeat = event.seat;
     }
   }
   for (const el of lifted) inFlight.add(el.dataset.id);
@@ -476,6 +487,7 @@ function applyState(next) {
     hiding = new Set();
     parked = new Set();
     pendingBonus = 0;
+    pendingBonusSeat = null;
     bonusNote = null;
   }
   render();

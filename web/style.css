@@ -111,7 +111,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .card .emoji { font-size: calc(26px * var(--card-scale)); }
 .card.idle { opacity: 0.4; }
 .card.gap { visibility: hidden; }
-.seat { border: 0; padding: 8px 4px; margin: 0; background: #fff; }
+.seat { position: relative; border: 0; padding: 8px 4px; margin: 0; background: #fff; }
 .seat.alt { background: #efeae0; }
 .seat.turn { background: #fff3d6; }
 .band { min-width: 0; }
@@ -148,8 +148,8 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 }
 .bar { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .bonus-toast {
-  position: fixed; left: 50%; top: 16%; transform: translateX(-50%);
-  z-index: 70; background: #fff; border: 2px solid #222;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 6; background: #fff; border: 2px solid #222;
   padding: 6px 10px; font-size: 13px; pointer-events: none; white-space: nowrap;
 }
 .overlay {
