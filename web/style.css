@@ -53,6 +53,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .line.record + .line.record { margin-top: calc(var(--card-h) * 0.68 * -1 / 4); z-index: 1; }
 @keyframes shrink-in { from { transform: scale(1.45); } to { transform: scale(1); } }
 .line.record .card.just-in { animation: shrink-in .35s ease; }
+.marker-bank, .gain-dot { font-size: 5px; line-height: 5px; }
 .marker-bank { margin-left: 6px; }
 .gain-dot {
   position: fixed; z-index: 40; pointer-events: none;
@@ -93,9 +94,9 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 }
 .marks span {
   display: block;
-  font-size: 8px;
-  line-height: 8px;
-  height: 8px;
+  font-size: 5px;
+  line-height: 5px;
+  height: 5px;
 }
 .card.incoming { visibility: hidden; }
 .card .goods { white-space: nowrap; line-height: 1; letter-spacing: -0.05em; max-width: 100%; }
