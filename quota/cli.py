@@ -17,6 +17,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--auto", action="store_true", help="全員CPUで1ゲーム進める")
     parser.add_argument("--sequence", action="store_true", help="上級ルール（並び順ボーナス）")
+    parser.add_argument("--title", action="store_true", help="上級ルール（称号ボーナス）")
     parser.add_argument(
         "--item-set",
         default="trade",
@@ -48,6 +49,7 @@ def main() -> None:
             names=names,
             human_seats=list(range(humans)),
             sequence_rule=args.sequence,
+            title_rule=args.title,
             item_set=theme.id,
         )
     )
@@ -73,6 +75,7 @@ def main() -> None:
                 f"{place}位 {p.name}  {game.final_score(p)}点  "
                 f"達成{p.achieve_count}回  最高{p.max_single_score}点"
                 + (f"  並び順{game.sequence_points(p)}点" if game.config.sequence_rule else "")
+                + (f"  称号{game.title_points(p)}点" if game.config.title_rule else "")
             )
         place += len(group)
 

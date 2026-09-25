@@ -4,7 +4,7 @@ import pytest
 
 from quota.ai import choose_action
 from quota.cards import Card, bonus, make_deck, score_for, sequence_bonus
-from quota.engine import Collect, Game, GameConfig, Pass, TakeQuota
+from quota.engine import Bundle, Collect, Game, GameConfig, Pass, TakeQuota
 
 
 def test_deck_has_108_unique_cards():
@@ -168,6 +168,20 @@ def test_deck_ends_at_the_start_of_the_next_turn():
     owner = next(p for p in game.players if p.quota is not None)
     assert owner.quota is not None
     assert len(game.market) == game.market_size() - 1
+
+
+def test_title_bonus_needs_three_achieves_and_scores_each_award():
+    game = Game.start(GameConfig(seed=1, num_players=3, title_rule=True))
+    player = game.players[0]
+    player.bundles = [Bundle("S", False), Bundle("S", True)]
+    assert game.title_awards(player) == []
+    player.bundles.append(Bundle("S", False))
+    assert game.title_awards(player) == [("単色達成", 15)]
+    player.bundles = [Bundle("S", False), Bundle("H", False), Bundle("C", False)]
+    assert game.title_awards(player) == [("生粋の買い付け", 5)]
+    player.bundles = [Bundle("S", False), Bundle("S", False), Bundle("S", False)]
+    assert game.title_points(player) == 20
+    assert game.final_score(player) == player.score + 20
 
 
 def test_sequence_bonus_examples():

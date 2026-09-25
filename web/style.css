@@ -10,6 +10,21 @@ main { max-width: 980px; margin: 0 auto; padding: 16px; }
   main { padding: 8px; }
 }
 h1 { font-size: 28px; margin: 0 0 8px; }
+.hero { margin: 8px 0 12px; }
+.hero .ruby { margin: 0 0 2px; font-size: 11px; letter-spacing: 0.35em; color: #666; }
+.hero h1 { font-size: 34px; letter-spacing: 0.04em; }
+.hero .sub { font-size: 22px; }
+.hero .catch { margin: 4px 0 0; font-size: 14px; }
+.guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.guide ul { margin: 8px 0; padding-left: 1.2em; }
+.rollover {
+  position: fixed; inset: 0; z-index: 75;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+}
+.rollover .panel { width: min(520px, 92vw); }
+.title-cheer .panel { text-align: center; background: #fff8e6; border-width: 3px; }
+.title-plus { font-size: 42px; margin: 8px 0 0; color: #c45c26; }
 button, select, input {
   font: inherit;
   border: 2px solid #222;
@@ -124,10 +139,6 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   display: flex; justify-content: flex-end;
 }
 .controls.left-hand { right: auto; left: 8px; justify-content: flex-start; }
-.tally-note.rollover {
-  position: fixed; left: 50%; top: 18%; transform: translateX(-50%);
-  z-index: 60; margin: 0; width: max-content; max-width: 92vw;
-}
 .control-buttons { display: flex; gap: 6px; align-items: center; }
 .control-buttons button, #restart { padding: 3px 8px; font-size: 12px; }
 @media (orientation: portrait) and (max-width: 700px) {

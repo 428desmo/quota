@@ -61,6 +61,7 @@ class Table:
                 names=names,
                 human_seats=list(range(humans)),
                 sequence_rule=bool(body.get("sequence")),
+                title_rule=bool(body.get("title")),
                 item_set=theme.id,
             )
         )
@@ -73,6 +74,7 @@ class Table:
             "players": players,
             "humans": humans,
             "sequence": bool(body.get("sequence")),
+            "title": bool(body.get("title")),
             "item_set": theme.id,
             "ok_timeout": timeout,
             "left_handed": bool(body.get("left_handed")),
@@ -180,6 +182,7 @@ class Table:
             "finished": game.finished,
             "end_reason": game.end_reason,
             "sequence_rule": game.config.sequence_rule,
+            "title_rule": game.config.title_rule,
             "left_handed": self.left_handed,
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
@@ -195,6 +198,7 @@ class Table:
                     "score": game.final_score(p),
                     "delivery_score": p.score,
                     "sequence_bonus": game.sequence_points(p),
+                    "titles": [{"name": name, "points": points} for name, points in game.title_awards(p)],
                     "achieve_count": p.achieve_count,
                     "max_single_score": p.max_single_score,
                     "quota": None if p.quota is None else _card(p.quota, theme),
