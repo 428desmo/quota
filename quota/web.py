@@ -182,6 +182,8 @@ class Table:
             player = game.players[seat]
             player.is_human = False
             self._announce(f"{player.name}が抜けたので、CPUが代わりにプレイしました")
+            if self._only_one_human():
+                self.turn_deadline = None
             self._touch_gate()
             self._touch_refresh()
             if (
@@ -260,7 +262,7 @@ class Table:
             self.turn_deadline = None
             return
         player = game.players[game.current]
-        if not player.is_human:
+        if not player.is_human or self._only_one_human():
             self.turn_deadline = None
             return
         now = time.monotonic()
@@ -444,11 +446,15 @@ class Table:
             "leader": client_id == self.leader_id() and seat is not None,
         }
 
+    def _only_one_human(self) -> bool:
+        game = self.game
+        return game is not None and sum(player.is_human for player in game.players) <= 1
+
     def _turn_left(self) -> float | None:
         game = self.game
         if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
             return None
-        if not game.players[game.current].is_human:
+        if not game.players[game.current].is_human or self._only_one_human():
             return None
         if self.turn_deadline is None:
             return self.turn_timeout
