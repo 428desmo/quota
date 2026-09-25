@@ -36,6 +36,7 @@ class Table:
         self.refresh_acked: set[int] = set()
         self.refresh_notice_at: float | None = None
         self.refresh_released = False
+        self.observers: list[dict] = []
 
     def start(self, body: dict, client_id: str = "") -> None:
         players = int(body.get("players", 3))
@@ -51,7 +52,7 @@ class Table:
             raise ValueError("OKタイムアウトは0以上の秒数です")
         seed = body.get("seed")
         theme = resolve_item_set(str(body.get("item_set") or "trade"))
-        names = _player_names(body.get("names"), players, humans)
+        names = _seat_names(body.get("name"), players, humans)
         self.game = Game.start(
             GameConfig(
                 num_players=players,
@@ -76,11 +77,11 @@ class Table:
             "item_set": theme.id,
             "ok_timeout": timeout,
             "left_handed": bool(body.get("left_handed")),
-            "names": _remembered_names(names, humans, self.last_options),
         }
         self.ok_timeout = timeout
         self.left_handed = bool(body.get("left_handed"))
-        self.seat_owner = {i: client_id for i, p in enumerate(self.game.players) if p.is_human}
+        self.seat_owner = {0: client_id} if humans >= 1 and client_id else {}
+        self.observers = []
         self.seat_acked = set()
         self.notice_at = None
         self.gate_released = False
@@ -104,6 +105,27 @@ class Table:
         self.refresh_acked = set()
         self.refresh_notice_at = None
         self.refresh_released = False
+        self.observers = []
+
+    def join(self, body: dict, client_id: str = "") -> None:
+        if not client_id:
+            raise ValueError("参加できません")
+        game = self._require_playing()
+        name = _clean_name(body.get("name"), "あなた")
+        for seat, owner in self.seat_owner.items():
+            if owner == client_id:
+                game.players[seat].name = name
+                return
+        for obs in self.observers:
+            if obs["client"] == client_id:
+                obs["name"] = name
+                return
+        for i, player in enumerate(game.players):
+            if player.is_human and i not in self.seat_owner:
+                self.seat_owner[i] = client_id
+                player.name = name
+                return
+        self.observers.append({"client": client_id, "name": name})
 
     def act(self, body: dict, client_id: str = "") -> None:
         if self._refresh_waiting():
@@ -125,8 +147,8 @@ class Table:
             action = Pass()
         else:
             raise ValueError("unknown action")
-        if client_id and player.is_human:
-            self.seat_owner[game.current] = client_id
+        if self.seat_owner.get(game.current) != client_id:
+            raise ValueError("あなたの手番ではありません")
         self._apply(action)
 
     def ack(self, client_id: str) -> None:
@@ -186,6 +208,9 @@ class Table:
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
             "current_human": game.players[game.current].is_human and not game.finished and not self._settling() and not self._refresh_waiting(),
+            "your_turn": self._your_turn(client_id),
+            "you": self._you(client_id),
+            "observers": [obs["name"] for obs in self.observers],
             "ranking": game.ranking() if game.finished else [],
             "score_gate": self._score_gate(client_id),
             "refresh_gate": self._refresh_gate(client_id),
@@ -314,6 +339,19 @@ class Table:
             "waiting": waiting,
         }
 
+    def _you(self, client_id: str) -> dict:
+        seat = next((i for i, owner in self.seat_owner.items() if owner == client_id), None)
+        observer = any(obs["client"] == client_id for obs in self.observers)
+        return {"seat": seat, "observer": observer, "joined": seat is not None or observer}
+
+    def _your_turn(self, client_id: str) -> bool:
+        game = self.game
+        if game is None or game.finished or self._settling() or self._refresh_waiting():
+            return False
+        if not game.players[game.current].is_human:
+            return False
+        return self.seat_owner.get(game.current) == client_id
+
     def _score_gate(self, client_id: str) -> dict | None:
         game = self.game
         if game is None or not game.finished or game.end_reason != "DECK":
@@ -328,27 +366,21 @@ class Table:
         }
 
 
-def _player_names(raw, players: int, humans: int) -> list[str]:
-    given = raw if isinstance(raw, list) else []
+def _clean_name(raw, fallback: str) -> str:
+    text = " ".join(str(raw or "").split())[:24]
+    return text or fallback
+
+
+def _seat_names(host_name, players: int, humans: int) -> list[str]:
     names = []
     for i in range(players):
-        if i >= humans:
+        if not i < humans:
             names.append(f"CPU{i - humans + 1}")
-            continue
-        text = given[i] if i < len(given) and given[i] is not None else ""
-        text = " ".join(str(text).split())[:24]
-        if humans == 1:
-            names.append(text or "あなた")
+        elif i == 0:
+            names.append(_clean_name(host_name, "あなた"))
         else:
-            names.append(text or f"席{i + 1}")
+            names.append("参加待ち")
     return names
-
-
-def _remembered_names(names: list[str], humans: int, previous: dict | None) -> list[str]:
-    if humans >= 2:
-        return names[:humans]
-    kept = (previous or {}).get("names")
-    return kept if isinstance(kept, list) else []
 
 
 def _item_set_choices() -> list[dict]:
@@ -424,6 +456,8 @@ class Handler(BaseHTTPRequestHandler):
                     TABLE.start(body, client)
                 elif self.path == "/api/action":
                     TABLE.act(body, client)
+                elif self.path == "/api/join":
+                    TABLE.join(body, client)
                 elif self.path == "/api/ack":
                     TABLE.ack(client)
                 elif self.path == "/api/reset":

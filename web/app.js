@@ -145,22 +145,22 @@ function escapeAttr(value) {
   return String(value).replace(/[&"<>]/g, (ch) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" }[ch]));
 }
 
-function humanSeatCount(players, humans) {
-  const seats = Number(players);
-  const people = Number(humans);
-  return Math.max(0, Math.min(people, seats));
+function escapeText(value) {
+  return String(value).replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
 }
 
-function nameFields(count, names) {
-  const saved = Array.isArray(names) ? names : [];
-  const shown = count >= 2 ? count : 0;
-  const fields = Array.from({ length: shown }, (_, i) => {
-    const value = saved[i] ? escapeAttr(saved[i]) : "";
-    return `<label>席${i + 1}
-      <input name="name" maxlength="24" placeholder="席${i + 1}" autocomplete="nickname" value="${value}">
-    </label>`;
-  }).join("");
-  return `<div class="row names" id="names"${shown ? "" : " hidden"}>${fields}</div>`;
+function savedName() {
+  const match = document.cookie.match(/(?:^|; )quota_name=([^;]*)/);
+  if (!match) return "";
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return "";
+  }
+}
+
+function rememberName(name) {
+  document.cookie = `quota_name=${encodeURIComponent(name)}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
 
 function savedOptions() {
@@ -179,7 +179,6 @@ function render() {
     const players = String(saved.players || 3);
     const humans = String(saved.humans ?? 3);
     const itemSet = saved.item_set || "";
-    const named = humanSeatCount(players, humans);
     app.innerHTML = `
       <header class="hero">
         <h1>
@@ -212,7 +211,11 @@ function render() {
             </select>
           </label>
         </div>
-        ${nameFields(named, saved.names)}
+        <div class="row">
+          <label>あなたの名前
+            <input name="player_name" maxlength="24" placeholder="あなた" autocomplete="nickname" value="${escapeAttr(savedName())}">
+          </label>
+        </div>
         <div class="row tight">
           <label>シード（空ならランダム）
             <input class="short" name="seed" inputmode="numeric">
@@ -249,26 +252,18 @@ function render() {
       render();
     };
     const form = app.querySelector("#start");
-    const nameMemory = Array.isArray(saved.names) ? saved.names.slice() : [];
-    const refreshNames = () => {
-      const count = humanSeatCount(form.players.value, form.humans.value);
-      [...form.querySelectorAll('input[name="name"]')].forEach((el, i) => {
-        nameMemory[i] = el.value;
-      });
-      form.querySelector("#names").outerHTML = nameFields(count, nameMemory);
-    };
-    form.players.onchange = refreshNames;
-    form.humans.onchange = refreshNames;
     form.onsubmit = async (event) => {
       event.preventDefault();
       const data = new FormData(event.target);
       const players = Number(data.get("players"));
       let humans = Number(data.get("humans"));
       if (humans > players) humans = players;
+      const name = String(data.get("player_name") || "");
+      rememberName(name);
       await post("/api/start", {
         players,
         humans,
-        names: data.getAll("name").slice(0, humans),
+        name,
         seed: data.get("seed"),
         sequence: data.get("sequence") === "on",
         title: data.get("title") === "on",
@@ -323,11 +318,11 @@ function render() {
   let controls = "";
   let hint = "";
   if (!state.settling && !state.finished) {
-    if (state.current_human && !me.quota) hint = "場札からノルマ札を選びましょう。";
-    else if (state.current_human) hint = `ノルマ達成まであと${me.need}枚。`;
+    if (state.your_turn && !me.quota) hint = "場札からノルマ札を選びましょう。";
+    else if (state.your_turn) hint = `ノルマ達成まであと${me.need}枚。`;
     else hint = `${me.name} が考えています`;
   }
-  if (!state.settling && state.current_human) {
+  if (!state.settling && state.your_turn) {
     if (!me.quota) {
       controls = `<div class="controls${hand}"><div class="control-buttons"><button type="button" id="pass">パス</button></div></div>`;
     } else {
@@ -342,7 +337,7 @@ function render() {
     if (!card) return `<div class="card gap"></div>`;
     const wide = card.face && [...card.face].length > 2 ? " wide" : "";
     const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
-    const idle = state.settling || (state.current_human && !canPlay(card, me)) ? "idle" : "";
+    const idle = state.settling || (state.your_turn && !canPlay(card, me)) ? "idle" : "";
     return `<div class="card ${card.joker ? "joker" : ""} ${idle}" data-id="${card.id}">
       <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div>${goodsHtml(card)}</button>
     </div>`;
@@ -352,9 +347,11 @@ function render() {
     <div class="bar">
       <h1 class="brand"><span class="word">QUOTA</span><span class="sub">揃えて、達成。</span></h1>
     </div>
+    ${joinHtml()}
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count}
       / 膠着状態 ${state.stall_count} / 連続パス ${state.no_gain_streak}/${state.player_count}
       ${state.sequence_rule ? " / 並び順" : ""}${state.title_rule ? " / 称号" : ""}</p>
+    ${watcherHtml()}
     ${gateHtml()}
     <section class="panel market-panel">
       <div class="market-label">場札${hint ? `<span class="thinking">${hint}</span>` : ""}</div>
@@ -367,6 +364,13 @@ function render() {
     ${state.finished ? "" : `<button type="button" id="restart">途中でやめて最初からやり直す</button>`}
     `;
 
+  const join = app.querySelector("#join");
+  if (join) join.onsubmit = async (event) => {
+    event.preventDefault();
+    const name = String(new FormData(event.target).get("player_name") || "");
+    rememberName(name);
+    await post("/api/join", { name });
+  };
   const restart = app.querySelector("#restart");
   if (restart) restart.onclick = () => post("/api/reset", {});
   app.querySelectorAll(".pick").forEach((button) => {
@@ -385,6 +389,22 @@ function render() {
     recordPrimed = true;
   }
   maybeTally();
+}
+
+function watcherHtml() {
+  return (state.observers || []).map((name) => `<p class="note">オブザーバー${escapeText(name)}が観戦しています</p>`).join("");
+}
+
+function joinHtml() {
+  if (state.you && state.you.joined) return "";
+  return `<form class="panel join" id="join">
+    <div class="row">
+      <label>あなたの名前
+        <input name="player_name" maxlength="24" placeholder="あなた" autocomplete="nickname" value="${escapeAttr(savedName())}">
+      </label>
+      <button class="primary" type="submit">参加する</button>
+    </div>
+  </form>`;
 }
 
 function confirmHtml(message, gate, rollover) {
@@ -440,7 +460,7 @@ function finishHtml() {
 
 function onPick(id) {
   const me = state.players[state.current];
-  if (!state.current_human || state.settling) return;
+  if (!state.your_turn || state.settling) return;
   if (!me.quota) {
     const card = state.market.find((item) => item.id === id);
     if (!card || card.joker) return;
@@ -845,7 +865,9 @@ async function poll() {
   const next = await response.json();
   const gate = JSON.stringify(next.score_gate || null);
   const refresh = JSON.stringify(next.refresh_gate || null);
-  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null) || refresh !== JSON.stringify(state.refresh_gate || null);
+  const presence = JSON.stringify({ you: next.you, observers: next.observers, your_turn: next.your_turn, names: (next.players || []).map((p) => p.name) });
+  const prevPresence = JSON.stringify({ you: state && state.you, observers: state && state.observers, your_turn: state && state.your_turn, names: state && state.players ? state.players.map((p) => p.name) : [] });
+  const changed = !state || next.event_n !== state.event_n || next.phase !== state.phase || next.settling !== state.settling || gate !== JSON.stringify(state.score_gate || null) || refresh !== JSON.stringify(state.refresh_gate || null) || presence !== prevPresence;
   if (changed) applyState(next);
 }
 
