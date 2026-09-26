@@ -392,7 +392,7 @@ function render() {
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
     ${coverHtml()}
     ${passAskHtml()}
-    <button type="button" id="leave">ゲームから抜ける</button>
+    <button type="button" id="leave">${leaveLabel()}</button>
     `;
 
   const leave = app.querySelector("#leave");
@@ -424,7 +424,7 @@ function render() {
   const ack = app.querySelector("#ack");
   if (ack) ack.onclick = () => post("/api/ack", {});
   const ok = app.querySelector("#ok");
-  if (ok) ok.onclick = () => post("/api/again", {});
+  if (ok) ok.onclick = () => post(state.you && state.you.observer ? "/api/leave" : "/api/again", {});
   if (!recordPrimed && state.phase === "playing") {
     document.querySelectorAll(".line.record .card").forEach((card) => recordSeen.add(card.dataset.id));
     recordPrimed = true;
@@ -454,11 +454,15 @@ function renderRecruiting() {
       ${watcherHtml()}
       ${you.leader ? `<p class="submit"><button class="primary" type="button" id="begin">ゲーム開始</button></p>` : `<p class="note">リーダーの開始を待っています。</p>`}
     </section>
-    <button type="button" id="leave">ゲームから抜ける</button>`;
+    <button type="button" id="leave">${leaveLabel()}</button>`;
   const begin = app.querySelector("#begin");
   if (begin) begin.onclick = () => post("/api/start", {});
   const leave = app.querySelector("#leave");
   if (leave) leave.onclick = () => post("/api/leave", {});
+}
+
+function leaveLabel() {
+  return state.you && state.you.observer ? "離れる" : "ゲームから抜ける";
 }
 
 function passAskHtml() {
@@ -535,7 +539,8 @@ function finishHtml() {
     place += group.length;
     return text;
   }).join("<br>");
-  return `<div class="overlay"><div class="panel"><h2>${reason}</h2><p>${lines}</p><button class="primary" id="ok">次のゲームを始める</button></div></div>`;
+  const nextLabel = state.you && state.you.observer ? "離れる" : "次のゲームを始める";
+  return `<div class="overlay"><div class="panel"><h2>${reason}</h2><p>${lines}</p><button class="primary" id="ok">${nextLabel}</button></div></div>`;
 }
 
 function onPick(id) {
@@ -1016,7 +1021,9 @@ async function post(url, body) {
     headers: { "Content-Type": "application/json", "X-Quota-Client": clientId() },
     body: JSON.stringify(body),
   });
-  applyState(await response.json());
+  const next = await response.json();
+  if (!response.ok || next.error) return;
+  applyState(next);
 }
 
 async function poll() {
