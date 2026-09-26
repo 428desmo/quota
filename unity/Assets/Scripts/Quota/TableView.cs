@@ -290,7 +290,12 @@ namespace Quota
 
         void Clear()
         {
-            for (var i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
+            for (var i = content.childCount - 1; i >= 0; i--)
+            {
+                var child = content.GetChild(i).gameObject;
+                if (Application.isPlaying) Destroy(child);
+                else DestroyImmediate(child);
+            }
         }
 
         RectTransform Column(RectTransform parent, string name)
@@ -394,14 +399,24 @@ namespace Quota
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
             image.color = color ?? Hex("#111111");
+            var widest = 0;
+            var count = 0;
+            foreach (var ch in text)
+            {
+                if (ch == '\n')
+                {
+                    if (count > widest) widest = count;
+                    count = 0;
+                }
+                else count++;
+            }
+            if (count > widest) widest = count;
             var layout = go.GetComponent<LayoutElement>();
             layout.preferredHeight = 18 + 22 * lines;
             layout.minHeight = layout.preferredHeight;
-            if (lines > 1)
-            {
-                layout.preferredWidth = 112;
-                layout.flexibleWidth = 0;
-            }
+            layout.preferredWidth = Mathf.Max(lines > 1 ? 112 : 72, widest * 18 + 28);
+            layout.minWidth = layout.preferredWidth;
+            layout.flexibleWidth = 0;
             var label = NewText(go.transform, "caption", 8, 4);
             label.text = text;
             label.color = CaptionOn(image.color);
