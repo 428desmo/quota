@@ -8,6 +8,7 @@ let pendingMarket = null;
 const marksTaken = new Set();
 const tallyScores = new Map();
 let tally = null;
+let watched = false;
 const recordSeen = new Set();
 let recordPrimed = false;
 let gathering = false;
@@ -505,7 +506,7 @@ function confirmHtml(message, gate, rollover) {
 function gateHtml() {
   const refresh = confirmHtml("全員がパスをしたので、場札をリフレッシュします", state.refresh_gate, true);
   if (refresh) return refresh;
-  if (!state.finished || state.end_reason !== "DECK") return "";
+  if (!state.finished || state.end_reason !== "DECK" || !watched) return "";
   return confirmHtml("山札がなくなりました。得点計算に映ります", state.score_gate, false);
 }
 
@@ -539,8 +540,9 @@ function finishHtml() {
     place += group.length;
     return text;
   }).join("<br>");
+  const perks = perkHtml();
   const nextLabel = state.you && state.you.observer ? "離れる" : "次のゲームを始める";
-  return `<div class="overlay"><div class="panel"><h2>${reason}</h2><p>${lines}</p><button class="primary" id="ok">${nextLabel}</button></div></div>`;
+  return `<div class="overlay"><div class="panel"><h2>${reason}</h2><p>${lines}</p>${perks}<button class="primary" id="ok">${nextLabel}</button></div></div>`;
 }
 
 function onPick(id) {
@@ -710,6 +712,7 @@ function noteRoster(next) {
 function applyState(next) {
   noteTurn(next);
   noteCover(next);
+  noteWatch(next);
   if (!next || next.phase === "hall" || next.phase === "recruiting") {
     noteRoster(next);
     state = next;
@@ -797,6 +800,7 @@ function applyState(next) {
     titleCheer = null;
     guide = null;
   }
+  settleLate();
   render();
   hiding = new Set();
   const afterFlight = () => {
@@ -842,6 +846,40 @@ function showTitle(index, titles, n) {
     else setTimeout(() => showTitle(index, titles, n + 1), 700);
   };
   setTimeout(tick, 450);
+}
+
+function noteWatch(next) {
+  if (!next || next.phase === "hall" || next.phase === "recruiting") {
+    watched = false;
+    return;
+  }
+  if (next.phase === "playing" && !next.finished) watched = true;
+}
+
+function settleLate() {
+  if (!state || !state.finished || watched || tally) return;
+  state.players.forEach((player, index) => {
+    tallyScores.set(index, player.score);
+    deliveryMarks(player.achieved, state.sequence_rule).forEach((_, id) => marksTaken.add(id));
+  });
+  bonusCashed = true;
+  gathering = false;
+  titleCheer = null;
+  tally = { phase: "done" };
+}
+
+function perkHtml() {
+  if (watched || !state || !state.players) return "";
+  const lines = [];
+  for (const player of state.players) {
+    const delivery = Number(player.delivery_score || 0) - baseScore(player);
+    if (delivery > 0) lines.push(`${escapeText(player.name)}の達成ボーナス +${delivery}`);
+    if (player.sequence_bonus) lines.push(`${escapeText(player.name)}の並び順ボーナス +${player.sequence_bonus}`);
+    for (const title of player.titles || []) {
+      lines.push(`${escapeText(player.name)}が『${escapeText(title.name)}』を達成したので+${title.points}のボーナス獲得`);
+    }
+  }
+  return lines.length ? `<p class="perks">${lines.join("<br>")}</p>` : "";
 }
 
 function maybeTally() {
