@@ -12,11 +12,12 @@ namespace Quota
         RectTransform root;
         RectTransform content;
         bool busy;
-        bool confirmPass;
+        string confirm;
         int setIndex;
         int playerCount = 3;
         bool sequenceRule;
         bool titleRule;
+        bool specialRule;
         string seedText = "";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -117,6 +118,11 @@ namespace Quota
                 titleRule = !titleRule;
                 ShowSetup();
             });
+            Button(content, $"特殊アクション  {(specialRule ? "オン" : "オフ")}", () =>
+            {
+                specialRule = !specialRule;
+                ShowSetup();
+            });
             Button(content, "対局開始", () =>
             {
                 int? parsed = null;
@@ -131,9 +137,10 @@ namespace Quota
                     HumanSeats = new List<int> { 0 },
                     SequenceRule = sequenceRule,
                     TitleRule = titleRule,
+                    SpecialActionsRule = specialRule,
                     ItemSet = sets[setIndex].Id,
                 });
-                confirmPass = false;
+                confirm = null;
                 ShowTable();
             });
         }
@@ -144,7 +151,11 @@ namespace Quota
             var game = match.Game;
             var theme = ItemCatalog.Resolve(game.Config.ItemSet);
             Title(content, "QUOTA  揃えて、達成。");
-            Note(content, $"手番 {game.TurnNumber} / 山札 {game.Deck.Count} / 膠着 {(game.StallFlag ? 1 : 0)} / 連続パス {game.NoGainStreak}/{game.Players.Count}");
+            var rules = (game.Config.SequenceRule ? " / 並び順" : "") + (game.Config.TitleRule ? " / 称号" : "") + (game.Config.SpecialActionsRule ? " / 特殊" : "");
+            Note(content, $"手番 {game.TurnNumber} / 山札 {game.Deck.Count} / 膠着 {(game.StallFlag ? 1 : 0)} / 連続パス {game.NoGainStreak}/{game.Players.Count}{rules}");
+            if (game.Plan == "reshuffle") Note(content, "配り直しました。行動を選んでください。");
+            else if (game.DoubleStage == 1) Note(content, "ダブル：1回目の行動です。");
+            else if (game.DoubleStage == 2) Note(content, "ダブル：2回目の行動です。");
             Note(content, "場札");
             var market = Row(content, "market");
             var me = game.Players[game.Current];
@@ -163,18 +174,22 @@ namespace Quota
             if (match.IsHumanTurn && !busy)
             {
                 var controls = Row(content, "controls");
-                if (me.Quota != null) Button(controls, "放棄", () => Play(new Abandon()));
-                var passLabel = me.Quota == null ? "パス" : game.TurnGain ? "次へ" : "パス";
-                Button(controls, passLabel, () =>
+                var canDeclare = game.Plan == "normal" && !game.TurnGain && game.DoubleStage == 0;
+                if (canDeclare && me.DoubleActionLeft > 0) Button(controls, "ダブル", () =>
                 {
-                    if (me.Quota == null)
-                    {
-                        confirmPass = true;
-                        ShowTable();
-                        return;
-                    }
-                    Play(new Pass());
+                    confirm = null;
+                    game.DeclareDouble();
+                    ShowTable();
                 });
+                if (canDeclare && me.ReshuffleTakeLeft > 0) Button(controls, "配り直し", () =>
+                {
+                    confirm = null;
+                    game.DeclareReshuffle();
+                    ShowTable();
+                });
+                if (me.Quota != null) Button(controls, "放棄", () => Ask("abandon"));
+                var passLabel = me.Quota == null ? "パス" : game.TurnGain ? "次へ" : "パス";
+                Button(controls, passLabel, () => Ask(passLabel == "次へ" ? "next" : "pass"));
             }
             else if (!game.Finished)
             {
@@ -186,27 +201,66 @@ namespace Quota
                 var seat = Column(content, "seat" + i);
                 var mark = i == game.Current && !game.Finished ? " ▶" : "";
                 Note(seat, $"{player.Name}{mark}  {game.FinalScore(player)}点");
+                if (game.Config.SpecialActionsRule)
+                    Note(seat, $"ダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}　配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}");
                 Note(seat, "ノルマ  " + Line(theme, player.Quota, player.Collection));
                 Note(seat, "実績  " + (player.Achieved.Count == 0 ? "なし" : Line(theme, null, player.Achieved)));
             }
-            if (confirmPass) Confirm(content);
             if (game.Finished) Result(content, game);
-            else Button(content, "最初の画面に戻る", ShowSetup);
+            else Button(content, "最初の画面に戻る", () => Ask("leave"));
+            if (confirm != null) Confirm(content);
+        }
+
+        void Ask(string kind)
+        {
+            confirm = kind;
+            ShowTable();
         }
 
         void Confirm(RectTransform parent)
         {
-            var box = Column(parent, "confirm");
-            Note(box, "本当にパスしますか？");
-            var row = Row(box, "confirm-buttons");
-            Button(row, "パスする", () =>
+            string message;
+            string yes;
+            UnityEngine.Events.UnityAction run;
+            if (confirm == "abandon")
             {
-                confirmPass = false;
-                Play(new Pass());
+                message = "本当に放棄しますか？";
+                yes = "放棄する";
+                run = () => Play(new Abandon());
+            }
+            else if (confirm == "leave")
+            {
+                message = "本当にゲームから抜けますか？";
+                yes = "抜ける";
+                run = () =>
+                {
+                    confirm = null;
+                    ShowSetup();
+                };
+            }
+            else if (confirm == "next")
+            {
+                message = "本当に次へ進みますか？";
+                yes = "次へ進む";
+                run = () => Play(new Pass());
+            }
+            else
+            {
+                message = "本当にパスしますか？";
+                yes = "パスする";
+                run = () => Play(new Pass());
+            }
+            var box = Column(parent, "confirm");
+            Note(box, message);
+            var row = Row(box, "confirm-buttons");
+            Button(row, yes, () =>
+            {
+                confirm = null;
+                run();
             });
             Button(row, "キャンセル", () =>
             {
-                confirmPass = false;
+                confirm = null;
                 ShowTable();
             });
         }
@@ -232,7 +286,7 @@ namespace Quota
         void Play(GameAction action)
         {
             if (busy || !match.IsHumanTurn || !match.Game.IsLegal(action)) return;
-            confirmPass = false;
+            confirm = null;
             match.Game.Step(action);
             StartCoroutine(RunCpus());
         }

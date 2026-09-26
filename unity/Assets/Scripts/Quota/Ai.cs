@@ -7,6 +7,7 @@ namespace Quota
     {
         public static GameAction ChooseAction(Game game)
         {
+            MaybeSpecial(game);
             var actions = game.LegalActions();
             var player = game.Players[game.Current];
             var takes = actions.OfType<TakeQuota>().ToList();
@@ -37,6 +38,33 @@ namespace Quota
             if (game.Config.SequenceRule) picked = OrderForSequence(player, picked);
             if (picked.Count > need) picked = picked.GetRange(0, need);
             return new Collect(picked.ConvertAll(card => card.Id));
+        }
+
+        static void MaybeSpecial(Game game)
+        {
+            if (!game.Config.SpecialActionsRule || game.Finished || game.Plan != "normal" || game.TurnGain) return;
+            var player = game.Players[game.Current];
+            if (player.ReshuffleTakeLeft > 0 && !MarketHelps(game, player))
+            {
+                game.DeclareReshuffle();
+                return;
+            }
+            if (player.DoubleActionLeft > 0 && WorthDouble(game, player)) game.DeclareDouble();
+        }
+
+        static bool MarketHelps(Game game, Player player)
+        {
+            if (player.Quota == null) return game.Market.Any(card => card.Suit != Suit.Joker);
+            return game.Market.Any(card => card.Suit == player.Quota.Suit || card.Suit == Suit.Joker);
+        }
+
+        static bool WorthDouble(Game game, Player player)
+        {
+            if (player.Quota == null)
+                return game.Market.Any(card => card.Rank == 1 || (card.Rank != null && card.Rank >= 7));
+            var need = player.Quota.Rank.Value - 1 - player.Collection.Count;
+            var eligible = game.Market.Count(card => card.Suit == player.Quota.Suit || card.Suit == Suit.Joker);
+            return need > 0 && need <= 4 && eligible > 0;
         }
 
         static List<Card> OrderForSequence(Player player, List<Card> cards)

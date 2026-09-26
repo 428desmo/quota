@@ -55,6 +55,8 @@ namespace Quota
         public int MaxSingleScore;
         public readonly bool IsHuman;
         public readonly List<Bundle> Bundles = new List<Bundle>();
+        public int ReshuffleTakeLeft;
+        public int DoubleActionLeft;
 
         public Player(string name, bool isHuman)
         {
@@ -79,6 +81,9 @@ namespace Quota
         public int TitleMinAchieves = 3;
         public int TitleMonoBonus = 15;
         public int TitlePuristBonus = 5;
+        public bool SpecialActionsRule;
+        public int ReshuffleTakeUses = 1;
+        public int DoubleActionUses = 1;
         public string ItemSet = "trade";
 
         public int ResolvedMarketSize()
@@ -112,6 +117,9 @@ namespace Quota
         public readonly PythonRandom Rng;
         public int ReshuffleCount;
         public bool TurnGain;
+        public string Plan = "normal";
+        public int DoubleStage;
+        public bool DoubleGained;
 
         Game(GameConfig config, List<Card> deck, List<Card> removed, List<Card> market, List<Player> players, int current, PythonRandom rng)
         {
@@ -147,9 +155,16 @@ namespace Quota
             }
             if (names.Count != cfg.NumPlayers) throw new ArgumentException("names length must match num_players");
             var human = new HashSet<int>(cfg.HumanSeats ?? Enumerable.Range(0, cfg.NumPlayers));
+            var takeLeft = cfg.SpecialActionsRule ? cfg.ReshuffleTakeUses : 0;
+            var doubleLeft = cfg.SpecialActionsRule ? cfg.DoubleActionUses : 0;
             var players = new List<Player>();
             for (var i = 0; i < cfg.NumPlayers; i++)
-                players.Add(new Player(names[i], human.Contains(i)));
+            {
+                var player = new Player(names[i], human.Contains(i));
+                player.ReshuffleTakeLeft = takeLeft;
+                player.DoubleActionLeft = doubleLeft;
+                players.Add(player);
+            }
             var first = rng.RandBelow(cfg.NumPlayers);
             var game = new Game(cfg, deck, removed, market, players, first, rng);
             game.Log.Add($"先手: {players[first].Name}");
@@ -252,7 +267,74 @@ namespace Quota
                 throw new ArgumentException("unknown action");
             }
 
-            if (gained || TurnGain)
+            CloseAction(gained);
+        }
+
+        public void DeclareReshuffle()
+        {
+            var player = Players[Current];
+            Declare("reshuffle");
+            SelfReshuffle();
+            Log.Add($"{player.Name} が配り直し＆取得を宣言し、場を配り直した");
+        }
+
+        public void DeclareDouble()
+        {
+            var player = Players[Current];
+            Declare("double");
+            DoubleStage = 1;
+            DoubleGained = false;
+            Log.Add($"{player.Name} がダブルアクションを宣言した");
+        }
+
+        void Declare(string kind)
+        {
+            if (Finished) throw new InvalidOperationException("game is already finished");
+            if (!Config.SpecialActionsRule) throw new ArgumentException("特殊アクションは採用されていません");
+            if (Plan != "normal" || TurnGain) throw new ArgumentException("この手番では特殊アクションを宣言できません");
+            var player = Players[Current];
+            if (kind == "reshuffle")
+            {
+                if (player.ReshuffleTakeLeft < 1) throw new ArgumentException("配り直し＆取得は使い切っています");
+                player.ReshuffleTakeLeft -= 1;
+                Plan = "reshuffle";
+                return;
+            }
+            if (kind == "double")
+            {
+                if (player.DoubleActionLeft < 1) throw new ArgumentException("ダブルアクションは使い切っています");
+                player.DoubleActionLeft -= 1;
+                Plan = "double";
+                return;
+            }
+            throw new ArgumentException(kind);
+        }
+
+        void SelfReshuffle()
+        {
+            Deck.AddRange(Market);
+            Market.Clear();
+            Rng.Shuffle(Deck);
+            Market.AddRange(PopMany(Deck, MarketSize()));
+        }
+
+        void CloseAction(bool gained)
+        {
+            gained = gained || TurnGain;
+            if (Plan == "double" && DoubleStage == 1)
+            {
+                DoubleGained = gained;
+                TurnGain = false;
+                if (!BeginTurn()) return;
+                DoubleStage = 2;
+                return;
+            }
+            EndTurn(gained || DoubleGained);
+        }
+
+        void EndTurn(bool gained)
+        {
+            if (gained)
             {
                 NoGainStreak = 0;
                 StallFlag = false;
@@ -269,10 +351,7 @@ namespace Quota
                         Log.Add("膠着の連続");
                         return;
                     }
-                    Deck.AddRange(Market);
-                    Market.Clear();
-                    Rng.Shuffle(Deck);
-                    Market.AddRange(PopMany(Deck, MarketSize()));
+                    SelfReshuffle();
                     NoGainStreak = 0;
                     StallFlag = true;
                     ReshuffleCount++;
@@ -281,6 +360,9 @@ namespace Quota
             }
 
             TurnGain = false;
+            Plan = "normal";
+            DoubleStage = 0;
+            DoubleGained = false;
             Current = (Current + 1) % Players.Count;
             TurnNumber++;
             BeginTurn();
