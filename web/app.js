@@ -1008,6 +1008,11 @@ function layoutMarket(next) {
     pendingMarket = null;
     return;
   }
+  if (next.plan === "reshuffle" && (!state || state.plan !== "reshuffle")) {
+    marketSlots = incoming.map((card) => card);
+    pendingMarket = null;
+    return;
+  }
   const sameTurn = state && state.phase === "playing" && next.phase !== "hall" && state.turn_number === next.turn_number;
   if (!sameTurn && marketSlots.length && (next.settling || inFlight.size || parked.size)) {
     pendingMarket = incoming;
@@ -1023,6 +1028,12 @@ function layoutMarket(next) {
   const byId = new Map(incoming.map((card) => [card.id, card]));
   const known = new Set(marketSlots.filter(Boolean).map((card) => card.id));
   const refilled = incoming.some((card) => !known.has(card.id));
+  const survivors = marketSlots.filter((slot) => slot && byId.has(slot.id));
+  if (refilled && survivors.length === 0) {
+    marketSlots = incoming.map((card) => card);
+    pendingMarket = null;
+    return;
+  }
   if (refilled) pendingMarket = incoming.map((card) => card);
   marketSlots = marketSlots.map((slot) => {
     if (!slot || !byId.has(slot.id)) return null;
