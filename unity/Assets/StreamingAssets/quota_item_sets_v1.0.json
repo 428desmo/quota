@@ -1,0 +1,634 @@
+{
+  "schema_version": "1.0",
+  "game": "Quota",
+  "spec_ref": "quota_rule_v1.5.md 7.3節",
+  "field_notes": {
+    "kinds": "K1〜K4はゲームロジック上の種類ID。表示のみがアイテムセットごとに変わる。",
+    "rank_labels": "数字1〜13の表示ラベル。index 0 が数字1。",
+    "wild_rank_label": "ワイルドの数字欄に表示する記号（ワイルドは数字を持たない）。",
+    "color": "基調色の案（16進RGB）。色だけでなく形でも区別できるようにすること。",
+    "default": "trueのセットが既定値。ちょうど1つ。"
+  },
+  "item_sets": [
+    {
+      "id": "trade",
+      "name": "交易品",
+      "name_en": "Trade Goods",
+      "default": true,
+      "description": "大航海時代の東洋交易。本書（ルール仕様書）の説明用セット。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "香辛料",
+          "name_en": "Spice",
+          "emoji": "🌶️",
+          "color": "#A0522D"
+        },
+        {
+          "id": "K2",
+          "name": "絹",
+          "name_en": "Silk",
+          "emoji": "🎀",
+          "color": "#7B3FA0"
+        },
+        {
+          "id": "K3",
+          "name": "茶",
+          "name_en": "Tea",
+          "emoji": "🫖",
+          "color": "#2E7D32"
+        },
+        {
+          "id": "K4",
+          "name": "宝石",
+          "name_en": "Gem",
+          "emoji": "💎",
+          "color": "#1E5AA8"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "銀貨",
+        "name_en": "Silver Coin",
+        "emoji": "🪙",
+        "color": "#9E9E9E",
+        "rationale": "貨幣はどの商品とも交換できる"
+      },
+      "rank_labels": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13"
+      ],
+      "notes": "世界観は仕様書 付録C。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "playing_cards",
+      "name": "トランプ",
+      "name_en": "Playing Cards",
+      "default": false,
+      "description": "トランプ2セットでの代用と同じ見た目。選択肢の一つであり、既定値にはしない。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "スペード",
+          "name_en": "Spades",
+          "emoji": "♤",
+          "color": "#212121"
+        },
+        {
+          "id": "K2",
+          "name": "ハート",
+          "name_en": "Hearts",
+          "emoji": "♡",
+          "color": "#C62828"
+        },
+        {
+          "id": "K3",
+          "name": "クラブ",
+          "name_en": "Clubs",
+          "emoji": "♧",
+          "color": "#212121"
+        },
+        {
+          "id": "K4",
+          "name": "ダイヤ",
+          "name_en": "Diamonds",
+          "emoji": "♦︎",
+          "color": "#C62828"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "ジョーカー",
+        "name_en": "Joker",
+        "emoji": "🤡",
+        "color": "#6A1B9A",
+        "rationale": "トランプのジョーカーの慣習に従う"
+      },
+      "rank_labels": [
+        "A",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "J",
+        "Q",
+        "K"
+      ],
+      "notes": "K1〜K4の並びは交易品セットとの代用対応（仕様書 付録C.4）に合わせている。黒2種・赤2種は色で区別できないため、形で区別する。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "seafood",
+      "name": "海の幸",
+      "name_en": "Seafood",
+      "default": false,
+      "description": "港の朝市で海産物を買い付ける。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "カニ",
+          "name_en": "Crab",
+          "emoji": "🦀",
+          "color": "#D84315"
+        },
+        {
+          "id": "K2",
+          "name": "ホタテ",
+          "name_en": "Scallop",
+          "emoji": "🦪",
+          "color": "#D7B98E"
+        },
+        {
+          "id": "K3",
+          "name": "ウニ",
+          "name_en": "Sea Urchin",
+          "emoji": "⚫️",
+          "color": "#4E342E"
+        },
+        {
+          "id": "K4",
+          "name": "イクラ",
+          "name_en": "Salmon Roe",
+          "emoji": "🟠",
+          "color": "#FF8F00"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "金貨",
+        "name_en": "Gold Coin",
+        "emoji": "💰",
+        "color": "#C9A227",
+        "rationale": "貨幣はどの海産物とも交換できる"
+      },
+      "rank_labels": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13"
+      ],
+      "notes": "ウニ・イクラの絵文字は形の近いもので代用（こじつけ）。専用アイコンを描くことを推奨。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "fruit_market",
+      "name": "果物市場",
+      "name_en": "Fruit Market",
+      "default": false,
+      "description": "青果市場で旬の果物をそろえる。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "りんご",
+          "name_en": "Apple",
+          "emoji": "🍎",
+          "color": "#C62828"
+        },
+        {
+          "id": "K2",
+          "name": "ぶどう",
+          "name_en": "Grape",
+          "emoji": "🍇",
+          "color": "#6A1B9A"
+        },
+        {
+          "id": "K3",
+          "name": "レモン",
+          "name_en": "Lemon",
+          "emoji": "🍋",
+          "color": "#F9A825"
+        },
+        {
+          "id": "K4",
+          "name": "メロン",
+          "name_en": "Melon",
+          "emoji": "🍈",
+          "color": "#7CB342"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "商品券",
+        "name_en": "Gift Voucher",
+        "emoji": "🎫",
+        "color": "#00897B",
+        "rationale": "商品券はどの果物にも使える"
+      },
+      "rank_labels": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13"
+      ],
+      "notes": "赤・紫・黄・緑で色の差が大きく、子ども向けにも適する。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "flower_shop",
+      "name": "花屋",
+      "name_en": "Flower Shop",
+      "default": false,
+      "description": "花屋の注文に合わせて花を集める。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "バラ",
+          "name_en": "Rose",
+          "emoji": "🌹",
+          "color": "#B71C1C"
+        },
+        {
+          "id": "K2",
+          "name": "ひまわり",
+          "name_en": "Sunflower",
+          "emoji": "🌻",
+          "color": "#F9A825"
+        },
+        {
+          "id": "K3",
+          "name": "ラベンダー",
+          "name_en": "Lavender",
+          "emoji": "🪻",
+          "color": "#7E57C2"
+        },
+        {
+          "id": "K4",
+          "name": "さくら",
+          "name_en": "Cherry Blossom",
+          "emoji": "🌸",
+          "color": "#F48FB1"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "ミツバチ",
+        "name_en": "Honeybee",
+        "emoji": "🐝",
+        "color": "#FFB300",
+        "rationale": "ミツバチはどの花にも飛んでいく（こじつけ）"
+      },
+      "rank_labels": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13"
+      ],
+      "notes": "バラ（赤）とさくら（桃）は色が近いため、アイコンの形で区別すること。🪻は比較的新しい絵文字（Unicode 15.0）で、古い環境では表示されない場合がある。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "ranch",
+      "name": "牧場",
+      "name_en": "Ranch",
+      "default": false,
+      "description": "牧場主として家畜の群れをそろえる。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "牛",
+          "name_en": "Cow",
+          "emoji": "🐄",
+          "color": "#5D4037"
+        },
+        {
+          "id": "K2",
+          "name": "羊",
+          "name_en": "Sheep",
+          "emoji": "🐑",
+          "color": "#BDBDBD"
+        },
+        {
+          "id": "K3",
+          "name": "豚",
+          "name_en": "Pig",
+          "emoji": "🐖",
+          "color": "#F06292"
+        },
+        {
+          "id": "K4",
+          "name": "ニワトリ",
+          "name_en": "Chicken",
+          "emoji": "🐓",
+          "color": "#E65100"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "牧羊犬",
+        "name_en": "Sheepdog",
+        "emoji": "🐕",
+        "color": "#8D6E63",
+        "rationale": "牧羊犬はどの家畜でも連れてくる"
+      },
+      "rank_labels": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13"
+      ],
+      "notes": "ワイルドが動物で4種類と同系統に見えるおそれがあるため、カードの枠やアイコンの台座などで通常カードと明確に区別すること。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "sweets",
+      "name": "お菓子屋",
+      "name_en": "Sweet Shop",
+      "default": false,
+      "description": "パーティーの注文に合わせてお菓子をそろえる。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "ケーキ",
+          "name_en": "Cake",
+          "emoji": "🍰",
+          "color": "#EC407A"
+        },
+        {
+          "id": "K2",
+          "name": "ドーナツ",
+          "name_en": "Donut",
+          "emoji": "🍩",
+          "color": "#8D6E63"
+        },
+        {
+          "id": "K3",
+          "name": "クッキー",
+          "name_en": "Cookie",
+          "emoji": "🍪",
+          "color": "#C68642"
+        },
+        {
+          "id": "K4",
+          "name": "キャンディ",
+          "name_en": "Candy",
+          "emoji": "🍬",
+          "color": "#29B6F6"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "ギフト",
+        "name_en": "Gift",
+        "emoji": "🎁",
+        "color": "#E53935",
+        "rationale": "ギフトの中身は何にでもなる"
+      },
+      "rank_labels": [
+        "①",
+        "②",
+        "③",
+        "④",
+        "⑤",
+        "⑥",
+        "⑦",
+        "⑧",
+        "⑨",
+        "⑩",
+        "⑪",
+        "⑫",
+        "⑬"
+      ],
+      "notes": "丸数字は⑪〜⑬がフォントによって表示サイズが揃わない場合がある。ドーナツとクッキーは色が近いため形で区別すること。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "edo_market",
+      "name": "江戸の市",
+      "name_en": "Edo Market",
+      "default": false,
+      "description": "江戸の問屋として諸国の品を仕入れる。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "米",
+          "name_en": "Rice",
+          "emoji": "🌾",
+          "color": "#C8A951"
+        },
+        {
+          "id": "K2",
+          "name": "酒",
+          "name_en": "Sake",
+          "emoji": "🍶",
+          "color": "#283593"
+        },
+        {
+          "id": "K3",
+          "name": "茶",
+          "name_en": "Green Tea",
+          "emoji": "🍵",
+          "color": "#558B2F"
+        },
+        {
+          "id": "K4",
+          "name": "扇子",
+          "name_en": "Folding Fan",
+          "emoji": "🪭",
+          "color": "#C62828"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "小判",
+        "name_en": "Koban",
+        "emoji": "💴",
+        "color": "#D4AF37",
+        "rationale": "小判はどの品とも交換できる（絵文字はこじつけ）"
+      },
+      "rank_labels": [
+        "一",
+        "二",
+        "三",
+        "四",
+        "五",
+        "六",
+        "七",
+        "八",
+        "九",
+        "十",
+        "十一",
+        "十二",
+        "十三"
+      ],
+      "notes": "漢数字は十一〜十三が2文字になり、ノルマ数の読み取りがやや遅くなる。雰囲気重視のセット。🪭はUnicode 15.0の絵文字で、古い環境では表示されない場合がある。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "elements",
+      "name": "四大元素",
+      "name_en": "Four Elements",
+      "default": false,
+      "description": "錬金術師として元素の素材を集める。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "炎",
+          "name_en": "Fire",
+          "emoji": "🔥",
+          "color": "#E53935"
+        },
+        {
+          "id": "K2",
+          "name": "水",
+          "name_en": "Water",
+          "emoji": "💧",
+          "color": "#1E88E5"
+        },
+        {
+          "id": "K3",
+          "name": "風",
+          "name_en": "Wind",
+          "emoji": "🌪️",
+          "color": "#90A4AE"
+        },
+        {
+          "id": "K4",
+          "name": "土",
+          "name_en": "Earth",
+          "emoji": "🪨",
+          "color": "#6D4C41"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "賢者の石",
+        "name_en": "Philosopher's Stone",
+        "emoji": "🔮",
+        "color": "#8E24AA",
+        "rationale": "賢者の石はあらゆる元素に変わる"
+      },
+      "rank_labels": [
+        "I",
+        "II",
+        "III",
+        "IV",
+        "V",
+        "VI",
+        "VII",
+        "VIII",
+        "IX",
+        "X",
+        "XI",
+        "XII",
+        "XIII"
+      ],
+      "notes": "ローマ数字は読み慣れない人には判読が遅く、並び順ボーナス（上級ルール）の判定もしにくい。雰囲気重視のセット。",
+      "wild_rank_label": "＊"
+    },
+    {
+      "id": "space_colony",
+      "name": "宇宙植民地",
+      "name_en": "Space Colony",
+      "default": false,
+      "description": "宇宙植民地の補給担当として資源を調達する。",
+      "kinds": [
+        {
+          "id": "K1",
+          "name": "鉱石",
+          "name_en": "Ore",
+          "emoji": "🪨",
+          "color": "#757575"
+        },
+        {
+          "id": "K2",
+          "name": "氷",
+          "name_en": "Ice",
+          "emoji": "🧊",
+          "color": "#4DD0E1"
+        },
+        {
+          "id": "K3",
+          "name": "燃料",
+          "name_en": "Fuel",
+          "emoji": "🛢️",
+          "color": "#37474F"
+        },
+        {
+          "id": "K4",
+          "name": "苗",
+          "name_en": "Seedling",
+          "emoji": "🌱",
+          "color": "#43A047"
+        }
+      ],
+      "wild": {
+        "id": "WILD",
+        "name": "クレジット",
+        "name_en": "Credit",
+        "emoji": "💳",
+        "color": "#FFB300",
+        "rationale": "電子通貨はどの資源の購入にも使える"
+      },
+      "rank_labels": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11",
+        "12",
+        "13"
+      ],
+      "notes": "ゼロ埋め2桁で表示幅がそろう。鉱石と燃料は色が近いため形で区別すること。",
+      "wild_rank_label": "＊"
+    }
+  ]
+}
