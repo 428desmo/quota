@@ -228,13 +228,15 @@ class Table:
             action = Abandon()
         elif kind == "pass":
             action = Pass()
-        elif kind in ("reshuffle", "double"):
+        elif kind in ("reshuffle", "double", "cancel"):
             if self.seat_owner.get(game.current) != client_id:
                 raise ValueError("あなたの手番ではありません")
             if kind == "reshuffle":
                 game.declare_reshuffle()
-            else:
+            elif kind == "double":
                 game.declare_double()
+            else:
+                game.cancel_double()
             self.turn_deadline = None
             self.event_n += 1
             self.event = {"n": self.event_n, "kind": kind, "seat": game.current, "cards": []}

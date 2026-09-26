@@ -123,6 +123,8 @@ def _ask(game: Game):
                 game.declare_reshuffle()
                 print("場を配り直した。")
                 print("場札: " + " | ".join(c.label(_theme(game)) for c in game.market))
+    if game.plan == "double" and game.double_stage == 1 and not game.turn_gain:
+        print("c でダブルを取り消せます")
     player = game.players[game.current]
     if player.quota is None:
         actions = game.legal_actions()
@@ -130,7 +132,11 @@ def _ask(game: Game):
         for i, action in enumerate(actions, start=1):
             print(f"  {i}. {_action_text(game, action)}")
         while True:
-            raw = input("番号> ").strip()
+            raw = input("番号> ").strip().lower()
+            if raw == "c" and game.plan == "double" and game.double_stage == 1 and not game.turn_gain:
+                game.cancel_double()
+                print("ダブルアクションを取り消した。")
+                return _ask(game)
             if raw.isdigit() and 1 <= int(raw) <= len(actions):
                 return actions[int(raw) - 1]
             print("番号を入力してください")
@@ -149,6 +155,10 @@ def _ask(game: Game):
     print("  p. パス")
     while True:
         raw = input("番号> ").strip().lower()
+        if raw == "c" and game.plan == "double" and game.double_stage == 1 and not game.turn_gain:
+            game.cancel_double()
+            print("ダブルアクションを取り消した。")
+            return _ask(game)
         if raw == "a":
             return Abandon()
         if raw == "p":

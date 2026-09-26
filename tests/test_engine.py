@@ -281,6 +281,60 @@ def test_double_action_ends_when_the_refill_empties_the_deck():
     assert player.quota is not None or player.achieve_count == 1
 
 
+def test_double_can_be_cancelled_only_before_a_card_is_touched():
+    game = Game.start(GameConfig(seed=5, num_players=3, special_actions_rule=True))
+    seat = game.current
+    game.declare_double()
+    assert game.players[seat].double_action_left == 0
+    game.cancel_double()
+    assert game.plan == "normal"
+    assert game.double_stage == 0
+    assert game.players[seat].double_action_left == 1
+    game.declare_double()
+    quota = next(card for card in game.market if card.rank is not None and card.rank > 2)
+    game.market.remove(quota)
+    game.players[seat].quota = quota
+    while sum(card.suit == quota.suit or card.suit == "JOKER" for card in game.market) < 2:
+        extra = next(card for card in game.deck if card.suit == quota.suit or card.suit == "JOKER")
+        game.deck.remove(extra)
+        game.market.append(extra)
+    match = next(card for card in game.market if card.suit == quota.suit or card.suit == "JOKER")
+    game.step(Collect((match.id,)))
+    assert game.double_stage == 1
+    assert game.turn_gain is True
+    assert game.current == seat
+    with pytest.raises(ValueError):
+        game.cancel_double()
+
+
+def test_double_second_action_ends_when_nothing_eligible_remains():
+    game = Game.start(GameConfig(seed=4, num_players=3, special_actions_rule=True))
+    seat = game.current
+    quota = next(card for card in game.market if card.rank is not None and card.rank >= 3)
+    game.declare_double()
+    game.step(TakeQuota(quota.id))
+    assert game.double_stage == 2
+    assert game.current == seat
+    assert len(game.market) == game.market_size()
+    guard = 0
+    while game.current == seat and not game.finished and game.players[seat].quota is not None:
+        player = game.players[seat]
+        eligible = [card for card in game.market if card.suit == player.quota.suit or card.suit == "JOKER"]
+        if not eligible:
+            break
+        game.step(Collect((eligible[0].id,)))
+        guard += 1
+        assert guard < 20
+    player = game.players[seat]
+    stuck = (
+        not game.finished
+        and game.current == seat
+        and player.quota is not None
+        and not any(card.suit == player.quota.suit or card.suit == "JOKER" for card in game.market)
+    )
+    assert not stuck
+
+
 def test_cpu_with_special_actions_finishes():
     game = Game.start(GameConfig(num_players=3, seed=9, human_seats=[], special_actions_rule=True))
     guard = 0

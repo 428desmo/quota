@@ -344,6 +344,62 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void DoubleCanBeCancelledOnlyBeforeACardIsTouched()
+        {
+            var game = Game.Start(new GameConfig { Seed = 5, NumPlayers = 3, SpecialActionsRule = true });
+            var seat = game.Current;
+            game.DeclareDouble();
+            Assert.AreEqual(0, game.Players[seat].DoubleActionLeft);
+            game.CancelDouble();
+            Assert.AreEqual("normal", game.Plan);
+            Assert.AreEqual(0, game.DoubleStage);
+            Assert.AreEqual(1, game.Players[seat].DoubleActionLeft);
+            game.DeclareDouble();
+            var quota = game.Market.First(card => card.Rank != null && card.Rank > 2);
+            game.Market.Remove(quota);
+            game.Players[seat].Quota = quota;
+            while (game.Market.Count(card => card.Suit == quota.Suit || card.Suit == Suit.Joker) < 2)
+            {
+                var extra = game.Deck.First(card => card.Suit == quota.Suit || card.Suit == Suit.Joker);
+                game.Deck.Remove(extra);
+                game.Market.Add(extra);
+            }
+            var match = game.Market.First(card => card.Suit == quota.Suit || card.Suit == Suit.Joker);
+            game.Step(new Collect(new[] { match.Id }));
+            Assert.AreEqual(1, game.DoubleStage);
+            Assert.IsTrue(game.TurnGain);
+            Assert.AreEqual(seat, game.Current);
+            Assert.Throws<System.ArgumentException>(() => game.CancelDouble());
+        }
+
+        [Test]
+        public void DoubleSecondActionEndsWhenNothingEligibleRemains()
+        {
+            var game = Game.Start(new GameConfig { Seed = 4, NumPlayers = 3, SpecialActionsRule = true });
+            var seat = game.Current;
+            var quota = game.Market.First(card => card.Rank != null && card.Rank >= 3);
+            game.DeclareDouble();
+            game.Step(new TakeQuota(quota.Id));
+            Assert.AreEqual(2, game.DoubleStage);
+            Assert.AreEqual(seat, game.Current);
+            Assert.AreEqual(game.MarketSize(), game.Market.Count);
+            var guard = 0;
+            while (game.Current == seat && !game.Finished && game.Players[seat].Quota != null)
+            {
+                var player = game.Players[seat];
+                var eligible = game.Market.Where(card => card.Suit == player.Quota.Suit || card.Suit == Suit.Joker).ToList();
+                if (eligible.Count == 0) break;
+                game.Step(new Collect(new[] { eligible[0].Id }));
+                guard++;
+                Assert.Less(guard, 20);
+            }
+            var after = game.Players[seat];
+            var stuck = !game.Finished && game.Current == seat && after.Quota != null
+                && !game.Market.Any(card => card.Suit == after.Quota.Suit || card.Suit == Suit.Joker);
+            Assert.IsFalse(stuck);
+        }
+
+        [Test]
         public void CpuWithSpecialActionsFinishes()
         {
             var game = Game.Start(new GameConfig
