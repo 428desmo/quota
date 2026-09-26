@@ -31,7 +31,11 @@ namespace Quota
         {
             font = Font.CreateDynamicFontFromOSFont(new[] { "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic" }, 16);
             var camera = Camera.main;
-            if (camera != null) camera.backgroundColor = Hex("#f4f1ea");
+            if (camera != null)
+            {
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Hex("#f4f1ea");
+            }
             var canvas = gameObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = gameObject.AddComponent<CanvasScaler>();
@@ -44,8 +48,9 @@ namespace Quota
                 events.AddComponent<UnityEngine.EventSystems.EventSystem>();
                 events.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
             }
-            var panel = new GameObject("Root", typeof(RectTransform));
+            var panel = new GameObject("Root", typeof(RectTransform), typeof(Image));
             panel.transform.SetParent(transform, false);
+            panel.GetComponent<Image>().color = Hex("#f4f1ea");
             root = panel.GetComponent<RectTransform>();
             Stretch(root);
             var scroll = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect));
@@ -64,7 +69,10 @@ namespace Quota
             content.anchorMin = new Vector2(0, 1);
             content.anchorMax = new Vector2(1, 1);
             content.pivot = new Vector2(0.5f, 1);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
             var layout = body.GetComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(8, 8, 8, 8);
             layout.spacing = 8;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
@@ -144,7 +152,13 @@ namespace Quota
             {
                 var playable = match.IsHumanTurn && !busy && CanPlay(card, me);
                 var face = theme.FaceFor(card);
-                Button(market, $"{theme.RankLabel(card)}\n{face.Name}", () => Play(new TakeQuota(card.Id)), playable, Hex(face.Color));
+                var cardId = card.Id;
+                var takingQuota = me.Quota == null;
+                Button(market, $"{theme.RankLabel(card)}\n{face.Name}", () =>
+                {
+                    if (takingQuota) Play(new TakeQuota(cardId));
+                    else Play(new Collect(new[] { cardId }));
+                }, playable, Hex(face.Color));
             }
             if (match.IsHumanTurn && !busy)
             {
@@ -217,7 +231,7 @@ namespace Quota
 
         void Play(GameAction action)
         {
-            if (busy || !match.IsHumanTurn) return;
+            if (busy || !match.IsHumanTurn || !match.Game.IsLegal(action)) return;
             confirmPass = false;
             match.Game.Step(action);
             StartCoroutine(RunCpus());
@@ -328,10 +342,11 @@ namespace Quota
             label.fontSize = size;
             label.fontStyle = style;
             label.color = Hex("#222222");
+            label.alignment = TextAnchor.MiddleLeft;
             label.text = text;
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
             label.verticalOverflow = VerticalWrapMode.Overflow;
-            go.GetComponent<LayoutElement>().preferredHeight = size + 8;
+            go.GetComponent<LayoutElement>().preferredHeight = size + 12;
         }
 
         InputField Field(RectTransform parent, string caption, string value)
@@ -340,10 +355,10 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(InputField), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             go.GetComponent<Image>().color = Color.white;
-            go.GetComponent<LayoutElement>().preferredHeight = 32;
+            go.GetComponent<LayoutElement>().preferredHeight = 40;
             var textGo = new GameObject("text", typeof(RectTransform), typeof(Text));
             textGo.transform.SetParent(go.transform, false);
-            Stretch(textGo.GetComponent<RectTransform>());
+            Stretch(textGo.GetComponent<RectTransform>(), 8, 6);
             var text = textGo.GetComponent<Text>();
             text.font = font;
             text.fontSize = 16;
@@ -355,44 +370,60 @@ namespace Quota
             return field;
         }
 
-        Text NewText(Transform parent, string name)
+        Text NewText(Transform parent, string name, float padX, float padY)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Text));
             go.transform.SetParent(parent, false);
-            Stretch(go.GetComponent<RectTransform>());
+            Stretch(go.GetComponent<RectTransform>(), padX, padY);
             var text = go.GetComponent<Text>();
             text.font = font;
             text.fontSize = 16;
             text.color = Hex("#222222");
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
             return text;
         }
 
         void Button(RectTransform parent, string text, UnityEngine.Events.UnityAction action, bool enabled = true, Color? color = null)
         {
+            var lines = 1;
+            foreach (var ch in text)
+                if (ch == '\n') lines++;
             var go = new GameObject(text, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
             image.color = color ?? Hex("#111111");
             var layout = go.GetComponent<LayoutElement>();
-            layout.preferredHeight = 36;
-            layout.preferredWidth = Mathf.Max(72, text.Length * 16);
-            var label = NewText(go.transform, "caption");
+            layout.preferredHeight = 18 + 22 * lines;
+            layout.minHeight = layout.preferredHeight;
+            if (lines > 1)
+            {
+                layout.preferredWidth = 112;
+                layout.flexibleWidth = 0;
+            }
+            var label = NewText(go.transform, "caption", 8, 4);
             label.text = text;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = color == null ? Color.white : Hex("#222222");
+            label.color = CaptionOn(image.color);
             var button = go.GetComponent<Button>();
             button.targetGraphic = image;
             button.interactable = enabled;
             button.onClick.AddListener(action);
         }
 
-        static void Stretch(RectTransform rect)
+        static void Stretch(RectTransform rect, float padX = 0, float padY = 0)
         {
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
-            rect.offsetMin = new Vector2(16, 16);
-            rect.offsetMax = new Vector2(-16, -16);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = new Vector2(padX, padY);
+            rect.offsetMax = new Vector2(-padX, -padY);
+        }
+
+        static Color CaptionOn(Color background)
+        {
+            var luminance = background.r * 0.2126f + background.g * 0.7152f + background.b * 0.0722f;
+            return luminance > 0.62f ? Hex("#222222") : Color.white;
         }
 
         static Color Hex(string html)
