@@ -1,8 +1,9 @@
 {
   "name": "Quota.Tests",
   "rootNamespace": "Quota.Tests",
-  "references": [
+    "references": [
     "Quota",
+    "UnityEngine.UI",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
   ],
