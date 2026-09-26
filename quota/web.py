@@ -46,6 +46,7 @@ class Table:
         self.cover_n = 0
         self.idle_at = time.monotonic()
         self.table_id = ""
+        self.display_name = ""
         self.seed = None
         self.item_set_id = "trade"
 
@@ -83,6 +84,7 @@ class Table:
         }]
         self.observers = []
         self.seat_owner = {}
+        self._remember_name()
         self.touch()
 
     def begin(self, client_id: str) -> None:
@@ -146,6 +148,7 @@ class Table:
         self.refresh_notice_at = None
         self.refresh_released = False
         self.turn_deadline = None
+        self._remember_name()
         self.touch()
 
     def admit(self, client_id: str, name: str) -> None:
@@ -155,6 +158,7 @@ class Table:
         for member in self.roster:
             if member["client"] == client_id:
                 member["name"] = name
+                self._remember_name()
                 self.touch()
                 return
         for obs in self.observers:
@@ -166,6 +170,7 @@ class Table:
             self.roster.append({"client": client_id, "name": name, "joined_at": time.monotonic()})
         else:
             self.observers.append({"client": client_id, "name": name})
+        self._remember_name()
         self.touch()
 
     def leave(self, client_id: str) -> None:
@@ -195,6 +200,7 @@ class Table:
             ):
                 self.turn_deadline = None
                 self._apply(choose_action(game))
+        self._remember_name()
         self.touch()
 
     def leader_id(self) -> str | None:
@@ -519,12 +525,20 @@ class Table:
             "turn_timeout": self.turn_timeout,
         }
 
+    def _remember_name(self) -> None:
+        leader = self.leader_id()
+        if not leader:
+            return
+        name = next((member["name"] for member in self.roster if member["client"] == leader), "")
+        if name:
+            self.display_name = name
+
     def summary(self) -> dict:
         if self.phase == "recruiting" or self.game is None:
             seated = len(self.roster)
         else:
             seated = sum(1 for player in self.game.players if player.is_human)
-        leader = next((member["name"] for member in self.roster if member["client"] == self.leader_id()), "")
+        leader = self.display_name or next((member["name"] for member in self.roster if member["client"] == self.leader_id()), "")
         return {
             "id": self.table_id,
             "leader": leader,
