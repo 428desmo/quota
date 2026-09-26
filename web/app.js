@@ -359,7 +359,7 @@ function render() {
     else hint = `${me.name} が考えています`;
   }
   if (!state.settling && state.your_turn) {
-    const specials = specialButtons();
+    const specials = `${cancelDoubleButton()}${specialButtons()}`;
     if (!me.quota) {
       controls = `<div class="controls${hand}"><div class="control-buttons">${specials}<button type="button" id="pass">パス</button></div></div>`;
     } else {
@@ -427,6 +427,8 @@ function render() {
   );
   const double = app.querySelector("#double");
   if (double) double.onclick = () => post("/api/action", { kind: "double" });
+  const cancelDouble = app.querySelector("#cancel-double");
+  if (cancelDouble) cancelDouble.onclick = () => post("/api/action", { kind: "cancel" });
   const reshuffle = app.querySelector("#reshuffle");
   if (reshuffle) reshuffle.onclick = () => post("/api/action", { kind: "reshuffle" });
   bindAsk();
@@ -483,6 +485,11 @@ function specialButtons() {
   if (me.double_action_left > 0) html += `<button type="button" id="double">ダブル</button>`;
   if (me.reshuffle_take_left > 0) html += `<button type="button" id="reshuffle">配り直し</button>`;
   return html;
+}
+
+function cancelDoubleButton() {
+  if (state.plan !== "double" || state.double_stage !== 1 || state.turn_gain) return "";
+  return `<button type="button" id="cancel-double">キャンセル</button>`;
 }
 
 function confirmLeave() {
@@ -1014,12 +1021,17 @@ function layoutMarket(next) {
     return;
   }
   const byId = new Map(incoming.map((card) => [card.id, card]));
-  const used = new Set();
+  const known = new Set(marketSlots.filter(Boolean).map((card) => card.id));
+  const refilled = incoming.some((card) => !known.has(card.id));
+  if (refilled) pendingMarket = incoming.map((card) => card);
   marketSlots = marketSlots.map((slot) => {
     if (!slot || !byId.has(slot.id)) return null;
-    used.add(slot.id);
     return byId.get(slot.id);
   });
+  if (refilled && !inFlight.size && !parked.size) {
+    marketSlots = pendingMarket.map((card) => card);
+    pendingMarket = null;
+  }
 }
 
 function flushMarket() {

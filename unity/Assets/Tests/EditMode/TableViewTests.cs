@@ -98,6 +98,9 @@ namespace Quota.Tests
             Assert.IsNull(FindButton("パスする"));
             Assert.IsNotNull(FindText("ダブル：1回目の行動です。"));
             Assert.IsNull(host.transform.Find("Root/Scroll/Viewport/Content/controls/ダブル"));
+            Click("キャンセル");
+            Assert.IsNotNull(ButtonNamed("ダブル"));
+            Assert.IsNull(FindButton("キャンセル"));
         }
 
         [Test]

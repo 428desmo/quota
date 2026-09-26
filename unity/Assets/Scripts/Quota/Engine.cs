@@ -287,6 +287,19 @@ namespace Quota
             Log.Add($"{player.Name} がダブルアクションを宣言した");
         }
 
+        public void CancelDouble()
+        {
+            if (Finished) throw new InvalidOperationException("game is already finished");
+            if (Plan != "double" || DoubleStage != 1 || TurnGain)
+                throw new ArgumentException("ダブルアクションは取り消せません");
+            var player = Players[Current];
+            player.DoubleActionLeft += 1;
+            Plan = "normal";
+            DoubleStage = 0;
+            DoubleGained = false;
+            Log.Add($"{player.Name} がダブルアクションの宣言を取り消した");
+        }
+
         void Declare(string kind)
         {
             if (Finished) throw new InvalidOperationException("game is already finished");

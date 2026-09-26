@@ -187,6 +187,12 @@ namespace Quota
                     game.DeclareReshuffle();
                     ShowTable();
                 });
+                if (game.Plan == "double" && game.DoubleStage == 1 && !game.TurnGain) Button(controls, "キャンセル", () =>
+                {
+                    confirm = null;
+                    game.CancelDouble();
+                    ShowTable();
+                });
                 if (me.Quota != null) Button(controls, "放棄", () => Ask("abandon"));
                 var passLabel = me.Quota == null ? "パス" : game.TurnGain ? "次へ" : "パス";
                 Button(controls, passLabel, () => Ask(passLabel == "次へ" ? "next" : "pass"));

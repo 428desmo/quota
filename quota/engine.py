@@ -266,6 +266,19 @@ class Game:
         self.double_gained = False
         self.log.append(f"{player.name} がダブルアクションを宣言した")
 
+    def cancel_double(self) -> None:
+        """Undo a double declaration before any card has been touched."""
+        if self.finished:
+            raise RuntimeError("game is already finished")
+        if self.plan != "double" or self.double_stage != 1 or self.turn_gain:
+            raise ValueError("ダブルアクションは取り消せません")
+        player = self.players[self.current]
+        player.double_action_left += 1
+        self.plan = "normal"
+        self.double_stage = 0
+        self.double_gained = False
+        self.log.append(f"{player.name} がダブルアクションの宣言を取り消した")
+
     def _declare(self, kind: str) -> None:
         if self.finished:
             raise RuntimeError("game is already finished")
