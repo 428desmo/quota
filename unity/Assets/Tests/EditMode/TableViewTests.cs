@@ -62,6 +62,7 @@ namespace Quota.Tests
         public void PassButtonHasAVisibleSize()
         {
             host = Open();
+            Set("seedText", "0");
             Click("対局開始");
             var pass = ButtonNamed("パス");
             Assert.Greater(pass.GetComponent<RectTransform>().rect.width, 40f);
@@ -73,6 +74,66 @@ namespace Quota.Tests
             var cancel = ButtonNamed("キャンセル");
             Assert.Greater(confirm.GetComponent<RectTransform>().rect.width, 40f);
             Assert.Greater(cancel.GetComponent<RectTransform>().rect.width, 40f);
+        }
+
+        [Test]
+        public void SpecialButtonsSitLeftOfPassAndDeclareWithoutAsking()
+        {
+            host = Open();
+            Set("specialRule", true);
+            Set("seedText", "0");
+            Click("対局開始");
+
+            var controls = host.transform.Find("Root/Scroll/Viewport/Content/controls");
+            Assert.IsNotNull(controls);
+            var labels = new System.Collections.Generic.List<string>();
+            for (var i = 0; i < controls.childCount; i++)
+            {
+                var caption = controls.GetChild(i).GetComponentInChildren<Text>();
+                labels.Add(caption.text);
+            }
+            CollectionAssert.AreEqual(new[] { "ダブル", "配り直し", "パス" }, labels);
+
+            Click("ダブル");
+            Assert.IsNull(FindButton("パスする"));
+            Assert.IsNotNull(FindText("ダブル：1回目の行動です。"));
+            Assert.IsNull(host.transform.Find("Root/Scroll/Viewport/Content/controls/ダブル"));
+        }
+
+        [Test]
+        public void AbandonPassNextAndLeaveAskBeforeActing()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            var game = match.Game;
+            var card = game.Market.Find(item => item.Suit != Suit.Joker && item.Rank != 1);
+            game.Market.Remove(card);
+            game.Players[0].Quota = card;
+            Show(view);
+
+            Click("放棄");
+            Assert.IsNotNull(FindText("本当に放棄しますか？"));
+            Click("キャンセル");
+            Assert.IsNull(FindText("本当に放棄しますか？"));
+
+            Click("パス");
+            Assert.IsNotNull(FindText("本当にパスしますか？"));
+            Click("キャンセル");
+
+            game.TurnGain = true;
+            Show(view);
+            Click("次へ");
+            Assert.IsNotNull(FindText("本当に次へ進みますか？"));
+            Click("キャンセル");
+
+            Click("最初の画面に戻る");
+            Assert.IsNotNull(FindText("本当にゲームから抜けますか？"));
+            Assert.IsNotNull(ButtonNamed("抜ける"));
+            Click("キャンセル");
+            Assert.IsNotNull(ButtonNamed("最初の画面に戻る"));
         }
 
         GameObject Open()
@@ -99,13 +160,37 @@ namespace Quota.Tests
 
         Button ButtonNamed(string caption)
         {
+            var button = FindButton(caption);
+            Assert.IsNotNull(button, "missing button " + caption);
+            return button;
+        }
+
+        Button FindButton(string caption)
+        {
             foreach (var button in host.GetComponentsInChildren<Button>())
             {
                 var label = button.GetComponentInChildren<Text>();
                 if (label != null && label.text == caption) return button;
             }
-            Assert.Fail("missing button " + caption);
             return null;
+        }
+
+        Text FindText(string caption)
+        {
+            foreach (var label in host.GetComponentsInChildren<Text>())
+                if (label.text == caption) return label;
+            return null;
+        }
+
+        void Set(string field, object value)
+        {
+            typeof(TableView).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(host.GetComponent<TableView>(), value);
+        }
+
+        void Show(TableView view)
+        {
+            typeof(TableView).GetMethod("ShowTable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(view, null);
+            Rebuild(host);
         }
 
         static void Rebuild(GameObject viewHost)

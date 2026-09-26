@@ -70,6 +70,7 @@ class Table:
             "players": players,
             "sequence": bool(body.get("sequence")),
             "title": bool(body.get("title")),
+            "special": bool(body.get("special")),
             "item_set": theme.id,
             "ok_timeout": self.ok_timeout,
             "turn_timeout": self.turn_timeout,
@@ -109,6 +110,7 @@ class Table:
                 human_seats=list(range(humans)),
                 sequence_rule=bool(self.last_options and self.last_options.get("sequence")),
                 title_rule=bool(self.last_options and self.last_options.get("title")),
+                special_actions_rule=bool(self.last_options and self.last_options.get("special")),
                 item_set=theme.id,
             )
         )
@@ -226,6 +228,18 @@ class Table:
             action = Abandon()
         elif kind == "pass":
             action = Pass()
+        elif kind in ("reshuffle", "double"):
+            if self.seat_owner.get(game.current) != client_id:
+                raise ValueError("あなたの手番ではありません")
+            if kind == "reshuffle":
+                game.declare_reshuffle()
+            else:
+                game.declare_double()
+            self.turn_deadline = None
+            self.event_n += 1
+            self.event = {"n": self.event_n, "kind": kind, "seat": game.current, "cards": []}
+            self.touch()
+            return
         else:
             raise ValueError("unknown action")
         if self.seat_owner.get(game.current) != client_id:
@@ -304,6 +318,9 @@ class Table:
             "end_reason": game.end_reason,
             "sequence_rule": game.config.sequence_rule,
             "title_rule": game.config.title_rule,
+            "special_actions_rule": game.config.special_actions_rule,
+            "plan": game.plan,
+            "double_stage": game.double_stage,
             "left_handed": self.left_handed,
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
@@ -334,6 +351,8 @@ class Table:
                     else p.quota.rank - 1 - len(p.collection),
                     "collection": [_card(c, theme) for c in p.collection],
                     "achieved": [_card(c, theme) for c in p.achieved],
+                    "reshuffle_take_left": p.reshuffle_take_left,
+                    "double_action_left": p.double_action_left,
                 }
                 for p in game.players
             ],
@@ -520,6 +539,7 @@ class Table:
             "item_sets": _item_set_choices(),
             "sequence_rule": bool(self.last_options and self.last_options.get("sequence")),
             "title_rule": bool(self.last_options and self.last_options.get("title")),
+            "special_actions_rule": bool(self.last_options and self.last_options.get("special")),
             "left_handed": self.left_handed,
             "ok_timeout": self.ok_timeout,
             "turn_timeout": self.turn_timeout,

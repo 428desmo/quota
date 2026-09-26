@@ -60,6 +60,8 @@ class Player:
     max_single_score: int = 0
     is_human: bool = True
     bundles: list[Bundle] = field(default_factory=list)
+    reshuffle_take_left: int = 0
+    double_action_left: int = 0
 
 
 @dataclass
@@ -78,6 +80,9 @@ class GameConfig:
     title_min_achieves: int = 3
     title_mono_bonus: int = 15
     title_purist_bonus: int = 5
+    special_actions_rule: bool = False
+    reshuffle_take_uses: int = 1
+    double_action_uses: int = 1
     item_set: str = "trade"
 
     def resolved_market_size(self) -> int:
@@ -111,6 +116,9 @@ class Game:
     rng: random.Random
     reshuffle_count: int = 0
     turn_gain: bool = False
+    plan: Literal["normal", "reshuffle", "double"] = "normal"
+    double_stage: int = 0
+    double_gained: bool = False
 
     @classmethod
     def start(cls, config: GameConfig | None = None) -> Game:
@@ -130,8 +138,16 @@ class Game:
         if len(names) != cfg.num_players:
             raise ValueError("names length must match num_players")
         human = set(cfg.human_seats if cfg.human_seats is not None else range(cfg.num_players))
+        take_left = cfg.reshuffle_take_uses if cfg.special_actions_rule else 0
+        double_left = cfg.double_action_uses if cfg.special_actions_rule else 0
         players = [
-            Player(name=names[i], is_human=i in human) for i in range(cfg.num_players)
+            Player(
+                name=names[i],
+                is_human=i in human,
+                reshuffle_take_left=take_left,
+                double_action_left=double_left,
+            )
+            for i in range(cfg.num_players)
         ]
         first = rng.randrange(cfg.num_players)
         game = cls(
@@ -233,7 +249,64 @@ class Game:
         else:
             raise TypeError(action)
 
-        if gained or self.turn_gain:
+        self._close_action(gained)
+
+    def declare_reshuffle(self) -> None:
+        """15.3.2. Replace the market, then the player takes one normal action."""
+        player = self.players[self.current]
+        self._declare("reshuffle")
+        self._self_reshuffle()
+        self.log.append(f"{player.name} が配り直し＆取得を宣言し、場を配り直した")
+
+    def declare_double(self) -> None:
+        """15.3.3. The next two actions belong to this turn, with a refill between them."""
+        player = self.players[self.current]
+        self._declare("double")
+        self.double_stage = 1
+        self.double_gained = False
+        self.log.append(f"{player.name} がダブルアクションを宣言した")
+
+    def _declare(self, kind: str) -> None:
+        if self.finished:
+            raise RuntimeError("game is already finished")
+        if not self.config.special_actions_rule:
+            raise ValueError("特殊アクションは採用されていません")
+        if self.plan != "normal" or self.turn_gain:
+            raise ValueError("この手番では特殊アクションを宣言できません")
+        player = self.players[self.current]
+        if kind == "reshuffle":
+            if player.reshuffle_take_left < 1:
+                raise ValueError("配り直し＆取得は使い切っています")
+            player.reshuffle_take_left -= 1
+            self.plan = "reshuffle"
+            return
+        if kind == "double":
+            if player.double_action_left < 1:
+                raise ValueError("ダブルアクションは使い切っています")
+            player.double_action_left -= 1
+            self.plan = "double"
+            return
+        raise ValueError(kind)
+
+    def _self_reshuffle(self) -> None:
+        self.deck.extend(self.market)
+        self.market = []
+        self.rng.shuffle(self.deck)
+        self.market = [self.deck.pop() for _ in range(self.market_size())]
+
+    def _close_action(self, gained: bool) -> None:
+        gained = gained or self.turn_gain
+        if self.plan == "double" and self.double_stage == 1:
+            self.double_gained = gained
+            self.turn_gain = False
+            if not self.begin_turn():
+                return
+            self.double_stage = 2
+            return
+        self._end_turn(gained or self.double_gained)
+
+    def _end_turn(self, gained: bool) -> None:
+        if gained:
             self.no_gain_streak = 0
             self.stall_flag = False
         else:
@@ -244,16 +317,16 @@ class Game:
                     self.end_reason = "STALL"
                     self.log.append("膠着の連続")
                     return
-                self.deck.extend(self.market)
-                self.market = []
-                self.rng.shuffle(self.deck)
-                self.market = [self.deck.pop() for _ in range(self.market_size())]
+                self._self_reshuffle()
                 self.no_gain_streak = 0
                 self.stall_flag = True
                 self.reshuffle_count += 1
                 self.log.append("場を配り直した")
 
         self.turn_gain = False
+        self.plan = "normal"
+        self.double_stage = 0
+        self.double_gained = False
         self.current = (self.current + 1) % len(self.players)
         self.turn_number += 1
         self.begin_turn()
@@ -305,6 +378,9 @@ class Game:
             "end_reason": self.end_reason,
             "turn_number": self.turn_number,
             "sequence_rule": self.config.sequence_rule,
+            "special_actions_rule": self.config.special_actions_rule,
+            "plan": self.plan,
+            "double_stage": self.double_stage,
             "players": [
                 {
                     "name": p.name,
@@ -315,6 +391,8 @@ class Game:
                     "sequence_bonus": self.sequence_points(p),
                     "achieve_count": p.achieve_count,
                     "max_single_score": p.max_single_score,
+                    "reshuffle_take_left": p.reshuffle_take_left,
+                    "double_action_left": p.double_action_left,
                 }
                 for p in self.players
             ],

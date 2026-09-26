@@ -18,6 +18,7 @@ def main() -> None:
     parser.add_argument("--auto", action="store_true", help="全員CPUで1ゲーム進める")
     parser.add_argument("--sequence", action="store_true", help="上級ルール（並び順ボーナス）")
     parser.add_argument("--title", action="store_true", help="上級ルール（称号ボーナス）")
+    parser.add_argument("--special", action="store_true", help="上級ルール（特殊アクション）")
     parser.add_argument(
         "--item-set",
         default="trade",
@@ -50,6 +51,7 @@ def main() -> None:
             human_seats=list(range(humans)),
             sequence_rule=args.sequence,
             title_rule=args.title,
+            special_actions_rule=args.special,
             item_set=theme.id,
         )
     )
@@ -104,6 +106,23 @@ def _print_table(game: Game) -> None:
 
 
 def _ask(game: Game):
+    if game.plan == "normal" and not game.turn_gain and game.config.special_actions_rule:
+        player = game.players[game.current]
+        options = []
+        if player.double_action_left:
+            options.append("d=ダブル")
+        if player.reshuffle_take_left:
+            options.append("r=配り直し")
+        if options:
+            print("特殊: " + " ".join(options) + "（空エンターで通常の行動）")
+            raw = input("特殊> ").strip().lower()
+            if raw == "d" and player.double_action_left:
+                game.declare_double()
+                print("ダブルアクション。1回目の行動です。")
+            elif raw == "r" and player.reshuffle_take_left:
+                game.declare_reshuffle()
+                print("場を配り直した。")
+                print("場札: " + " | ".join(c.label(_theme(game)) for c in game.market))
     player = game.players[game.current]
     if player.quota is None:
         actions = game.legal_actions()

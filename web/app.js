@@ -23,7 +23,7 @@ let pendingBonusSeat = null;
 let bonusNote = null;
 let titleCheer = null;
 let guide = null;
-let passAsk = false;
+let ask = null;
 let coverSeen = 0;
 let coverUntil = 0;
 let coverText = "";
@@ -129,6 +129,8 @@ const GUIDES = {
       "<strong>達成</strong>の記録の並びで、前後する数字なら＋1点、同じ数字なら＋2点（組をまたいでもよい）。",
       "<strong>ワイルド</strong>不使用で3組以上<strong>達成</strong>したら、終了時に＋5点。",
       "同じ種類だけ（<strong>ワイルド</strong>は可）で3組以上<strong>達成</strong>したら、終了時に＋15点。",
+      "<strong>ダブル</strong>は、1ゲームに1回、行動の前に宣言する。1回行動し、場札を補充してから、もう1回行動する。",
+      "<strong>配り直し</strong>は、1ゲームに1回、行動の前に宣言する。場札を入れ替えてから、1回行動する。同じ手番に両方は使えない。",
     ],
   },
   hint: {
@@ -181,12 +183,8 @@ function savedOptions() {
   }
 }
 
-function pickingQuota() {
-  return state && state.phase !== "hall" && state.phase !== "recruiting" && !state.finished && !state.settling && state.your_turn && state.players && !state.players[state.current].quota;
-}
-
 function render() {
-  if (passAsk && !pickingQuota()) passAsk = false;
+  if (ask && ask.kind !== "leave" && !state.your_turn) ask = null;
   if (!state || state.phase === "hall") {
     const saved = savedOptions() || {};
     const players = String(saved.players || 3);
@@ -241,6 +239,9 @@ function render() {
           <label><span>称号</span>
             <input name="title" type="checkbox" ${saved.title ? "checked" : ""}> 称号ボーナス
           </label>
+          <label><span>特殊</span>
+            <input name="special" type="checkbox" ${saved.special ? "checked" : ""}> ダブル／配り直し
+          </label>
         </div>
         <div class="row">
           <label><span>左利き</span>
@@ -280,6 +281,7 @@ function render() {
         seed: data.get("seed"),
         sequence: data.get("sequence") === "on",
         title: data.get("title") === "on",
+        special: data.get("special") === "on",
         item_set: data.get("item_set"),
         ok_timeout: Number(data.get("ok_timeout")),
         turn_timeout: Number(data.get("turn_timeout")),
@@ -332,6 +334,7 @@ function render() {
       ${toast}
       <div class="bar"><span class="who"><strong>${escapeText(player.name)}</strong>${youTag}${clock}</span>
         <span>${score.plus}<span class="points">${score.points}</span>点</span></div>
+      ${state.special_actions_rule ? `<p class="note">ダブル ${player.double_action_left ? "残1" : "済"}　配り直し ${player.reshuffle_take_left ? "残1" : "済"}</p>` : ""}
       <div class="band">
         <div class="vlabel">ノルマ</div>
         <div class="band-main"><div class="line order">${order}</div></div>
@@ -348,15 +351,19 @@ function render() {
   let controls = "";
   let hint = "";
   if (!state.settling && !state.finished) {
-    if (state.your_turn && !me.quota) hint = "場札からノルマ札を選びましょう。";
+    if (state.your_turn && state.plan === "reshuffle") hint = "配り直しました。行動を選んでください。";
+    else if (state.your_turn && state.double_stage === 1) hint = "ダブル：1回目の行動です。";
+    else if (state.your_turn && state.double_stage === 2) hint = "ダブル：2回目の行動です。";
+    else if (state.your_turn && !me.quota) hint = "場札からノルマ札を選びましょう。";
     else if (state.your_turn) hint = `ノルマ達成まであと${me.need}枚。`;
     else hint = `${me.name} が考えています`;
   }
   if (!state.settling && state.your_turn) {
+    const specials = specialButtons();
     if (!me.quota) {
-      controls = `<div class="controls${hand}"><div class="control-buttons"><button type="button" id="pass">パス</button></div></div>`;
+      controls = `<div class="controls${hand}"><div class="control-buttons">${specials}<button type="button" id="pass">パス</button></div></div>`;
     } else {
-      controls = `<div class="controls${hand}"><div class="control-buttons">
+      controls = `<div class="controls${hand}"><div class="control-buttons">${specials}
           <button type="button" id="abandon">放棄</button>
           <button type="button" id="pass">${state.turn_gain ? "次へ" : "パス"}</button>
         </div></div>`;
@@ -380,7 +387,7 @@ function render() {
     ${joinHtml()}
     <p class="note">手番 ${state.turn_number} / 山札 ${state.deck_count}
       / 膠着状態 ${state.stall_count} / 連続パス ${state.no_gain_streak}/${state.player_count}
-      ${state.sequence_rule ? " / 並び順" : ""}${state.title_rule ? " / 称号" : ""}</p>
+      ${state.sequence_rule ? " / 並び順" : ""}${state.title_rule ? " / 称号" : ""}${state.special_actions_rule ? " / 特殊" : ""}</p>
     ${watcherHtml()}
     ${gateHtml()}
     <section class="panel market-panel">
@@ -392,36 +399,37 @@ function render() {
     ${state.finished && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
     ${coverHtml()}
-    ${passAskHtml()}
+    ${askHtml()}
     <button type="button" id="leave">${leaveLabel()}</button>
     `;
 
   const leave = app.querySelector("#leave");
-  if (leave) leave.onclick = () => post("/api/leave", {});
+  if (leave) leave.onclick = () => confirmLeave();
   app.querySelectorAll(".pick").forEach((button) => {
     button.onclick = () => onPick(Number(button.parentElement.dataset.id));
   });
   const pass = app.querySelector("#pass");
   if (pass) pass.onclick = () => {
-    if (pickingQuota()) {
-      passAsk = true;
-      render();
-      return;
-    }
-    post("/api/action", { kind: "pass" });
-  };
-  const passYes = app.querySelector("#pass-yes");
-  if (passYes) passYes.onclick = () => {
-    passAsk = false;
-    post("/api/action", { kind: "pass" });
-  };
-  const passNo = app.querySelector("#pass-no");
-  if (passNo) passNo.onclick = () => {
-    passAsk = false;
-    render();
+    const next = pass.textContent === "次へ";
+    openAsk(
+      next ? "本当に次へ進みますか？" : "本当にパスしますか？",
+      next ? "次へ進む" : "パスする",
+      () => post("/api/action", { kind: "pass" }),
+      next ? "next" : "pass",
+    );
   };
   const abandon = app.querySelector("#abandon");
-  if (abandon) abandon.onclick = () => post("/api/action", { kind: "abandon" });
+  if (abandon) abandon.onclick = () => openAsk(
+    "本当に放棄しますか？",
+    "放棄する",
+    () => post("/api/action", { kind: "abandon" }),
+    "abandon",
+  );
+  const double = app.querySelector("#double");
+  if (double) double.onclick = () => post("/api/action", { kind: "double" });
+  const reshuffle = app.querySelector("#reshuffle");
+  if (reshuffle) reshuffle.onclick = () => post("/api/action", { kind: "reshuffle" });
+  bindAsk();
   const ack = app.querySelector("#ack");
   if (ack) ack.onclick = () => post("/api/ack", {});
   const ok = app.querySelector("#ok");
@@ -455,20 +463,58 @@ function renderRecruiting() {
       ${watcherHtml()}
       ${you.leader ? `<p class="submit"><button class="primary" type="button" id="begin">ゲーム開始</button></p>` : `<p class="note">リーダーの開始を待っています。</p>`}
     </section>
+    ${askHtml()}
     <button type="button" id="leave">${leaveLabel()}</button>`;
   const begin = app.querySelector("#begin");
   if (begin) begin.onclick = () => post("/api/start", {});
   const leave = app.querySelector("#leave");
-  if (leave) leave.onclick = () => post("/api/leave", {});
+  if (leave) leave.onclick = () => confirmLeave();
+  bindAsk();
 }
 
 function leaveLabel() {
   return state.you && state.you.observer ? "離れる" : "ゲームから抜ける";
 }
 
-function passAskHtml() {
-  if (!passAsk) return "";
-  return `<div class="rollover pass-ask"><div class="panel"><p>本当にパスしますか？</p><p class="ask-buttons"><button type="button" id="pass-yes">パスする</button><button type="button" class="primary" id="pass-no">キャンセル</button></p></div></div>`;
+function specialButtons() {
+  if (!state.special_actions_rule || state.plan !== "normal" || state.turn_gain || state.double_stage) return "";
+  const me = state.players[state.current];
+  let html = "";
+  if (me.double_action_left > 0) html += `<button type="button" id="double">ダブル</button>`;
+  if (me.reshuffle_take_left > 0) html += `<button type="button" id="reshuffle">配り直し</button>`;
+  return html;
+}
+
+function confirmLeave() {
+  if (state.you && state.you.observer) {
+    post("/api/leave", {});
+    return;
+  }
+  openAsk("本当にゲームから抜けますか？", "抜ける", () => post("/api/leave", {}), "leave");
+}
+
+function bindAsk() {
+  const askYes = app.querySelector("#ask-yes");
+  if (askYes) askYes.onclick = () => {
+    const run = ask.run;
+    ask = null;
+    run();
+  };
+  const askNo = app.querySelector("#ask-no");
+  if (askNo) askNo.onclick = () => {
+    ask = null;
+    render();
+  };
+}
+
+function openAsk(message, yesLabel, run, kind) {
+  ask = { message, yesLabel, run, kind };
+  render();
+}
+
+function askHtml() {
+  if (!ask) return "";
+  return `<div class="rollover pass-ask"><div class="panel"><p>${ask.message}</p><p class="ask-buttons"><button type="button" id="ask-yes">${ask.yesLabel}</button><button type="button" class="primary" id="ask-no">キャンセル</button></p></div></div>`;
 }
 
 function coverHtml() {

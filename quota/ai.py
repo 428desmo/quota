@@ -7,6 +7,7 @@ from quota.engine import Abandon, Action, Collect, Game, Pass, TakeQuota
 
 
 def choose_action(game: Game) -> Action:
+    _maybe_special(game)
     actions = game.legal_actions()
     player = game.players[game.current]
     takes = [a for a in actions if isinstance(a, TakeQuota)]
@@ -55,6 +56,36 @@ def choose_action(game: Game) -> Action:
     else:
         chosen = chosen[:need]
     return Collect(tuple(c.id for c in chosen))
+
+
+def _maybe_special(game: Game) -> None:
+    if not game.config.special_actions_rule or game.finished or game.plan != "normal" or game.turn_gain:
+        return
+    player = game.players[game.current]
+    if player.reshuffle_take_left > 0 and not _market_helps(game, player):
+        game.declare_reshuffle()
+        return
+    if player.double_action_left > 0 and _worth_double(game, player):
+        game.declare_double()
+
+
+def _market_helps(game: Game, player) -> bool:
+    if player.quota is None:
+        return any(card.suit != "JOKER" for card in game.market)
+    return any(card.suit == player.quota.suit or card.suit == "JOKER" for card in game.market)
+
+
+def _worth_double(game: Game, player) -> bool:
+    if player.quota is None:
+        return any(card.rank == 1 or (card.rank is not None and card.rank >= 7) for card in game.market)
+    assert player.quota.rank is not None
+    need = player.quota.rank - 1 - len(player.collection)
+    eligible = [
+        card
+        for card in game.market
+        if card.suit == player.quota.suit or card.suit == "JOKER"
+    ]
+    return 0 < need <= 4 and len(eligible) > 0
 
 
 def _order_for_sequence(player, cards):

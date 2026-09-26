@@ -220,6 +220,78 @@ def test_collect_order_is_kept_and_scores_only_when_enabled():
     assert plain.sequence_points(plain.players[0]) == 0
 
 
+def test_special_actions_start_unused_and_stay_off_by_default():
+    plain = Game.start(GameConfig(seed=1, num_players=3))
+    assert all(p.reshuffle_take_left == 0 and p.double_action_left == 0 for p in plain.players)
+    with pytest.raises(ValueError):
+        plain.declare_double()
+
+
+def test_reshuffle_and_take_replaces_the_market_without_touching_stall():
+    game = Game.start(GameConfig(seed=5, num_players=3, special_actions_rule=True))
+    seat = game.current
+    before = [c.id for c in game.market]
+    streak = game.no_gain_streak
+    game.declare_reshuffle()
+    assert game.players[seat].reshuffle_take_left == 0
+    assert game.plan == "reshuffle"
+    assert [c.id for c in game.market] != before
+    assert len(game.market) == game.market_size()
+    assert game.no_gain_streak == streak
+    assert game.stall_flag is False
+    assert game.reshuffle_count == 0
+    with pytest.raises(ValueError):
+        game.declare_double()
+    game.step(Pass())
+    assert game.current != seat
+    assert game.no_gain_streak == 1
+    assert game.plan == "normal"
+
+
+def test_double_action_takes_two_actions_and_counts_one_miss():
+    game = Game.start(GameConfig(seed=6, num_players=3, special_actions_rule=True))
+    seat = game.current
+    turn = game.turn_number
+    game.declare_double()
+    assert game.players[seat].double_action_left == 0
+    game.step(Pass())
+    assert game.current == seat
+    assert game.turn_number == turn
+    assert game.double_stage == 2
+    assert len(game.market) == game.market_size()
+    game.step(Pass())
+    assert game.current != seat
+    assert game.turn_number == turn + 1
+    assert game.no_gain_streak == 1
+    assert game.plan == "normal"
+    assert game.double_stage == 0
+
+
+def test_double_action_ends_when_the_refill_empties_the_deck():
+    game = Game.start(GameConfig(seed=7, num_players=3, special_actions_rule=True))
+    seat = game.current
+    take = next(action for action in game.legal_actions() if isinstance(action, TakeQuota))
+    game.declare_double()
+    game.deck.clear()
+    game.step(take)
+    assert game.finished
+    assert game.end_reason == "DECK"
+    assert game.current == seat
+    player = game.players[seat]
+    assert player.quota is not None or player.achieve_count == 1
+
+
+def test_cpu_with_special_actions_finishes():
+    game = Game.start(GameConfig(num_players=3, seed=9, human_seats=[], special_actions_rule=True))
+    guard = 0
+    while not game.finished:
+        game.step(choose_action(game))
+        _assert_invariants(game, [c.id for c in game.removed])
+        guard += 1
+        assert guard < 5000
+    assert all(p.reshuffle_take_left <= 1 and p.double_action_left <= 1 for p in game.players)
+
+
 def _assert_invariants(game: Game, removed_ids: list[int]) -> None:
     ids = game.all_card_ids()
     assert len(ids) == 108
@@ -230,7 +302,11 @@ def _assert_invariants(game: Game, removed_ids: list[int]) -> None:
         if not game.turn_gain:
             assert len(game.market) == game.market_size()
         assert 0 <= game.no_gain_streak < game.config.resolved_stall_threshold()
+    take_cap = game.config.reshuffle_take_uses if game.config.special_actions_rule else 0
+    double_cap = game.config.double_action_uses if game.config.special_actions_rule else 0
     for p in game.players:
+        assert 0 <= p.reshuffle_take_left <= take_cap
+        assert 0 <= p.double_action_left <= double_cap
         if p.quota is None:
             assert p.collection == []
         else:

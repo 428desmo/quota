@@ -276,6 +276,94 @@ namespace Quota.Tests
             Assert.AreEqual(0, plain.SequencePoints(plain.Players[0]));
         }
 
+        [Test]
+        public void SpecialActionsStartUnusedAndStayOffByDefault()
+        {
+            var plain = Game.Start(Config(1));
+            Assert.IsTrue(plain.Players.TrueForAll(player => player.ReshuffleTakeLeft == 0 && player.DoubleActionLeft == 0));
+            Assert.Throws<System.ArgumentException>(() => plain.DeclareDouble());
+        }
+
+        [Test]
+        public void ReshuffleAndTakeReplacesTheMarketWithoutTouchingStall()
+        {
+            var game = Game.Start(new GameConfig { Seed = 5, NumPlayers = 3, SpecialActionsRule = true });
+            var seat = game.Current;
+            var before = Ids(game.Market);
+            var streak = game.NoGainStreak;
+            game.DeclareReshuffle();
+            Assert.AreEqual(0, game.Players[seat].ReshuffleTakeLeft);
+            Assert.AreEqual("reshuffle", game.Plan);
+            CollectionAssert.AreNotEqual(before, Ids(game.Market));
+            Assert.AreEqual(game.MarketSize(), game.Market.Count);
+            Assert.AreEqual(streak, game.NoGainStreak);
+            Assert.IsFalse(game.StallFlag);
+            Assert.AreEqual(0, game.ReshuffleCount);
+            Assert.Throws<System.ArgumentException>(() => game.DeclareDouble());
+            game.Step(new Pass());
+            Assert.AreNotEqual(seat, game.Current);
+            Assert.AreEqual(1, game.NoGainStreak);
+            Assert.AreEqual("normal", game.Plan);
+        }
+
+        [Test]
+        public void DoubleActionTakesTwoActionsAndCountsOneMiss()
+        {
+            var game = Game.Start(new GameConfig { Seed = 6, NumPlayers = 3, SpecialActionsRule = true });
+            var seat = game.Current;
+            var turn = game.TurnNumber;
+            game.DeclareDouble();
+            Assert.AreEqual(0, game.Players[seat].DoubleActionLeft);
+            game.Step(new Pass());
+            Assert.AreEqual(seat, game.Current);
+            Assert.AreEqual(turn, game.TurnNumber);
+            Assert.AreEqual(2, game.DoubleStage);
+            Assert.AreEqual(game.MarketSize(), game.Market.Count);
+            game.Step(new Pass());
+            Assert.AreNotEqual(seat, game.Current);
+            Assert.AreEqual(turn + 1, game.TurnNumber);
+            Assert.AreEqual(1, game.NoGainStreak);
+            Assert.AreEqual("normal", game.Plan);
+            Assert.AreEqual(0, game.DoubleStage);
+        }
+
+        [Test]
+        public void DoubleActionEndsWhenTheRefillEmptiesTheDeck()
+        {
+            var game = Game.Start(new GameConfig { Seed = 7, NumPlayers = 3, SpecialActionsRule = true });
+            var seat = game.Current;
+            var take = game.LegalActions().OfType<TakeQuota>().First();
+            game.DeclareDouble();
+            game.Deck.Clear();
+            game.Step(take);
+            Assert.IsTrue(game.Finished);
+            Assert.AreEqual("DECK", game.EndReason);
+            Assert.AreEqual(seat, game.Current);
+            var player = game.Players[seat];
+            Assert.IsTrue(player.Quota != null || player.AchieveCount == 1);
+        }
+
+        [Test]
+        public void CpuWithSpecialActionsFinishes()
+        {
+            var game = Game.Start(new GameConfig
+            {
+                NumPlayers = 3,
+                Seed = 9,
+                HumanSeats = new List<int>(),
+                SpecialActionsRule = true,
+            });
+            var guard = 0;
+            while (!game.Finished)
+            {
+                game.Step(Cpu.ChooseAction(game));
+                AssertInvariants(game, Ids(game.Removed));
+                guard++;
+                Assert.Less(guard, 5000);
+            }
+            Assert.IsTrue(game.Players.TrueForAll(player => player.ReshuffleTakeLeft <= 1 && player.DoubleActionLeft <= 1));
+        }
+
         static GameConfig Config(int seed, int players = 3)
         {
             return new GameConfig { Seed = seed, NumPlayers = players };
@@ -318,8 +406,14 @@ namespace Quota.Tests
                 Assert.GreaterOrEqual(game.NoGainStreak, 0);
                 Assert.Less(game.NoGainStreak, game.Config.ResolvedStallThreshold());
             }
+            var takeCap = game.Config.SpecialActionsRule ? game.Config.ReshuffleTakeUses : 0;
+            var doubleCap = game.Config.SpecialActionsRule ? game.Config.DoubleActionUses : 0;
             foreach (var player in game.Players)
             {
+                Assert.GreaterOrEqual(player.ReshuffleTakeLeft, 0);
+                Assert.LessOrEqual(player.ReshuffleTakeLeft, takeCap);
+                Assert.GreaterOrEqual(player.DoubleActionLeft, 0);
+                Assert.LessOrEqual(player.DoubleActionLeft, doubleCap);
                 if (player.Quota == null)
                 {
                     Assert.AreEqual(0, player.Collection.Count);
