@@ -57,5 +57,62 @@ namespace Quota.Tests
             Assert.GreaterOrEqual(min.x, viewport.rect.xMin - 1f);
             Assert.Greater(title.rectTransform.rect.height, 20f);
         }
+
+        [Test]
+        public void PassButtonHasAVisibleSize()
+        {
+            host = Open();
+            Click("対局開始");
+            var pass = ButtonNamed("パス");
+            Assert.Greater(pass.GetComponent<RectTransform>().rect.width, 40f);
+            Assert.Greater(pass.GetComponent<RectTransform>().rect.height, 16f);
+            Assert.Greater(pass.GetComponentInChildren<Text>().rectTransform.rect.width, 20f);
+
+            Click("パス");
+            var confirm = ButtonNamed("パスする");
+            var cancel = ButtonNamed("キャンセル");
+            Assert.Greater(confirm.GetComponent<RectTransform>().rect.width, 40f);
+            Assert.Greater(cancel.GetComponent<RectTransform>().rect.width, 40f);
+        }
+
+        GameObject Open()
+        {
+            var viewHost = new GameObject("Quota");
+            var view = viewHost.AddComponent<TableView>();
+            typeof(TableView).GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, null);
+            var canvas = viewHost.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            viewHost.GetComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            var canvasRect = viewHost.GetComponent<RectTransform>();
+            canvasRect.sizeDelta = new Vector2(980, 800);
+            canvasRect.localScale = Vector3.one;
+            Rebuild(viewHost);
+            return viewHost;
+        }
+
+        void Click(string caption)
+        {
+            ButtonNamed(caption).onClick.Invoke();
+            Rebuild(host);
+        }
+
+        Button ButtonNamed(string caption)
+        {
+            foreach (var button in host.GetComponentsInChildren<Button>())
+            {
+                var label = button.GetComponentInChildren<Text>();
+                if (label != null && label.text == caption) return button;
+            }
+            Assert.Fail("missing button " + caption);
+            return null;
+        }
+
+        static void Rebuild(GameObject viewHost)
+        {
+            var content = viewHost.transform.Find("Root/Scroll/Viewport/Content") as RectTransform;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+            Canvas.ForceUpdateCanvases();
+        }
     }
 }
