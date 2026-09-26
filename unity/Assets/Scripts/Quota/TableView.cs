@@ -206,9 +206,10 @@ namespace Quota
                 var player = game.Players[i];
                 var seat = Column(content, "seat" + i);
                 var mark = i == game.Current && !game.Finished ? " ▶" : "";
-                Note(seat, $"{player.Name}{mark}  {game.FinalScore(player)}点");
-                if (game.Config.SpecialActionsRule)
-                    Note(seat, $"ダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}　配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}");
+                var uses = game.Config.SpecialActionsRule
+                    ? $"  ダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}　配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}  "
+                    : "  ";
+                Note(seat, $"{player.Name}{mark}{uses}{game.FinalScore(player)}点");
                 Note(seat, "ノルマ  " + Line(theme, player.Quota, player.Collection));
                 Note(seat, "実績  " + (player.Achieved.Count == 0 ? "なし" : Line(theme, null, player.Achieved)));
             }

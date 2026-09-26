@@ -202,7 +202,9 @@ main:has(#leave) { padding-bottom: 44px; }
   h1 { font-size: 22px; }
 }
 .bar { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-.who { display: flex; align-items: baseline; gap: 0.35em; }
+.who { display: flex; align-items: baseline; gap: 0.35em; min-width: 0; }
+.uses { font-size: 12px; color: #444; white-space: nowrap; }
+.score { flex: none; margin-left: auto; white-space: nowrap; }
 .you-tag { font-weight: 700; }
 .you-tag.live { animation: you-blink 0.8s steps(1) infinite; }
 @keyframes you-blink { 50% { opacity: 0; } }

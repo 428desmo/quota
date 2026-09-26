@@ -327,14 +327,16 @@ function render() {
     const onClock = index === state.current && state.current_human;
     const youTag = mine ? `<span class="you-tag${state.your_turn && onClock ? " live" : ""}">【あなた】</span>` : "";
     const clock = onClock ? `<span id="turn-clock"></span>` : "";
+    const uses = state.special_actions_rule
+      ? `<span class="uses">ダブル ${player.double_action_left ? "残1" : "済"}　配り直し ${player.reshuffle_take_left ? "残1" : "済"}</span>`
+      : "";
     const toast = bonusNote && bonusNote.seat === index && Date.now() < bonusNote.until
       ? `<div class="bonus-toast">${bonusNote.text}</div>`
       : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
       ${toast}
-      <div class="bar"><span class="who"><strong>${escapeText(player.name)}</strong>${youTag}${clock}</span>
-        <span>${score.plus}<span class="points">${score.points}</span>点</span></div>
-      ${state.special_actions_rule ? `<p class="note">ダブル ${player.double_action_left ? "残1" : "済"}　配り直し ${player.reshuffle_take_left ? "残1" : "済"}</p>` : ""}
+      <div class="bar"><span class="who"><strong>${escapeText(player.name)}</strong>${youTag}${clock}${uses}</span>
+        <span class="score">${score.plus}<span class="points">${score.points}</span>点</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>
         <div class="band-main"><div class="line order">${order}</div></div>
