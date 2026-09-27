@@ -130,6 +130,18 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("本当に次へ進みますか？"));
             Click("キャンセル");
 
+            game.TurnGain = false;
+            for (var i = 0; i < game.Market.Count; i++)
+            {
+                var item = game.Market[i];
+                if (item != null && (item.Suit == game.Players[0].Quota.Suit || item.Suit == Suit.Joker))
+                    game.Market[i] = null;
+            }
+            Show(view);
+            Click("パス");
+            Assert.IsNull(FindText("本当にパスしますか？"));
+            Assert.AreNotEqual(0, game.Current);
+
             Click("ゲームから抜ける");
             Assert.IsNotNull(FindText("本当にゲームから抜けますか？"));
             Assert.IsNotNull(ButtonNamed("抜ける"));
