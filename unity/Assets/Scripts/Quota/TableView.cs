@@ -1,16 +1,34 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace Quota
 {
     public sealed class TableView : MonoBehaviour
     {
+        const float ScreenWidth = 1080f;
+        const float ScreenHeight = 1920f;
+        const float MarketScale = 1.35f;
+        const float CardWidth = 95f;
+        const float CardHeight = 132f;
+        // 72px does not fit a 95px card. Kept at 18px until the size is confirmed.
+        const float GoodsNameSize = 18f;
+
+        static readonly Color[] IndicatorColors =
+        {
+            Hex("#000000"),
+            Hex("#ff0000"),
+            Hex("#00ff00"),
+            Hex("#00ffff"),
+            Hex("#ff00ff"),
+        };
+
         readonly OfflineMatch match = new OfflineMatch();
-        Font font;
-        RectTransform root;
-        RectTransform content;
+        Font nameFont;
+        Font roundFont;
+        RectTransform frame;
         bool busy;
         string confirm;
         int setIndex;
@@ -30,18 +48,19 @@ namespace Quota
 
         void Start()
         {
-            font = Font.CreateDynamicFontFromOSFont(new[] { "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic" }, 16);
+            nameFont = LoadFont(new[] { "Hiragino Kaku Gothic ProN W6", "HiraginoSans-W6", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic" });
+            roundFont = LoadFont(new[] { "FOT-TsukuBRdGothic Std B", "FOT-筑紫B丸ゴシック Std B", "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", "Hiragino Sans" });
             var camera = Camera.main;
             if (camera != null)
             {
                 camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = Hex("#f4f1ea");
+                camera.backgroundColor = Color.black;
             }
             var canvas = gameObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(980, 800);
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 1f;
             gameObject.AddComponent<GraphicRaycaster>();
             if (FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {
@@ -49,81 +68,80 @@ namespace Quota
                 events.AddComponent<UnityEngine.EventSystems.EventSystem>();
                 events.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
             }
-            var panel = new GameObject("Root", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(transform, false);
-            panel.GetComponent<Image>().color = Hex("#f4f1ea");
-            root = panel.GetComponent<RectTransform>();
+            var root = Portrait.Rect(transform, "Root", 0f, 0f, ScreenWidth, ScreenHeight);
             Stretch(root);
-            var scroll = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect));
-            scroll.transform.SetParent(root, false);
-            var scrollRect = scroll.GetComponent<RectTransform>();
-            Stretch(scrollRect);
-            scrollRect.offsetMin = new Vector2(12, 12);
-            scrollRect.offsetMax = new Vector2(-12, -12);
-            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
-            viewport.transform.SetParent(scroll.transform, false);
-            Stretch(viewport.GetComponent<RectTransform>());
-            viewport.GetComponent<Image>().color = new Color(0, 0, 0, 0);
-            var body = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-            body.transform.SetParent(viewport.transform, false);
-            content = body.GetComponent<RectTransform>();
-            content.anchorMin = new Vector2(0, 1);
-            content.anchorMax = new Vector2(1, 1);
-            content.pivot = new Vector2(0.5f, 1);
-            content.anchoredPosition = Vector2.zero;
-            content.sizeDelta = Vector2.zero;
-            var layout = body.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(8, 8, 8, 8);
-            layout.spacing = 8;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = true;
-            layout.childForceExpandHeight = false;
-            body.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            var scroller = scroll.GetComponent<ScrollRect>();
-            scroller.viewport = viewport.GetComponent<RectTransform>();
-            scroller.content = content;
-            scroller.horizontal = false;
+            var backdrop = root.gameObject.AddComponent<Image>();
+            backdrop.sprite = Portrait.White;
+            backdrop.color = Color.black;
+            backdrop.raycastTarget = false;
+            frame = Portrait.Rect(root, "Frame", 0f, 0f, ScreenWidth, ScreenHeight);
+            frame.anchorMin = frame.anchorMax = new Vector2(0.5f, 0.5f);
+            frame.pivot = new Vector2(0.5f, 0.5f);
+            frame.anchoredPosition = Vector2.zero;
+            var background = frame.gameObject.AddComponent<Image>();
+            background.sprite = Portrait.White;
+            background.color = Hex("#ff931e");
+            background.raycastTarget = false;
+            Fit();
             var sets = ItemCatalog.Sets;
             for (var i = 0; i < sets.Count; i++)
                 if (sets[i].IsDefault) setIndex = i;
             ShowSetup();
         }
 
+        void Update()
+        {
+            Fit();
+        }
+
+        void Fit()
+        {
+            if (frame == null || Screen.width <= 0 || Screen.height <= 0) return;
+            var scale = Mathf.Min(Screen.width / ScreenWidth, Screen.height / ScreenHeight);
+            frame.localScale = new Vector3(scale, scale, 1f);
+        }
+
         void ShowSetup()
         {
             Clear();
+            TextAt(frame, "QUOTA", 48f, 36f, 700f, 72f, 64, Color.white, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, "揃えて、達成。", 48f, 112f, 700f, 36f, 28, Color.white, nameFont, TextAnchor.MiddleLeft);
+            var column = Portrait.Rect(frame, "setup", 48f, 180f, 984f, 1600f);
+            var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.spacing = 16f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
             var sets = ItemCatalog.Sets;
-            Title(content, "QUOTA");
-            Note(content, "揃えて、達成。");
-            Button(content, $"アイテムセット  {sets[setIndex].Name}", () =>
+            SetupButton(column, $"アイテムセット  {sets[setIndex].Name}", () =>
             {
                 setIndex = (setIndex + 1) % sets.Count;
                 ShowSetup();
             });
-            Button(content, $"人数  {playerCount}", () =>
+            SetupButton(column, $"人数  {playerCount}", () =>
             {
                 playerCount = playerCount == 3 ? 4 : 3;
                 ShowSetup();
             });
-            var seed = Field(content, "シード（空ならランダム）", seedText);
+            var seed = Field(column, "シード（空ならランダム）", seedText);
             seed.onValueChanged.AddListener(value => seedText = value);
-            Button(content, $"並び順ボーナス  {(sequenceRule ? "オン" : "オフ")}", () =>
+            SetupButton(column, $"並び順ボーナス  {(sequenceRule ? "オン" : "オフ")}", () =>
             {
                 sequenceRule = !sequenceRule;
                 ShowSetup();
             });
-            Button(content, $"称号ボーナス  {(titleRule ? "オン" : "オフ")}", () =>
+            SetupButton(column, $"称号ボーナス  {(titleRule ? "オン" : "オフ")}", () =>
             {
                 titleRule = !titleRule;
                 ShowSetup();
             });
-            Button(content, $"特殊アクション  {(specialRule ? "オン" : "オフ")}", () =>
+            SetupButton(column, $"特殊アクション  {(specialRule ? "オン" : "オフ")}", () =>
             {
                 specialRule = !specialRule;
                 ShowSetup();
             });
-            Button(content, "対局開始", () =>
+            SetupButton(column, "対局開始", () =>
             {
                 int? parsed = null;
                 if (int.TryParse(seedText, out var number)) parsed = number;
@@ -150,72 +168,186 @@ namespace Quota
             Clear();
             var game = match.Game;
             var theme = ItemCatalog.Resolve(game.Config.ItemSet);
-            Title(content, "QUOTA  揃えて、達成。");
-            var rules = (game.Config.SequenceRule ? " / 並び順" : "") + (game.Config.TitleRule ? " / 称号" : "") + (game.Config.SpecialActionsRule ? " / 特殊" : "");
-            Note(content, $"手番 {game.TurnNumber} / 山札 {game.Deck.Count} / 膠着 {(game.StallFlag ? 1 : 0)} / 連続パス {game.NoGainStreak}/{game.Players.Count}{rules}");
-            if (game.Plan == "reshuffle") Note(content, "配り直しました。行動を選んでください。");
-            else if (game.DoubleStage == 1) Note(content, "ダブル：1回目の行動です。");
-            else if (game.DoubleStage == 2) Note(content, "ダブル：2回目の行動です。");
-            Note(content, "場札");
-            var market = Row(content, "market");
+            for (var i = 0; i < game.Players.Count; i++)
+                DrawPlayer(game, theme, i);
+            Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, new Color(1f, 1f, 1f, 0.5f), Color.white, false);
+            DrawMarket(game, theme);
+            DrawTitle(game);
+            if (match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
+            else if (!game.Finished) TextAt(frame, $"{game.Players[game.Current].Name} が考えています", 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
+            if (!game.Finished) LeaveButton();
+            if (game.Finished) Result(game);
+            else if (confirm != null) Confirm();
+        }
+
+        void DrawTitle(Game game)
+        {
+            TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Color.white, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, "揃えて、達成。", 28f, 84f, 640f, 32f, 24, Color.white, nameFont, TextAnchor.MiddleLeft);
+            if (game.DoubleStage == 1) TextAt(frame, "ダブル：1回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
+            else if (game.DoubleStage == 2) TextAt(frame, "ダブル：2回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
+            else if (game.Plan == "reshuffle") TextAt(frame, "配り直しました。行動を選んでください。", 280f, 28f, 480f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
             var me = game.Players[game.Current];
+            var hint = $"手番 {game.TurnNumber}  山札 {game.Deck.Count}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
+            if (me.Quota != null && me.Quota.Rank != null)
+            {
+                var need = me.Quota.Rank.Value - 1 - me.Collection.Count;
+                if (need > 0) hint = $"あと{need}枚   " + hint;
+            }
+            TextAt(frame, hint, 28f, 116f, 1020f, 28f, 20, Color.white, nameFont, TextAnchor.MiddleLeft);
+        }
+
+        void DrawMarket(Game game, ItemSet theme)
+        {
+            var count = game.Market.Count;
+            if (count == 0) return;
+            var cardWidth = CardWidth * MarketScale;
+            var cardHeight = CardHeight * MarketScale;
+            var gap = 16f;
+            var group = count * cardWidth + (count - 1) * gap;
+            var x = 20f + (1040f - group) * 0.5f;
+            var y = 170f + (210f - cardHeight) * 0.5f;
+            var me = game.Players[game.Current];
+            var yours = match.IsHumanTurn && !busy && !game.Finished;
             foreach (var card in game.Market)
             {
-                var playable = match.IsHumanTurn && !busy && CanPlay(card, me);
-                var face = theme.FaceFor(card);
+                var playable = yours && CanPlay(card, me);
                 var cardId = card.Id;
                 var takingQuota = me.Quota == null;
-                Button(market, $"{theme.RankLabel(card)}\n{face.Name}", () =>
+                DrawCard(frame, theme, card, x, y, MarketScale, playable ? () =>
                 {
                     if (takingQuota) Play(new TakeQuota(cardId));
                     else Play(new Collect(new[] { cardId }));
-                }, playable, Hex(face.Color));
+                } : null, yours && !playable);
+                x += cardWidth + gap;
             }
-            if (match.IsHumanTurn && !busy)
+        }
+
+        void DrawPlayer(Game game, ItemSet theme, int index)
+        {
+            var player = game.Players[index];
+            var top = 400f + index * 380f;
+            var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, 380f);
+            Portrait.Gradient(seat, "wash", 0f, 0f, ScreenWidth, 380f, Color.white, Hex("#999999"), -60f, 0.2f);
+            Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
+            var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
+            name.horizontalOverflow = HorizontalWrapMode.Overflow;
+            var quotaTop = 75f;
+            TextAt(seat, "ノルマ", 0f, quotaTop, 122f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
+            var quotaCards = Portrait.Rect(seat, "quota-cards", 130f, quotaTop, 768f, 145f);
+            quotaCards.gameObject.AddComponent<RectMask2D>();
+            var strip = new List<Card>();
+            if (player.Quota != null) strip.Add(player.Quota);
+            strip.AddRange(player.Collection);
+            LayCards(quotaCards, theme, strip, 6.5f, 55f);
+            TextAt(seat, "実績", 0f, 220f, 122f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
+            var achieved = Portrait.Rect(seat, "achieved-cards", 130f, 220f, 405f, 145f);
+            achieved.gameObject.AddComponent<RectMask2D>();
+            LayCards(achieved, theme, player.Achieved, 6.5f, 3f);
+            TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
+            Portrait.Box(seat, "chip-tray", 775f, 240f, 220f, 105f, 7f, 1f, Color.white, Color.black, false);
+            var side = $"{game.FinalScore(player)}点";
+            if (game.Config.SpecialActionsRule)
+                side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
+            if (index == game.Current && !game.Finished) side = "▶ " + side;
+            TextAt(seat, side, 898f, quotaTop + 8f, 170f, 130f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
+        }
+
+        void LayCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding, float stride)
+        {
+            var x = padding;
+            var y = padding;
+            foreach (var card in cards)
             {
-                var controls = Row(content, "controls");
-                var canDeclare = game.Plan == "normal" && !game.TurnGain && game.DoubleStage == 0;
-                if (canDeclare && me.DoubleActionLeft > 0) Button(controls, "ダブル", () =>
-                {
-                    confirm = null;
-                    game.DeclareDouble();
-                    ShowTable();
-                });
-                if (canDeclare && me.ReshuffleTakeLeft > 0) Button(controls, "配り直し", () =>
-                {
-                    confirm = null;
-                    game.DeclareReshuffle();
-                    ShowTable();
-                });
-                if (game.Plan == "double" && game.DoubleStage == 1 && !game.TurnGain) Button(controls, "キャンセル", () =>
-                {
-                    confirm = null;
-                    game.CancelDouble();
-                    ShowTable();
-                });
-                if (me.Quota != null) Button(controls, "放棄", () => Ask("abandon"));
-                var passLabel = me.Quota == null ? "パス" : game.TurnGain ? "次へ" : "パス";
-                Button(controls, passLabel, () => Ask(passLabel == "次へ" ? "next" : "pass"));
+                DrawCard(area, theme, card, x, y, 1f, null, false);
+                x += stride;
             }
-            else if (!game.Finished)
+        }
+
+        void DrawCard(Transform parent, ItemSet theme, Card card, float x, float y, float scale, UnityAction onClick, bool dim)
+        {
+            var width = CardWidth * scale;
+            var height = CardHeight * scale;
+            var host = Portrait.Rect(parent, "card" + card.Id, x, y, width, height);
+            var group = host.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = dim ? 0.35f : 1f;
+            group.blocksRaycasts = onClick != null;
+            Portrait.Box(host, "face", 0f, 0f, width, height, 4.5f * scale, Mathf.Max(1f, scale), Color.white, Color.black, false);
+            var kind = KindIndex(card);
+            var ink = IndicatorColors[kind];
+            Portrait.Solid(host, "mark", 0f, (66f + kind * 10f) * scale, 4f * scale, 10f * scale, ink);
+            var face = theme.FaceFor(card);
+            Baseline(host, theme.RankLabel(card), 20f * scale, 30f * scale, 24f * scale, Hex(face.Color), roundFont, 70f * scale);
+            var diameter = 72f * scale;
+            Portrait.Circle(host, "suit", (47.5f * scale) - diameter * 0.5f, (66f * scale) - diameter * 0.5f, diameter, ink);
+            Baseline(host, face.Name, 47.5f * scale, 118f * scale, GoodsNameSize * scale, Color.black, roundFont, width - 8f);
+            if (onClick == null) return;
+            var hit = host.gameObject.AddComponent<Image>();
+            hit.sprite = Portrait.White;
+            hit.color = new Color(1f, 1f, 1f, 0f);
+            var button = host.gameObject.AddComponent<Button>();
+            button.targetGraphic = hit;
+            button.onClick.AddListener(onClick);
+        }
+
+        void DrawControls(Game game)
+        {
+            var me = game.Players[game.Current];
+            var controls = Portrait.Rect(frame, "controls", 0f, 364f, ScreenWidth, 72f);
+            var entries = new List<KeyValuePair<string, UnityAction>>();
+            var canDeclare = game.Plan == "normal" && !game.TurnGain && game.DoubleStage == 0;
+            if (canDeclare && me.DoubleActionLeft > 0) entries.Add(Item("ダブル", () =>
             {
-                Note(content, $"{me.Name} が考えています");
-            }
-            for (var i = 0; i < game.Players.Count; i++)
+                confirm = null;
+                game.DeclareDouble();
+                ShowTable();
+            }));
+            else if (game.Plan == "double" && game.DoubleStage == 1 && !game.TurnGain) entries.Add(Item("キャンセル", () =>
             {
-                var player = game.Players[i];
-                var seat = Column(content, "seat" + i);
-                var mark = i == game.Current && !game.Finished ? " ▶" : "";
-                var uses = game.Config.SpecialActionsRule
-                    ? $"  ダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}　配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}  "
-                    : "  ";
-                Note(seat, $"{player.Name}{mark}{uses}{game.FinalScore(player)}点");
-                Note(seat, "ノルマ  " + Line(theme, player.Quota, player.Collection));
-                Note(seat, "実績  " + (player.Achieved.Count == 0 ? "なし" : Line(theme, null, player.Achieved)));
+                confirm = null;
+                game.CancelDouble();
+                ShowTable();
+            }));
+            if (canDeclare && me.ReshuffleTakeLeft > 0) entries.Add(Item("配り直し", () =>
+            {
+                confirm = null;
+                game.DeclareReshuffle();
+                ShowTable();
+            }));
+            if (me.Quota != null) entries.Add(Item("放棄", () => Ask("abandon")));
+            var passLabel = me.Quota != null && game.TurnGain ? "次へ" : "パス";
+            entries.Add(Item(passLabel, () => Ask(passLabel == "次へ" ? "next" : "pass")));
+            var gap = 12f;
+            var margin = 16f;
+            var widths = new float[entries.Count];
+            var total = 0f;
+            for (var i = 0; i < entries.Count; i++)
+            {
+                widths[i] = entries[i].Key.Length * 48f + 30f;
+                total += widths[i];
             }
-            if (game.Finished) Result(content, game);
-            else Button(content, "最初の画面に戻る", () => Ask("leave"));
-            if (confirm != null) Confirm(content);
+            total += gap * (entries.Count - 1);
+            var x = ScreenWidth - margin - total;
+            for (var i = 0; i < entries.Count; i++)
+            {
+                Pill(controls, entries[i].Key, x, 0f, widths[i], 72f, 48, entries[i].Value);
+                x += widths[i] + gap;
+            }
+        }
+
+        void LeaveButton()
+        {
+            const string caption = "ゲームから抜ける";
+            var width = caption.Length * 28f + 8f;
+            var host = Portrait.Rect(frame, caption, ScreenWidth - 20f - width, 18f, width, 40f);
+            var hit = host.gameObject.AddComponent<Image>();
+            hit.sprite = Portrait.White;
+            hit.color = new Color(1f, 1f, 1f, 0f);
+            var button = host.gameObject.AddComponent<Button>();
+            button.targetGraphic = hit;
+            button.onClick.AddListener(() => Ask("leave"));
+            var label = TextAt(host, caption, 0f, 0f, width, 40f, 28, Color.black, nameFont, TextAnchor.MiddleRight);
+            label.raycastTarget = false;
         }
 
         void Ask(string kind)
@@ -224,11 +356,11 @@ namespace Quota
             ShowTable();
         }
 
-        void Confirm(RectTransform parent)
+        void Confirm()
         {
             string message;
             string yes;
-            UnityEngine.Events.UnityAction run;
+            UnityAction run;
             if (confirm == "abandon")
             {
                 message = "本当に放棄しますか？";
@@ -257,37 +389,43 @@ namespace Quota
                 yes = "パスする";
                 run = () => Play(new Pass());
             }
-            var box = Column(parent, "confirm");
-            Note(box, message);
-            var row = Row(box, "confirm-buttons");
-            Button(row, yes, () =>
+            var panel = Portrait.Box(frame, "confirm", 190f, 760f, 700f, 280f, 7f, 1f, Color.white, Color.black, false);
+            TextAt(panel, message, 24f, 28f, 652f, 80f, 32, Color.black, nameFont, TextAnchor.MiddleCenter);
+            var yesWidth = yes.Length * 32f + 30f;
+            Pill(panel, yes, 40f, 150f, yesWidth, 72f, 32, () =>
             {
                 confirm = null;
                 run();
             });
-            Button(row, "キャンセル", () =>
+            Pill(panel, "キャンセル", 700f - 40f - 224f, 150f, 224f, 72f, 32, () =>
             {
                 confirm = null;
                 ShowTable();
             });
         }
 
-        void Result(RectTransform parent, Game game)
+        void Result(Game game)
         {
-            var box = Column(parent, "result");
-            Title(box, game.EndReason == "DECK" ? "ゲーム終了" : "膠着の連続");
+            var panel = Portrait.Box(frame, "result", 90f, 430f, 900f, 1100f, 7f, 1f, Color.white, Color.black, false);
+            TextAt(panel, game.EndReason == "DECK" ? "ゲーム終了" : "膠着の連続", 32f, 24f, 836f, 56f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
             var place = 1;
+            var y = 96f;
             foreach (var group in game.Ranking())
             {
                 foreach (var seat in group)
                 {
                     var player = game.Players[seat];
-                    Note(box, $"{place}位 {player.Name} {game.FinalScore(player)}点（達成{player.AchieveCount} / 最高{player.MaxSingleScore}）");
-                    foreach (var line in Perks(game, player)) Note(box, line);
+                    TextAt(panel, $"{place}位 {player.Name} {game.FinalScore(player)}点（達成{player.AchieveCount} / 最高{player.MaxSingleScore}）", 32f, y, 836f, 36f, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
+                    y += 36f;
+                    foreach (var line in Perks(game, player))
+                    {
+                        TextAt(panel, line, 48f, y, 820f, 32f, 18, Color.black, nameFont, TextAnchor.MiddleLeft);
+                        y += 30f;
+                    }
                 }
                 place += group.Count;
             }
-            Button(box, "もう一局", ShowSetup);
+            Pill(panel, "もう一局", 32f, 1000f, 280f, 72f, 32, ShowSetup);
         }
 
         void Play(GameAction action)
@@ -317,12 +455,17 @@ namespace Quota
             return card.Suit == Suit.Joker || card.Suit == player.Quota.Suit;
         }
 
-        static string Line(ItemSet theme, Card quota, IReadOnlyList<Card> cards)
+        static int KindIndex(Card card)
         {
-            var parts = new List<string>();
-            if (quota != null) parts.Add(theme.Label(quota));
-            foreach (var card in cards) parts.Add(theme.Label(card));
-            return parts.Count == 0 ? "なし" : string.Join("  ", parts);
+            switch (card.Suit)
+            {
+                case Suit.Joker: return 0;
+                case Suit.S: return 1;
+                case Suit.H: return 2;
+                case Suit.C: return 3;
+                case Suit.D: return 4;
+                default: return 0;
+            }
         }
 
         static IEnumerable<string> Perks(Game game, Player player)
@@ -351,84 +494,114 @@ namespace Quota
 
         void Clear()
         {
-            for (var i = content.childCount - 1; i >= 0; i--)
+            for (var i = frame.childCount - 1; i >= 0; i--)
             {
-                var child = content.GetChild(i).gameObject;
+                var child = frame.GetChild(i).gameObject;
                 if (Application.isPlaying) Destroy(child);
                 else DestroyImmediate(child);
             }
         }
 
-        RectTransform Column(RectTransform parent, string name)
+        Text TextAt(Transform parent, string text, float x, float y, float width, float height, int size, Color color, Font font, TextAnchor anchor)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-            var rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            var layout = go.GetComponent<VerticalLayoutGroup>();
-            layout.spacing = 6;
-            layout.childControlHeight = true;
-            layout.childControlWidth = true;
-            layout.childForceExpandHeight = false;
-            layout.childForceExpandWidth = true;
-            go.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            return rect;
-        }
-
-        RectTransform Row(RectTransform parent, string name)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(ContentSizeFitter));
-            var rect = go.GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            var layout = go.GetComponent<HorizontalLayoutGroup>();
-            layout.spacing = 6;
-            layout.childControlHeight = true;
-            layout.childControlWidth = true;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = false;
-            go.GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            return rect;
-        }
-
-        void Title(RectTransform parent, string text)
-        {
-            Label(parent, text, 22, FontStyle.Bold);
-        }
-
-        void Note(RectTransform parent, string text)
-        {
-            Label(parent, text, 14, FontStyle.Normal);
-        }
-
-        void Label(RectTransform parent, string text, int size, FontStyle style)
-        {
-            var go = new GameObject("label", typeof(RectTransform), typeof(Text), typeof(LayoutElement));
-            go.transform.SetParent(parent, false);
-            var label = go.GetComponent<Text>();
+            var host = Portrait.Rect(parent, "label", x, y, width, height);
+            var label = host.gameObject.AddComponent<Text>();
             label.font = font;
             label.fontSize = size;
-            label.fontStyle = style;
-            label.color = Hex("#222222");
-            label.alignment = TextAnchor.MiddleLeft;
+            label.color = color;
+            label.alignment = anchor;
             label.text = text;
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
             label.verticalOverflow = VerticalWrapMode.Overflow;
-            go.GetComponent<LayoutElement>().preferredHeight = size + 12;
+            label.raycastTarget = false;
+            return label;
+        }
+
+        void Baseline(Transform parent, string text, float centerX, float baseline, float size, Color color, Font font, float width)
+        {
+            var height = size;
+            var host = Portrait.Rect(parent, "glyph", centerX - width * 0.5f, baseline - height, width, height);
+            var label = host.gameObject.AddComponent<Text>();
+            label.font = font;
+            label.fontSize = Mathf.Max(1, Mathf.RoundToInt(size));
+            label.color = color;
+            label.alignment = TextAnchor.LowerCenter;
+            label.text = text;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
+            label.raycastTarget = false;
+        }
+
+        void Pill(Transform parent, string caption, float x, float y, float width, float height, int size, UnityAction action)
+        {
+            var host = Portrait.Box(parent, caption, x, y, width, height, 7f, 1f, Color.white, Color.black, false);
+            var hit = host.GetComponent<Image>();
+            hit.raycastTarget = true;
+            var button = host.gameObject.AddComponent<Button>();
+            button.targetGraphic = hit;
+            button.onClick.AddListener(action);
+            TextAt(host, caption, 0f, 0f, width, height, size, Color.black, nameFont, TextAnchor.MiddleCenter);
+        }
+
+        void SetupButton(RectTransform parent, string caption, UnityAction action)
+        {
+            var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            var image = go.GetComponent<Image>();
+            image.sprite = Portrait.SlicedRound;
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            var layout = go.GetComponent<LayoutElement>();
+            layout.preferredHeight = 72f;
+            layout.minHeight = 72f;
+            layout.preferredWidth = 700f;
+            var label = new GameObject("caption", typeof(RectTransform), typeof(Text));
+            label.transform.SetParent(go.transform, false);
+            Stretch(label.GetComponent<RectTransform>(), 16f, 8f);
+            var text = label.GetComponent<Text>();
+            text.font = nameFont;
+            text.fontSize = 32;
+            text.color = Color.black;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.text = caption;
+            text.raycastTarget = false;
+            var button = go.GetComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(action);
         }
 
         InputField Field(RectTransform parent, string caption, string value)
         {
-            Note(parent, caption);
-            var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(InputField), typeof(LayoutElement));
-            go.transform.SetParent(parent, false);
+            var block = new GameObject(caption, typeof(RectTransform), typeof(LayoutElement), typeof(VerticalLayoutGroup));
+            block.transform.SetParent(parent, false);
+            block.GetComponent<LayoutElement>().preferredHeight = 96f;
+            var layout = block.GetComponent<VerticalLayoutGroup>();
+            layout.spacing = 6f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            var note = new GameObject("label", typeof(RectTransform), typeof(Text), typeof(LayoutElement));
+            note.transform.SetParent(block.transform, false);
+            note.GetComponent<LayoutElement>().preferredHeight = 28f;
+            var noteText = note.GetComponent<Text>();
+            noteText.font = nameFont;
+            noteText.fontSize = 22;
+            noteText.color = Color.white;
+            noteText.alignment = TextAnchor.MiddleLeft;
+            noteText.text = caption;
+            var go = new GameObject("field", typeof(RectTransform), typeof(Image), typeof(InputField), typeof(LayoutElement));
+            go.transform.SetParent(block.transform, false);
+            go.GetComponent<Image>().sprite = Portrait.White;
             go.GetComponent<Image>().color = Color.white;
-            go.GetComponent<LayoutElement>().preferredHeight = 40;
+            go.GetComponent<LayoutElement>().preferredHeight = 56f;
             var textGo = new GameObject("text", typeof(RectTransform), typeof(Text));
             textGo.transform.SetParent(go.transform, false);
-            Stretch(textGo.GetComponent<RectTransform>(), 8, 6);
+            Stretch(textGo.GetComponent<RectTransform>(), 12f, 8f);
             var text = textGo.GetComponent<Text>();
-            text.font = font;
-            text.fontSize = 16;
-            text.color = Hex("#222222");
+            text.font = nameFont;
+            text.fontSize = 28;
+            text.color = Color.black;
             text.supportRichText = false;
             var field = go.GetComponent<InputField>();
             field.textComponent = text;
@@ -436,70 +609,31 @@ namespace Quota
             return field;
         }
 
-        Text NewText(Transform parent, string name, float padX, float padY)
+        static KeyValuePair<string, UnityAction> Item(string caption, UnityAction action)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Text));
-            go.transform.SetParent(parent, false);
-            Stretch(go.GetComponent<RectTransform>(), padX, padY);
-            var text = go.GetComponent<Text>();
-            text.font = font;
-            text.fontSize = 16;
-            text.color = Hex("#222222");
-            text.alignment = TextAnchor.MiddleCenter;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            return text;
+            return new KeyValuePair<string, UnityAction>(caption, action);
         }
 
-        void Button(RectTransform parent, string text, UnityEngine.Events.UnityAction action, bool enabled = true, Color? color = null)
+        static Font LoadFont(string[] names)
         {
-            var lines = 1;
-            foreach (var ch in text)
-                if (ch == '\n') lines++;
-            var go = new GameObject(text, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            go.transform.SetParent(parent, false);
-            var image = go.GetComponent<Image>();
-            image.color = color ?? Hex("#111111");
-            var widest = 0;
-            var count = 0;
-            foreach (var ch in text)
+            try
             {
-                if (ch == '\n')
-                {
-                    if (count > widest) widest = count;
-                    count = 0;
-                }
-                else count++;
+                var font = Font.CreateDynamicFontFromOSFont(names, 32);
+                if (font != null) return font;
             }
-            if (count > widest) widest = count;
-            var layout = go.GetComponent<LayoutElement>();
-            layout.preferredHeight = 18 + 22 * lines;
-            layout.minHeight = layout.preferredHeight;
-            layout.preferredWidth = Mathf.Max(lines > 1 ? 112 : 72, widest * 18 + 28);
-            layout.minWidth = layout.preferredWidth;
-            layout.flexibleWidth = 0;
-            var label = NewText(go.transform, "caption", 8, 4);
-            label.text = text;
-            label.color = CaptionOn(image.color);
-            var button = go.GetComponent<Button>();
-            button.targetGraphic = image;
-            button.interactable = enabled;
-            button.onClick.AddListener(action);
+            catch (System.Exception)
+            {
+            }
+            return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
-        static void Stretch(RectTransform rect, float padX = 0, float padY = 0)
+        static void Stretch(RectTransform rect, float padX = 0f, float padY = 0f)
         {
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.offsetMin = new Vector2(padX, padY);
             rect.offsetMax = new Vector2(-padX, -padY);
-        }
-
-        static Color CaptionOn(Color background)
-        {
-            var luminance = background.r * 0.2126f + background.g * 0.7152f + background.b * 0.0722f;
-            return luminance > 0.62f ? Hex("#222222") : Color.white;
         }
 
         static Color Hex(string html)

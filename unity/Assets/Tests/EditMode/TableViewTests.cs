@@ -32,13 +32,13 @@ namespace Quota.Tests
             canvasRect.sizeDelta = new Vector2(980, 800);
             canvasRect.localScale = Vector3.one;
 
-            var content = host.transform.Find("Root/Scroll/Viewport/Content") as RectTransform;
-            var viewport = content.parent as RectTransform;
-            LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+            var frame = host.transform.Find("Root/Frame") as RectTransform;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(frame);
             Canvas.ForceUpdateCanvases();
 
-            Assert.AreEqual(0f, content.sizeDelta.x, 0.01f);
-            Assert.AreEqual(viewport.rect.width, content.rect.width, 1f);
+            Assert.AreEqual(1080f, frame.sizeDelta.x, 0.01f);
+            Assert.AreEqual(1920f, frame.sizeDelta.y, 0.01f);
+            Assert.AreEqual("FF931E", ColorUtility.ToHtmlStringRGB(frame.GetComponent<Image>().color));
 
             var buttons = host.GetComponentsInChildren<Button>();
             Assert.Greater(buttons.Length, 0);
@@ -53,8 +53,6 @@ namespace Quota.Tests
             foreach (var label in host.GetComponentsInChildren<Text>())
                 if (label.text == "QUOTA") title = label;
             Assert.IsNotNull(title);
-            var min = viewport.InverseTransformPoint(title.rectTransform.TransformPoint(title.rectTransform.rect.min));
-            Assert.GreaterOrEqual(min.x, viewport.rect.xMin - 1f);
             Assert.Greater(title.rectTransform.rect.height, 20f);
         }
 
@@ -84,7 +82,7 @@ namespace Quota.Tests
             Set("seedText", "0");
             Click("対局開始");
 
-            var controls = host.transform.Find("Root/Scroll/Viewport/Content/controls");
+            var controls = host.transform.Find("Root/Frame/controls");
             Assert.IsNotNull(controls);
             var labels = new System.Collections.Generic.List<string>();
             for (var i = 0; i < controls.childCount; i++)
@@ -97,7 +95,7 @@ namespace Quota.Tests
             Click("ダブル");
             Assert.IsNull(FindButton("パスする"));
             Assert.IsNotNull(FindText("ダブル：1回目の行動です。"));
-            Assert.IsNull(host.transform.Find("Root/Scroll/Viewport/Content/controls/ダブル"));
+            Assert.IsNull(host.transform.Find("Root/Frame/controls/ダブル"));
             Click("キャンセル");
             Assert.IsNotNull(ButtonNamed("ダブル"));
             Assert.IsNull(FindButton("キャンセル"));
@@ -132,11 +130,11 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("本当に次へ進みますか？"));
             Click("キャンセル");
 
-            Click("最初の画面に戻る");
+            Click("ゲームから抜ける");
             Assert.IsNotNull(FindText("本当にゲームから抜けますか？"));
             Assert.IsNotNull(ButtonNamed("抜ける"));
             Click("キャンセル");
-            Assert.IsNotNull(ButtonNamed("最初の画面に戻る"));
+            Assert.IsNotNull(ButtonNamed("ゲームから抜ける"));
         }
 
         GameObject Open()
@@ -198,8 +196,8 @@ namespace Quota.Tests
 
         static void Rebuild(GameObject viewHost)
         {
-            var content = viewHost.transform.Find("Root/Scroll/Viewport/Content") as RectTransform;
-            LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+            var frame = viewHost.transform.Find("Root/Frame") as RectTransform;
+            if (frame != null) LayoutRebuilder.ForceRebuildLayoutImmediate(frame);
             Canvas.ForceUpdateCanvases();
         }
     }
