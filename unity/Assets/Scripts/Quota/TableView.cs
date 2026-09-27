@@ -198,27 +198,29 @@ namespace Quota
 
         void DrawMarket(Game game, ItemSet theme)
         {
-            var count = game.Market.Count;
-            if (count == 0) return;
+            var slots = Mathf.Max(game.MarketSize(), game.Market.Count);
+            if (slots == 0) return;
             var cardWidth = CardWidth * MarketScale;
             var cardHeight = CardHeight * MarketScale;
             var gap = 16f;
-            var group = count * cardWidth + (count - 1) * gap;
-            var x = 20f + (1040f - group) * 0.5f;
+            var group = slots * cardWidth + (slots - 1) * gap;
+            var origin = 20f + (1040f - group) * 0.5f;
             var y = 170f + (210f - cardHeight) * 0.5f;
             var me = game.Players[game.Current];
             var yours = match.IsHumanTurn && !busy && !game.Finished;
-            foreach (var card in game.Market)
+            for (var i = 0; i < game.Market.Count; i++)
             {
+                var card = game.Market[i];
+                if (card == null) continue;
                 var playable = yours && CanPlay(card, me);
                 var cardId = card.Id;
                 var takingQuota = me.Quota == null;
+                var x = origin + i * (cardWidth + gap);
                 DrawCard(frame, theme, card, x, y, MarketScale, playable ? () =>
                 {
                     if (takingQuota) Play(new TakeQuota(cardId));
                     else Play(new Collect(new[] { cardId }));
                 } : null, yours && !playable);
-                x += cardWidth + gap;
             }
         }
 
@@ -231,7 +233,7 @@ namespace Quota
             Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
             var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
-            var quotaTop = 130f;
+            var quotaTop = 75f;
             TextAt(seat, "ノルマ", 0f, quotaTop, 122f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
             var quotaCards = Portrait.Rect(seat, "quota-cards", 130f, quotaTop, 768f, 145f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
@@ -249,7 +251,7 @@ namespace Quota
             if (game.Config.SpecialActionsRule)
                 side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
             if (index == game.Current && !game.Finished) side = "▶ " + side;
-            TextAt(seat, side, 898f, quotaTop, 170f, 88f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
+            TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
         }
 
         void LayCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding, float stride)

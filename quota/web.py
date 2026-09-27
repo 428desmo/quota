@@ -336,7 +336,7 @@ class Table:
             "ranking": game.ranking() if game.finished else [],
             "score_gate": self._score_gate(client_id),
             "refresh_gate": self._refresh_gate(client_id),
-            "market": self.refresh_hold if self._refresh_waiting() else [_card(c, theme) for c in game.market],
+            "market": self.refresh_hold if self._refresh_waiting() else _market_cards(game, theme),
             "players": [
                 {
                     "name": p.name,
@@ -373,7 +373,7 @@ class Table:
         assert self.game is not None
         game = self.game
         seat = game.current
-        before = {c.id: _card(c, resolve_item_set(game.config.item_set)) for c in game.market}
+        before = {c.id: _card(c, resolve_item_set(game.config.item_set)) for c in game.market if c is not None}
         if isinstance(action, TakeQuota):
             cards = [before[action.card_id]]
             kind = "take"
@@ -388,7 +388,7 @@ class Table:
             cards = []
         turn_before = game.turn_number
         reshuffles = game.reshuffle_count
-        market_before = [_card(c, resolve_item_set(game.config.item_set)) for c in game.market]
+        market_before = _market_cards(game, resolve_item_set(game.config.item_set))
         game.step(action)
         if game.reshuffle_count > reshuffles and not game.finished:
             self.refresh_hold = market_before
@@ -591,6 +591,10 @@ def _item_set_choices() -> list[dict]:
         {"id": item.id, "name": item.name, "description": item.description, "default": item.default}
         for item in catalog()
     ]
+
+
+def _market_cards(game, theme) -> list:
+    return [None if card is None else _card(card, theme) for card in game.market]
 
 
 def _card(card, theme) -> dict:

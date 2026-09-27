@@ -183,13 +183,13 @@ namespace Quota
             if (player.Quota == null)
             {
                 foreach (var card in Market)
-                    if (card.Suit != Suit.Joker) actions.Add(new TakeQuota(card.Id));
+                    if (card != null && card.Suit != Suit.Joker) actions.Add(new TakeQuota(card.Id));
                 actions.Add(new Pass());
                 return actions;
             }
             var eligible = new List<int>();
             foreach (var card in Market)
-                if (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker) eligible.Add(card.Id);
+                if (card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker)) eligible.Add(card.Id);
             var need = player.Quota.Rank.Value - 1 - player.Collection.Count;
             for (var size = 1; size <= need; size++)
             {
@@ -325,7 +325,8 @@ namespace Quota
 
         void SelfReshuffle()
         {
-            Deck.AddRange(Market);
+            foreach (var card in Market)
+                if (card != null) Deck.Add(card);
             Market.Clear();
             Rng.Shuffle(Deck);
             Market.AddRange(PopMany(Deck, MarketSize()));
@@ -383,8 +384,10 @@ namespace Quota
 
         public bool BeginTurn()
         {
-            while (Market.Count < MarketSize())
+            while (Market.Count < MarketSize()) Market.Add(null);
+            for (var i = 0; i < Market.Count; i++)
             {
+                if (Market[i] != null) continue;
                 if (Deck.Count == 0)
                 {
                     Finished = true;
@@ -392,7 +395,7 @@ namespace Quota
                     Log.Add("山札切れ");
                     return false;
                 }
-                Market.Add(Pop(Deck));
+                Market[i] = Pop(Deck);
             }
             return true;
         }
@@ -419,7 +422,8 @@ namespace Quota
             var ids = new List<int>();
             ids.AddRange(Deck.ConvertAll(card => card.Id));
             ids.AddRange(Removed.ConvertAll(card => card.Id));
-            ids.AddRange(Market.ConvertAll(card => card.Id));
+            foreach (var card in Market)
+                if (card != null) ids.Add(card.Id);
             ids.AddRange(Discard.ConvertAll(card => card.Id));
             foreach (var player in Players)
             {
@@ -477,7 +481,7 @@ namespace Quota
                 if (ids.Length > need) return false;
                 var eligible = new HashSet<int>();
                 foreach (var card in Market)
-                    if (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker) eligible.Add(card.Id);
+                    if (card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker)) eligible.Add(card.Id);
                 foreach (var id in ids)
                     if (!eligible.Contains(id)) return false;
                 return true;
@@ -492,7 +496,7 @@ namespace Quota
         {
             if (player.Quota.Rank.Value - 1 - player.Collection.Count <= 0) return false;
             foreach (var card in Market)
-                if (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker) return true;
+                if (card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker)) return true;
             return false;
         }
 
@@ -500,9 +504,9 @@ namespace Quota
         {
             for (var i = 0; i < Market.Count; i++)
             {
-                if (Market[i].Id != cardId) continue;
+                if (Market[i] == null || Market[i].Id != cardId) continue;
                 var card = Market[i];
-                Market.RemoveAt(i);
+                Market[i] = null;
                 return card;
             }
             throw new ArgumentException($"card {cardId} is not in the market");

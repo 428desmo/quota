@@ -68,7 +68,7 @@ def test_replay_matches():
         replay.step(action)
     assert [p.score for p in replay.players] == [p.score for p in game.players]
     assert replay.end_reason == game.end_reason
-    assert [c.id for c in replay.market] == [c.id for c in game.market]
+    assert [None if c is None else c.id for c in replay.market] == [None if c is None else c.id for c in game.market]
 
 
 def test_cpu_game_finishes():
@@ -103,8 +103,21 @@ def test_collect_matching_suit_only():
             need = quota.rank - 1 - len(game.players[owner].collection)
             assert 1 <= len(action.card_ids) <= need
             for card_id in action.card_ids:
-                picked = next(c for c in game.market if c.id == card_id)
+                picked = next(c for c in game.market if c is not None and c.id == card_id)
                 assert picked.suit == quota.suit or picked.suit == "JOKER"
+
+
+def test_refill_puts_the_new_card_back_in_the_same_slot():
+    game = Game.start(GameConfig(seed=8, num_players=3))
+    index = next(i for i, card in enumerate(game.market) if i > 0 and card.suit != "JOKER")
+    before = [card.id for card in game.market]
+    game.step(TakeQuota(before[index]))
+    assert game.market[index] is not None
+    assert game.market[index].id != before[index]
+    for i, card_id in enumerate(before):
+        if i == index:
+            continue
+        assert game.market[i] is not None and game.market[i].id == card_id
 
 
 def test_collect_several_then_refill_on_next_turn():
@@ -126,18 +139,25 @@ def test_collect_several_then_refill_on_next_turn():
     game.market = extras + game.market[2:]
     before = len(game.deck)
     market_len = len(game.market)
+    rest = [c.id for c in game.market[2:]]
     game.step(Collect((extras[0].id,)))
     assert game.current == owner
     assert len(game.players[owner].collection) == 1
-    assert len(game.market) == market_len - 1
+    assert game.market[0] is None
+    assert sum(c is not None for c in game.market) == market_len - 1
+    assert [c.id for c in game.market[2:]] == rest
     game.step(Collect((extras[1].id,)))
     assert game.players[owner].quota is not None
     assert len(game.players[owner].collection) == 2
-    assert len(game.market) == market_len - 2
+    assert game.market[0] is None and game.market[1] is None
+    assert sum(c is not None for c in game.market) == market_len - 2
+    assert [c.id for c in game.market[2:]] == rest
     assert len(game.deck) == before
     game.step(Pass())
     assert game.current != owner
+    assert all(c is not None for c in game.market)
     assert len(game.market) == game.market_size()
+    assert [c.id for c in game.market[2:]] == rest
     assert len(game.deck) == before - 2
 
 
@@ -161,13 +181,15 @@ def test_taking_the_last_eligible_card_ends_the_turn():
 def test_deck_ends_at_the_start_of_the_next_turn():
     game = Game.start(GameConfig(seed=5, num_players=3))
     card = next(c for c in game.market if c.rank is not None and c.rank >= 2)
+    index = game.market.index(card)
     game.deck.clear()
     game.step(TakeQuota(card.id))
     assert game.finished
     assert game.end_reason == "DECK"
     owner = next(p for p in game.players if p.quota is not None)
     assert owner.quota is not None
-    assert len(game.market) == game.market_size() - 1
+    assert game.market[index] is None
+    assert sum(c is not None for c in game.market) == game.market_size() - 1
 
 
 def test_title_bonus_needs_three_achieves_and_scores_each_award():
@@ -319,7 +341,7 @@ def test_double_second_action_ends_when_nothing_eligible_remains():
     guard = 0
     while game.current == seat and not game.finished and game.players[seat].quota is not None:
         player = game.players[seat]
-        eligible = [card for card in game.market if card.suit == player.quota.suit or card.suit == "JOKER"]
+        eligible = [card for card in game.market if card is not None and (card.suit == player.quota.suit or card.suit == "JOKER")]
         if not eligible:
             break
         game.step(Collect((eligible[0].id,)))
@@ -330,7 +352,7 @@ def test_double_second_action_ends_when_nothing_eligible_remains():
         not game.finished
         and game.current == seat
         and player.quota is not None
-        and not any(card.suit == player.quota.suit or card.suit == "JOKER" for card in game.market)
+        and not any(card is not None and (card.suit == player.quota.suit or card.suit == "JOKER") for card in game.market)
     )
     assert not stuck
 

@@ -157,6 +157,24 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void RefillPutsTheNewCardBackInTheSameSlot()
+        {
+            var game = Game.Start(Config(8));
+            var index = game.Market.FindIndex(card => card.Suit != Suit.Joker);
+            if (index == 0) index = game.Market.FindIndex(1, card => card.Suit != Suit.Joker);
+            var before = Ids(game.Market);
+            game.Step(new TakeQuota(before[index]));
+            Assert.IsNotNull(game.Market[index]);
+            Assert.AreNotEqual(before[index], game.Market[index].Id);
+            for (var i = 0; i < before.Count; i++)
+            {
+                if (i == index) continue;
+                Assert.IsNotNull(game.Market[i]);
+                Assert.AreEqual(before[i], game.Market[i].Id);
+            }
+        }
+
+        [Test]
         public void CollectSeveralThenRefillOnNextTurn()
         {
             var game = Game.Start(Config(4));
@@ -171,18 +189,26 @@ namespace Quota.Tests
             game.Market.InsertRange(0, extras);
             var before = game.Deck.Count;
             var marketLen = game.Market.Count;
+            var rest = Ids(game.Market.Skip(2));
             game.Step(new Collect(new[] { extras[0].Id }));
             Assert.AreEqual(owner, game.Current);
             Assert.AreEqual(1, game.Players[owner].Collection.Count);
-            Assert.AreEqual(marketLen - 1, game.Market.Count);
+            Assert.IsNull(game.Market[0]);
+            Assert.AreEqual(marketLen - 1, game.Market.Count(card => card != null));
+            CollectionAssert.AreEqual(rest, Ids(game.Market.Skip(2)));
             game.Step(new Collect(new[] { extras[1].Id }));
             Assert.IsNotNull(game.Players[owner].Quota);
             Assert.AreEqual(2, game.Players[owner].Collection.Count);
-            Assert.AreEqual(marketLen - 2, game.Market.Count);
+            Assert.IsNull(game.Market[0]);
+            Assert.IsNull(game.Market[1]);
+            Assert.AreEqual(marketLen - 2, game.Market.Count(card => card != null));
+            CollectionAssert.AreEqual(rest, Ids(game.Market.Skip(2)));
             Assert.AreEqual(before, game.Deck.Count);
             game.Step(new Pass());
             Assert.AreNotEqual(owner, game.Current);
+            Assert.IsTrue(game.Market.TrueForAll(card => card != null));
             Assert.AreEqual(game.MarketSize(), game.Market.Count);
+            CollectionAssert.AreEqual(rest, Ids(game.Market.Skip(2)));
             Assert.AreEqual(before - 2, game.Deck.Count);
         }
 
@@ -212,13 +238,15 @@ namespace Quota.Tests
         {
             var game = Game.Start(Config(5));
             var card = game.Market.First(item => item.Rank != null && item.Rank >= 2);
+            var index = game.Market.IndexOf(card);
             game.Deck.Clear();
             game.Step(new TakeQuota(card.Id));
             Assert.IsTrue(game.Finished);
             Assert.AreEqual("DECK", game.EndReason);
             var owner = game.Players.First(player => player.Quota != null);
             Assert.IsNotNull(owner.Quota);
-            Assert.AreEqual(game.MarketSize() - 1, game.Market.Count);
+            Assert.IsNull(game.Market[index]);
+            Assert.AreEqual(game.MarketSize() - 1, game.Market.Count(item => item != null));
         }
 
         [Test]
@@ -387,7 +415,7 @@ namespace Quota.Tests
             while (game.Current == seat && !game.Finished && game.Players[seat].Quota != null)
             {
                 var player = game.Players[seat];
-                var eligible = game.Market.Where(card => card.Suit == player.Quota.Suit || card.Suit == Suit.Joker).ToList();
+                var eligible = game.Market.Where(card => card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker)).ToList();
                 if (eligible.Count == 0) break;
                 game.Step(new Collect(new[] { eligible[0].Id }));
                 guard++;
@@ -395,7 +423,7 @@ namespace Quota.Tests
             }
             var after = game.Players[seat];
             var stuck = !game.Finished && game.Current == seat && after.Quota != null
-                && !game.Market.Any(card => card.Suit == after.Quota.Suit || card.Suit == Suit.Joker);
+                && !game.Market.Any(card => card != null && (card.Suit == after.Quota.Suit || card.Suit == Suit.Joker));
             Assert.IsFalse(stuck);
         }
 
@@ -427,7 +455,10 @@ namespace Quota.Tests
 
         static List<int> Ids(IEnumerable<Card> cards)
         {
-            return cards.Select(card => card.Id).ToList();
+            var ids = new List<int>();
+            foreach (var card in cards)
+                ids.Add(card == null ? -1 : card.Id);
+            return ids;
         }
 
         static int Owner(Game game)

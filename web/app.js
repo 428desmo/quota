@@ -604,12 +604,12 @@ function onPick(id) {
   const me = state.players[state.current];
   if (!state.your_turn || state.settling) return;
   if (!me.quota) {
-    const card = state.market.find((item) => item.id === id);
+    const card = state.market.find((item) => item && item.id === id);
     if (!card || card.joker) return;
     post("/api/action", { kind: "take", card_id: id });
     return;
   }
-  const card = state.market.find((item) => item.id === id);
+  const card = state.market.find((item) => item && item.id === id);
   if (!card || !canPlay(card, me)) return;
   post("/api/action", { kind: "collect", card_ids: [id] });
 }
@@ -798,7 +798,7 @@ function applyState(next) {
   const fresh = state && state.phase === "playing" && event && event.n !== seenEvent && event.cards && event.cards.length;
   if (fresh && pendingMarket) {
     const missing = event.cards.some((card) => !document.querySelector(`#market [data-id="${card.id}"]`));
-    const held = pendingMarket.some((card) => event.cards.some((item) => item.id === card.id));
+    const held = pendingMarket.some((card) => card && event.cards.some((item) => item.id === card.id));
     if (missing && held) {
       marketSlots = pendingMarket.map((card) => card);
       pendingMarket = null;
@@ -1002,6 +1002,10 @@ function scoreSeat(index) {
   flyOne();
 }
 
+function marketById(cards) {
+  return new Map(cards.filter(Boolean).map((card) => [card.id, card]));
+}
+
 function layoutMarket(next) {
   const incoming = next.market || [];
   const refreshOpen = (gate) => gate && !gate.released;
@@ -1018,7 +1022,7 @@ function layoutMarket(next) {
   const sameTurn = state && state.phase === "playing" && next.phase !== "hall" && state.turn_number === next.turn_number;
   if (!sameTurn && marketSlots.length && (next.settling || inFlight.size || parked.size)) {
     pendingMarket = incoming;
-    const byId = new Map(incoming.map((card) => [card.id, card]));
+    const byId = marketById(incoming);
     marketSlots = marketSlots.map((slot) => (slot && byId.has(slot.id) ? byId.get(slot.id) : slot ? null : null));
     return;
   }
@@ -1027,7 +1031,7 @@ function layoutMarket(next) {
     pendingMarket = null;
     return;
   }
-  const byId = new Map(incoming.map((card) => [card.id, card]));
+  const byId = marketById(incoming);
   const known = new Set(marketSlots.filter(Boolean).map((card) => card.id));
   const refilled = incoming.some((card) => !known.has(card.id));
   const survivors = marketSlots.filter((slot) => slot && byId.has(slot.id));

@@ -103,7 +103,7 @@ class Game:
     config: GameConfig
     deck: list[Card]
     removed: list[Card]
-    market: list[Card]
+    market: list[Card | None]
     discard: list[Card]
     players: list[Player]
     current: int
@@ -174,7 +174,7 @@ class Game:
         assert player.quota is not None and player.quota.rank is not None
         if player.quota.rank - 1 - len(player.collection) <= 0:
             return False
-        return any(c.suit == player.quota.suit or c.suit == "JOKER" for c in self.market)
+        return any(c is not None and (c.suit == player.quota.suit or c.suit == "JOKER") for c in self.market)
 
     def market_size(self) -> int:
         return self.config.resolved_market_size()
@@ -183,14 +183,14 @@ class Game:
         p = self.players[self.current if seat is None else seat]
         if p.quota is None:
             acts: list[Action] = [
-                TakeQuota(c.id) for c in self.market if c.suit != "JOKER"
+                TakeQuota(c.id) for c in self.market if c is not None and c.suit != "JOKER"
             ]
             return acts + [Pass()]
         assert p.quota.rank is not None
         eligible = [
             c.id
             for c in self.market
-            if c.suit == p.quota.suit or c.suit == "JOKER"
+            if c is not None and (c.suit == p.quota.suit or c.suit == "JOKER")
         ]
         need = p.quota.rank - 1 - len(p.collection)
         acts: list[Action] = [
@@ -302,7 +302,7 @@ class Game:
         raise ValueError(kind)
 
     def _self_reshuffle(self) -> None:
-        self.deck.extend(self.market)
+        self.deck.extend(card for card in self.market if card is not None)
         self.market = []
         self.rng.shuffle(self.deck)
         self.market = [self.deck.pop() for _ in range(self.market_size())]
@@ -345,14 +345,18 @@ class Game:
         self.begin_turn()
 
     def begin_turn(self) -> bool:
-        """Refill the market at the start of a turn. False means the game ended."""
+        """Refill empty market slots from the left. False means the game ended."""
         while len(self.market) < self.market_size():
+            self.market.append(None)
+        for index, card in enumerate(self.market):
+            if card is not None:
+                continue
             if not self.deck:
                 self.finished = True
                 self.end_reason = "DECK"
                 self.log.append("山札切れ")
                 return False
-            self.market.append(self.deck.pop())
+            self.market[index] = self.deck.pop()
         return True
 
     def ranking(self) -> list[list[int]]:
@@ -381,7 +385,7 @@ class Game:
         theme = resolve_item_set(self.config.item_set)
         return {
             "item_set": theme.id,
-            "market": [c.label(theme) for c in self.market],
+            "market": [None if c is None else c.label(theme) for c in self.market],
             "discard": [c.label(theme) for c in self.discard],
             "deck_count": len(self.deck),
             "current": self.current,
@@ -415,7 +419,7 @@ class Game:
         ids: list[int] = []
         ids.extend(c.id for c in self.deck)
         ids.extend(c.id for c in self.removed)
-        ids.extend(c.id for c in self.market)
+        ids.extend(c.id for c in self.market if c is not None)
         ids.extend(c.id for c in self.discard)
         for p in self.players:
             if p.quota is not None:
@@ -462,7 +466,7 @@ class Game:
             eligible = {
                 card.id
                 for card in self.market
-                if card.suit == player.quota.suit or card.suit == "JOKER"
+                if card is not None and (card.suit == player.quota.suit or card.suit == "JOKER")
             }
             return set(ids) <= eligible
         return action.key() in {item.key() for item in self.legal_actions()}
@@ -470,13 +474,14 @@ class Game:
     def _canonicalize(self, action: Action) -> Action:
         if not isinstance(action, Collect):
             return action
-        order = {card.id: index for index, card in enumerate(self.market)}
+        order = {card.id: index for index, card in enumerate(self.market) if card is not None}
         return Collect(tuple(sorted(action.card_ids, key=lambda card_id: order.get(card_id, 10**9))))
 
     def _take_market(self, card_id: int) -> Card:
         for i, card in enumerate(self.market):
-            if card.id == card_id:
-                return self.market.pop(i)
+            if card is not None and card.id == card_id:
+                self.market[i] = None
+                return card
         raise ValueError(f"card {card_id} is not in the market")
 
     def _achieve(self, player: Player, cards: list[Card], rank: int) -> None:
