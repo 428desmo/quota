@@ -413,10 +413,15 @@ function render() {
   const pass = app.querySelector("#pass");
   if (pass) pass.onclick = () => {
     const next = pass.textContent === "次へ";
+    const send = () => post("/api/action", { kind: "pass" });
+    if (!(state.market || []).some((card) => card && canPlay(card, me))) {
+      send();
+      return;
+    }
     openAsk(
       next ? "本当に次へ進みますか？" : "本当にパスしますか？",
       next ? "次へ進む" : "パスする",
-      () => post("/api/action", { kind: "pass" }),
+      send,
       next ? "next" : "pass",
     );
   };

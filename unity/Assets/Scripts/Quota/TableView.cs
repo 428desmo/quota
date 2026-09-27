@@ -317,7 +317,11 @@ namespace Quota
             }));
             if (me.Quota != null) entries.Add(Item("放棄", () => Ask("abandon")));
             var passLabel = me.Quota != null && game.TurnGain ? "次へ" : "パス";
-            entries.Add(Item(passLabel, () => Ask(passLabel == "次へ" ? "next" : "pass")));
+            entries.Add(Item(passLabel, () =>
+            {
+                if (!HasTakeable(game, me)) Play(new Pass());
+                else Ask(passLabel == "次へ" ? "next" : "pass");
+            }));
             var gap = 12f;
             var margin = 16f;
             var widths = new float[entries.Count];
@@ -448,6 +452,13 @@ namespace Quota
             }
             busy = false;
             ShowTable();
+        }
+
+        static bool HasTakeable(Game game, Player player)
+        {
+            foreach (var card in game.Market)
+                if (card != null && CanPlay(card, player)) return true;
+            return false;
         }
 
         static bool CanPlay(Card card, Player player)
