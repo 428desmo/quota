@@ -13,22 +13,22 @@ def choose_action(game: Game) -> Action:
     takes = [a for a in actions if isinstance(a, TakeQuota)]
     if takes:
         def take_key(action: TakeQuota) -> tuple[int, int, int]:
-            card = next(c for c in game.market if c.id == action.card_id)
+            card = next(c for c in game.market if c is not None and c.id == action.card_id)
             assert card.rank is not None
             sweet = -abs(card.rank - 6)
             return (score_for(card.rank) if card.rank == 1 else 0, sweet, -card.rank)
 
         takes.sort(key=take_key, reverse=True)
         best = takes[0]
-        card = next(c for c in game.market if c.id == best.card_id)
+        card = next(c for c in game.market if c is not None and c.id == best.card_id)
         assert card.rank is not None
         if card.rank >= 11 and any(
-            next(c for c in game.market if c.id == a.card_id).rank == 1 for a in takes
+            next(c for c in game.market if c is not None and c.id == a.card_id).rank == 1 for a in takes
         ):
             return next(
                 a
                 for a in takes
-                if next(c for c in game.market if c.id == a.card_id).rank == 1
+                if next(c for c in game.market if c is not None and c.id == a.card_id).rank == 1
             )
         return best
 
@@ -40,7 +40,7 @@ def choose_action(game: Game) -> Action:
     eligible = [
         c
         for c in game.market
-        if c.suit == player.quota.suit or c.suit == "JOKER"
+        if c is not None and (c.suit == player.quota.suit or c.suit == "JOKER")
     ]
     suits = [c for c in eligible if c.suit != "JOKER"]
     jokers = [c for c in eligible if c.suit == "JOKER"]
@@ -71,19 +71,19 @@ def _maybe_special(game: Game) -> None:
 
 def _market_helps(game: Game, player) -> bool:
     if player.quota is None:
-        return any(card.suit != "JOKER" for card in game.market)
-    return any(card.suit == player.quota.suit or card.suit == "JOKER" for card in game.market)
+        return any(card is not None and card.suit != "JOKER" for card in game.market)
+    return any(card is not None and (card.suit == player.quota.suit or card.suit == "JOKER") for card in game.market)
 
 
 def _worth_double(game: Game, player) -> bool:
     if player.quota is None:
-        return any(card.rank == 1 or (card.rank is not None and card.rank >= 7) for card in game.market)
+        return any(card is not None and (card.rank == 1 or (card.rank is not None and card.rank >= 7)) for card in game.market)
     assert player.quota.rank is not None
     need = player.quota.rank - 1 - len(player.collection)
     eligible = [
         card
         for card in game.market
-        if card.suit == player.quota.suit or card.suit == "JOKER"
+        if card is not None and (card.suit == player.quota.suit or card.suit == "JOKER")
     ]
     return 0 < need <= 4 and len(eligible) > 0
 

@@ -28,7 +28,7 @@ namespace Quota
             }
             if (player.Quota == null) return new Pass();
             var need = player.Quota.Rank.Value - 1 - player.Collection.Count;
-            var eligible = game.Market.Where(card => card.Suit == player.Quota.Suit || card.Suit == Suit.Joker).ToList();
+            var eligible = game.Market.Where(card => card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker)).ToList();
             var suits = eligible.Where(card => card.Suit != Suit.Joker).ToList();
             var jokers = eligible.Where(card => card.Suit == Suit.Joker).ToList();
             if (eligible.Count == 0 || need <= 0)
@@ -54,16 +54,16 @@ namespace Quota
 
         static bool MarketHelps(Game game, Player player)
         {
-            if (player.Quota == null) return game.Market.Any(card => card.Suit != Suit.Joker);
-            return game.Market.Any(card => card.Suit == player.Quota.Suit || card.Suit == Suit.Joker);
+            if (player.Quota == null) return game.Market.Any(card => card != null && card.Suit != Suit.Joker);
+            return game.Market.Any(card => card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker));
         }
 
         static bool WorthDouble(Game game, Player player)
         {
             if (player.Quota == null)
-                return game.Market.Any(card => card.Rank == 1 || (card.Rank != null && card.Rank >= 7));
+                return game.Market.Any(card => card != null && (card.Rank == 1 || (card.Rank != null && card.Rank >= 7)));
             var need = player.Quota.Rank.Value - 1 - player.Collection.Count;
-            var eligible = game.Market.Count(card => card.Suit == player.Quota.Suit || card.Suit == Suit.Joker);
+            var eligible = game.Market.Count(card => card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker));
             return need > 0 && need <= 4 && eligible > 0;
         }
 
@@ -100,7 +100,7 @@ namespace Quota
         static Card CardInMarket(Game game, int cardId)
         {
             foreach (var card in game.Market)
-                if (card.Id == cardId) return card;
+                if (card != null && card.Id == cardId) return card;
             return null;
         }
 

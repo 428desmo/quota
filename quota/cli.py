@@ -94,7 +94,7 @@ def _print_table(game: Game) -> None:
         f"膠着状態 {1 if game.stall_flag else 0} ---"
     )
     theme = _theme(game)
-    print("場札: " + " | ".join(c.label(theme) for c in game.market))
+    print("場札: " + _market_line(game))
     for i, p in enumerate(game.players):
         mark = ">" if i == game.current and not game.finished else " "
         quota = "なし" if p.quota is None else p.quota.label(theme)
@@ -122,7 +122,7 @@ def _ask(game: Game):
             elif raw == "r" and player.reshuffle_take_left:
                 game.declare_reshuffle()
                 print("場を配り直した。")
-                print("場札: " + " | ".join(c.label(_theme(game)) for c in game.market))
+                print("場札: " + _market_line(game))
     if game.plan == "double" and game.double_stage == 1 and not game.turn_gain:
         print("c でダブルを取り消せます")
     player = game.players[game.current]
@@ -145,7 +145,7 @@ def _ask(game: Game):
     eligible = [
         c
         for c in game.market
-        if c.suit == player.quota.suit or c.suit == "JOKER"
+        if c is not None and (c.suit == player.quota.suit or c.suit == "JOKER")
     ]
     need = player.quota.rank - 1 - len(player.collection)
     print(f"集める（残り {need} 枚まで。番号を空白区切り）:")
@@ -190,8 +190,13 @@ def _action_text(game: Game, action) -> str:
     return str(action)
 
 
-def _find(cards: list[Card], card_id: int) -> Card:
-    return next(c for c in cards if c.id == card_id)
+def _market_line(game: Game) -> str:
+    theme = _theme(game)
+    return " | ".join("（空）" if card is None else card.label(theme) for card in game.market)
+
+
+def _find(cards: list, card_id: int) -> Card:
+    return next(c for c in cards if c is not None and c.id == card_id)
 
 
 if __name__ == "__main__":
