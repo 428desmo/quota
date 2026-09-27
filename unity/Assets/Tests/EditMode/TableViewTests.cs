@@ -38,7 +38,17 @@ namespace Quota.Tests
 
             Assert.AreEqual(1080f, frame.sizeDelta.x, 0.01f);
             Assert.AreEqual(1920f, frame.sizeDelta.y, 0.01f);
-            Assert.AreEqual("FF931E", ColorUtility.ToHtmlStringRGB(frame.GetComponent<Image>().color));
+            var backdrop = host.transform.Find("Root/Backdrop") as RectTransform;
+            var photo = backdrop.GetComponent<Image>().sprite;
+            Assert.IsNotNull(photo);
+            if (Screen.width > 0 && Screen.height > 0)
+            {
+                var cover = Mathf.Max(Screen.width / photo.rect.width, Screen.height / photo.rect.height);
+                Assert.AreEqual(photo.rect.width * cover, backdrop.sizeDelta.x, 1f);
+                Assert.AreEqual(photo.rect.height * cover, backdrop.sizeDelta.y, 1f);
+                Assert.GreaterOrEqual(backdrop.sizeDelta.x, Screen.width - 1f);
+                Assert.GreaterOrEqual(backdrop.sizeDelta.y, Screen.height - 1f);
+            }
 
             var buttons = host.GetComponentsInChildren<Button>();
             Assert.Greater(buttons.Length, 0);

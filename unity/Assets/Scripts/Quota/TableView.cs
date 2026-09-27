@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -28,6 +29,9 @@ namespace Quota
         Font nameFont;
         Font roundFont;
         RectTransform frame;
+        Image backdrop;
+        Sprite verticalBackground;
+        Sprite horizontalBackground;
         bool busy;
         string confirm;
         int setIndex;
@@ -67,20 +71,21 @@ namespace Quota
                 events.AddComponent<UnityEngine.EventSystems.EventSystem>();
                 events.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
             }
+            verticalBackground = LoadBackground("vertical_base.jpg");
+            horizontalBackground = LoadBackground("horizontal_base.jpg");
             var root = Portrait.Rect(transform, "Root", 0f, 0f, ScreenWidth, ScreenHeight);
             Stretch(root);
-            var backdrop = root.gameObject.AddComponent<Image>();
-            backdrop.sprite = Portrait.White;
-            backdrop.color = Color.black;
+            var backdropRect = Portrait.Rect(root, "Backdrop", 0f, 0f, ScreenWidth, ScreenHeight);
+            backdropRect.anchorMin = backdropRect.anchorMax = new Vector2(0.5f, 0.5f);
+            backdropRect.pivot = new Vector2(0.5f, 0.5f);
+            backdropRect.anchoredPosition = Vector2.zero;
+            backdrop = backdropRect.gameObject.AddComponent<Image>();
+            backdrop.color = Color.white;
             backdrop.raycastTarget = false;
             frame = Portrait.Rect(root, "Frame", 0f, 0f, ScreenWidth, ScreenHeight);
             frame.anchorMin = frame.anchorMax = new Vector2(0.5f, 0.5f);
             frame.pivot = new Vector2(0.5f, 0.5f);
             frame.anchoredPosition = Vector2.zero;
-            var background = frame.gameObject.AddComponent<Image>();
-            background.sprite = Portrait.White;
-            background.color = Hex("#ff931e");
-            background.raycastTarget = false;
             Fit();
             var sets = ItemCatalog.Sets;
             for (var i = 0; i < sets.Count; i++)
@@ -96,8 +101,30 @@ namespace Quota
         void Fit()
         {
             if (frame == null || Screen.width <= 0 || Screen.height <= 0) return;
+            var portrait = Screen.height >= Screen.width;
+            var sprite = portrait ? verticalBackground : horizontalBackground;
+            if (sprite == null) sprite = verticalBackground != null ? verticalBackground : horizontalBackground;
+            if (backdrop != null && sprite != null)
+            {
+                backdrop.sprite = sprite;
+                backdrop.color = Color.white;
+                var cover = Mathf.Max(Screen.width / sprite.rect.width, Screen.height / sprite.rect.height);
+                backdrop.rectTransform.sizeDelta = new Vector2(sprite.rect.width * cover, sprite.rect.height * cover);
+            }
             var scale = Mathf.Min(Screen.width / ScreenWidth, Screen.height / ScreenHeight);
             frame.localScale = new Vector3(scale, scale, 1f);
+        }
+
+        static Sprite LoadBackground(string fileName)
+        {
+            var path = Path.Combine(Application.streamingAssetsPath, fileName);
+            if (!File.Exists(path)) return null;
+            var texture = new Texture2D(2, 2, TextureFormat.RGB24, false);
+            if (!texture.LoadImage(File.ReadAllBytes(path))) return null;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+            texture.hideFlags = HideFlags.HideAndDontSave;
+            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
         void ShowSetup()
