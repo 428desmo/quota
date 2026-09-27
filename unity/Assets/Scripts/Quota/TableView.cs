@@ -13,8 +13,7 @@ namespace Quota
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
-        // 72px does not fit a 95px card. Kept at 18px until the size is confirmed.
-        const float GoodsNameSize = 18f;
+        const float GoodsNameSize = 14f;
 
         static readonly Color[] IndicatorColors =
         {
@@ -232,7 +231,7 @@ namespace Quota
             Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
             var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
-            var quotaTop = 75f;
+            var quotaTop = 130f;
             TextAt(seat, "ノルマ", 0f, quotaTop, 122f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
             var quotaCards = Portrait.Rect(seat, "quota-cards", 130f, quotaTop, 768f, 145f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
@@ -250,7 +249,7 @@ namespace Quota
             if (game.Config.SpecialActionsRule)
                 side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
             if (index == game.Current && !game.Finished) side = "▶ " + side;
-            TextAt(seat, side, 898f, quotaTop + 8f, 170f, 130f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
+            TextAt(seat, side, 898f, quotaTop, 170f, 88f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
         }
 
         void LayCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding, float stride)
