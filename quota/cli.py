@@ -7,7 +7,6 @@ import argparse
 from quota.ai import choose_action
 from quota.cards import Card
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
-from quota.items import catalog, resolve_item_set
 
 
 def main() -> None:
@@ -19,22 +18,7 @@ def main() -> None:
     parser.add_argument("--sequence", action="store_true", help="上級ルール（並び順ボーナス）")
     parser.add_argument("--title", action="store_true", help="上級ルール（称号ボーナス）")
     parser.add_argument("--special", action="store_true", help="上級ルール（特殊アクション）")
-    parser.add_argument(
-        "--item-set",
-        default="trade",
-        help="アイテムセットの id または名前。既定は trade（交易品）",
-    )
-    parser.add_argument("--list-item-sets", action="store_true", help="アイテムセット一覧を出して終わる")
     args = parser.parse_args()
-    if args.list_item_sets:
-        for item in catalog():
-            mark = " 既定" if item.default else ""
-            print(f"{item.id}\t{item.name}{mark}\t{item.description}")
-        return
-    try:
-        theme = resolve_item_set(args.item_set)
-    except ValueError as exc:
-        parser.error(str(exc))
     humans = 0 if args.auto else args.humans
     if humans > args.players:
         parser.error("--humans は --players 以下にしてください")
@@ -52,10 +36,11 @@ def main() -> None:
             sequence_rule=args.sequence,
             title_rule=args.title,
             special_actions_rule=args.special,
-            item_set=theme.id,
         )
     )
-    print(f"アイテムセット: {theme.name}")
+    theme = game.theme()
+    kinds = "、".join(theme.faces[kind].name for kind in ("K1", "K2", "K3", "K4"))
+    print(f"交易品: {kinds}　ワイルド: {theme.faces['WILD'].name}")
     while not game.finished:
         _print_table(game)
         player = game.players[game.current]
@@ -83,7 +68,7 @@ def main() -> None:
 
 
 def _theme(game: Game):
-    return resolve_item_set(game.config.item_set)
+    return game.theme()
 
 
 def _print_table(game: Game) -> None:

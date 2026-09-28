@@ -32,9 +32,9 @@ namespace Quota
         Image backdrop;
         Sprite verticalBackground;
         Sprite horizontalBackground;
+        readonly Dictionary<string, Sprite> goodsSprites = new Dictionary<string, Sprite>();
         bool busy;
         string confirm;
-        int setIndex;
         int playerCount = 3;
         bool sequenceRule;
         bool titleRule;
@@ -87,9 +87,6 @@ namespace Quota
             frame.pivot = new Vector2(0.5f, 0.5f);
             frame.anchoredPosition = Vector2.zero;
             Fit();
-            var sets = ItemCatalog.Sets;
-            for (var i = 0; i < sets.Count; i++)
-                if (sets[i].IsDefault) setIndex = i;
             ShowSetup();
         }
 
@@ -127,6 +124,27 @@ namespace Quota
             return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
+        Sprite GoodsSprite(string file)
+        {
+            if (string.IsNullOrEmpty(file)) return null;
+            if (goodsSprites.TryGetValue(file, out var cached)) return cached;
+            var path = Path.Combine(Application.streamingAssetsPath, "goods", file + ".png");
+            Sprite sprite = null;
+            if (File.Exists(path))
+            {
+                var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (texture.LoadImage(File.ReadAllBytes(path)))
+                {
+                    texture.wrapMode = TextureWrapMode.Clamp;
+                    texture.filterMode = FilterMode.Bilinear;
+                    texture.hideFlags = HideFlags.HideAndDontSave;
+                    sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+                }
+            }
+            goodsSprites[file] = sprite;
+            return sprite;
+        }
+
         void ShowSetup()
         {
             Clear();
@@ -139,12 +157,6 @@ namespace Quota
             layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
-            var sets = ItemCatalog.Sets;
-            SetupButton(column, $"アイテムセット  {sets[setIndex].Name}", () =>
-            {
-                setIndex = (setIndex + 1) % sets.Count;
-                ShowSetup();
-            });
             SetupButton(column, $"人数  {playerCount}", () =>
             {
                 playerCount = playerCount == 3 ? 4 : 3;
@@ -182,7 +194,6 @@ namespace Quota
                     SequenceRule = sequenceRule,
                     TitleRule = titleRule,
                     SpecialActionsRule = specialRule,
-                    ItemSet = sets[setIndex].Id,
                 });
                 confirm = null;
                 ShowTable();
@@ -193,7 +204,7 @@ namespace Quota
         {
             Clear();
             var game = match.Game;
-            var theme = ItemCatalog.Resolve(game.Config.ItemSet);
+            var theme = game.Theme();
             for (var i = 0; i < game.Players.Count; i++)
                 DrawPlayer(game, theme, i);
             Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, new Color(1f, 1f, 1f, 0.5f), Color.white, false);
@@ -307,7 +318,21 @@ namespace Quota
             var face = theme.FaceFor(card);
             Baseline(host, theme.RankLabel(card), 20f * scale, 30f * scale, 24f * scale, Hex(face.Color), roundFont, 70f * scale);
             var diameter = 72f * scale;
-            Portrait.Circle(host, "suit", (47.5f * scale) - diameter * 0.5f, (66f * scale) - diameter * 0.5f, diameter, ink);
+            var iconX = 47.5f * scale - diameter * 0.5f;
+            var iconY = 66f * scale - diameter * 0.5f;
+            var sprite = GoodsSprite(face.File);
+            if (sprite != null)
+            {
+                var icon = Portrait.Rect(host, "suit", iconX, iconY, diameter, diameter);
+                var image = icon.gameObject.AddComponent<Image>();
+                image.sprite = sprite;
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+            }
+            else
+            {
+                Portrait.Circle(host, "suit", iconX, iconY, diameter, ink);
+            }
             Baseline(host, face.Name, 47.5f * scale, 118f * scale, GoodsNameSize * scale, Color.black, roundFont, width - 8f);
             if (onClick == null) return;
             var hit = host.gameObject.AddComponent<Image>();

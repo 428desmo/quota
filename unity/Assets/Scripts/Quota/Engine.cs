@@ -120,8 +120,9 @@ namespace Quota
         public string Plan = "normal";
         public int DoubleStage;
         public bool DoubleGained;
+        public readonly int[] Goods;
 
-        Game(GameConfig config, List<Card> deck, List<Card> removed, List<Card> market, List<Player> players, int current, PythonRandom rng)
+        Game(GameConfig config, List<Card> deck, List<Card> removed, List<Card> market, List<Player> players, int current, int[] goods, PythonRandom rng)
         {
             Config = config;
             Deck = deck;
@@ -129,6 +130,7 @@ namespace Quota
             Market = market;
             Players = players;
             Current = current;
+            Goods = goods;
             Rng = rng;
             TurnNumber = 1;
         }
@@ -166,7 +168,11 @@ namespace Quota
                 players.Add(player);
             }
             var first = rng.RandBelow(cfg.NumPlayers);
-            var game = new Game(cfg, deck, removed, market, players, first, rng);
+            var order = new List<int>();
+            for (var i = 0; i < ItemCatalog.Count; i++) order.Add(i);
+            rng.Shuffle(order);
+            var goods = new[] { order[0], order[1], order[2], order[3] };
+            var game = new Game(cfg, deck, removed, market, players, first, goods, rng);
             game.Log.Add($"先手: {players[first].Name}");
             return game;
         }
@@ -174,6 +180,11 @@ namespace Quota
         public int MarketSize()
         {
             return Config.ResolvedMarketSize();
+        }
+
+        public ItemSet Theme()
+        {
+            return ItemCatalog.Theme(Goods);
         }
 
         public List<GameAction> LegalActions(int? seat = null)
@@ -207,6 +218,7 @@ namespace Quota
             if (!IsLegal(action)) throw new ArgumentException($"illegal action: {action}");
             var player = Players[Current];
             var gained = false;
+            var theme = Theme();
             if (action is TakeQuota take)
             {
                 var card = TakeMarket(take.CardId);
@@ -214,13 +226,13 @@ namespace Quota
                 if (card.Rank == 1)
                 {
                     Achieve(player, new List<Card> { card }, 1);
-                    Log.Add($"{player.Name} が {card.Label()} をノルマ札にし、即達成（1点）");
+                    Log.Add($"{player.Name} が {card.Label(theme)} をノルマ札にし、即達成（1点）");
                 }
                 else
                 {
                     player.Quota = card;
                     player.Collection.Clear();
-                    Log.Add($"{player.Name} が {card.Label()} をノルマ札にした（{card.Rank}枚、{Cards.ScoreFor(card.Rank.Value)}点）");
+                    Log.Add($"{player.Name} が {card.Label(theme)} をノルマ札にした（{card.Rank}枚、{Cards.ScoreFor(card.Rank.Value)}点）");
                 }
             }
             else if (action is Collect collect)
@@ -229,7 +241,7 @@ namespace Quota
                 foreach (var cardId in collect.CardIds) taken.Add(TakeMarket(cardId));
                 gained = true;
                 player.Collection.AddRange(taken);
-                Log.Add($"{player.Name} が {string.Join("、", taken.ConvertAll(card => card.Label()))} を収集");
+                Log.Add($"{player.Name} が {string.Join("、", taken.ConvertAll(card => card.Label(theme)))} を収集");
                 TurnGain = true;
                 if (1 + player.Collection.Count == player.Quota.Rank)
                 {

@@ -12,7 +12,6 @@ from pathlib import Path
 
 from quota.ai import choose_action
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
-from quota.items import catalog, resolve_item_set
 
 ROOT = Path(__file__).resolve().parent.parent / "web"
 
@@ -48,7 +47,6 @@ class Table:
         self.table_id = ""
         self.display_name = ""
         self.seed = None
-        self.item_set_id = "trade"
 
     def touch(self) -> None:
         self.idle_at = time.monotonic()
@@ -64,14 +62,11 @@ class Table:
         self.turn_timeout = _seconds(body.get("turn_timeout"), 30, minimum=1)
         self.left_handed = bool(body.get("left_handed"))
         self.seed = body.get("seed")
-        theme = resolve_item_set(str(body.get("item_set") or "trade"))
-        self.item_set_id = theme.id
         self.last_options = {
             "players": players,
             "sequence": bool(body.get("sequence")),
             "title": bool(body.get("title")),
             "special": bool(body.get("special")),
-            "item_set": theme.id,
             "ok_timeout": self.ok_timeout,
             "turn_timeout": self.turn_timeout,
             "left_handed": self.left_handed,
@@ -99,7 +94,6 @@ class Table:
         humans = len(self.roster)
         names = [member["name"] for member in self.roster]
         names += [f"CPU{i + 1}" for i in range(players - humans)]
-        theme = resolve_item_set(self.item_set_id)
         seed = self.seed
         self.seed = None
         self.game = Game.start(
@@ -111,7 +105,6 @@ class Table:
                 sequence_rule=bool(self.last_options and self.last_options.get("sequence")),
                 title_rule=bool(self.last_options and self.last_options.get("title")),
                 special_actions_rule=bool(self.last_options and self.last_options.get("special")),
-                item_set=theme.id,
             )
         )
         self.phase = "playing"
@@ -302,7 +295,7 @@ class Table:
         if self.phase == "recruiting" or self.game is None:
             return self._recruiting_view(client_id)
         game = self.game
-        theme = resolve_item_set(game.config.item_set)
+        theme = game.theme()
         view = {
             "phase": self.phase,
             "event_n": self.event_n,
@@ -373,7 +366,7 @@ class Table:
         assert self.game is not None
         game = self.game
         seat = game.current
-        before = {c.id: _card(c, resolve_item_set(game.config.item_set)) for c in game.market if c is not None}
+        before = {c.id: _card(c, game.theme()) for c in game.market if c is not None}
         if isinstance(action, TakeQuota):
             cards = [before[action.card_id]]
             kind = "take"
@@ -388,7 +381,7 @@ class Table:
             cards = []
         turn_before = game.turn_number
         reshuffles = game.reshuffle_count
-        market_before = _market_cards(game, resolve_item_set(game.config.item_set))
+        market_before = _market_cards(game, game.theme())
         game.step(action)
         if game.reshuffle_count > reshuffles and not game.finished:
             self.refresh_hold = market_before
@@ -538,7 +531,6 @@ class Table:
                 "joined": True,
                 "leader": client_id == leader and seat is not None,
             },
-            "item_sets": _item_set_choices(),
             "sequence_rule": bool(self.last_options and self.last_options.get("sequence")),
             "title_rule": bool(self.last_options and self.last_options.get("title")),
             "special_actions_rule": bool(self.last_options and self.last_options.get("special")),
@@ -586,13 +578,6 @@ def _seconds(raw, default: float, minimum: float) -> float:
     return value
 
 
-def _item_set_choices() -> list[dict]:
-    return [
-        {"id": item.id, "name": item.name, "description": item.description, "default": item.default}
-        for item in catalog()
-    ]
-
-
 def _market_cards(game, theme) -> list:
     return [None if card is None else _card(card, theme) for card in game.market]
 
@@ -606,6 +591,7 @@ def _card(card, theme) -> dict:
         "rank": card.rank,
         "goods": face.name,
         "color": face.color,
+        "image": f"goods/{face.file}.png",
         "joker": card.suit == "JOKER",
     }
 
@@ -659,7 +645,6 @@ class Hall:
         if table is None:
             return {
                 "phase": "hall",
-                "item_sets": _item_set_choices(),
                 "tables": [item.summary() for item in self.tables.values()],
             }
         return table.snapshot(client)
@@ -739,6 +724,8 @@ class Handler(BaseHTTPRequestHandler):
             kind = "text/javascript; charset=utf-8"
         elif path.suffix == ".css":
             kind = "text/css; charset=utf-8"
+        elif path.suffix == ".png":
+            kind = "image/png"
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", kind)

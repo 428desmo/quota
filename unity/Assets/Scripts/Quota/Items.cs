@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Quota
@@ -12,13 +11,15 @@ namespace Quota
         public readonly string Name;
         public readonly string Emoji;
         public readonly string Color;
+        public readonly string File;
 
-        public ItemFace(string kindId, string name, string emoji, string color)
+        public ItemFace(string kindId, string name, string emoji, string color, string file)
         {
             KindId = kindId;
             Name = name;
             Emoji = emoji;
             Color = color;
+            File = file;
         }
     }
 
@@ -76,103 +77,100 @@ namespace Quota
 
     public static class ItemCatalog
     {
-        static ItemSet[] sets;
+        static readonly string[] SlotKinds = { "K1", "K2", "K3", "K4" };
+        static readonly string[] SlotColors = { "#A0522D", "#7B3FA0", "#2E7D32", "#1E5AA8" };
+        const string WildColor = "#C4A035";
+        static readonly string[] RankLabels =
+        {
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
+        };
 
-        public static string DefaultPath =>
-            Path.Combine(Application.streamingAssetsPath, "quota_item_sets_v1.0.json");
+        static GoodRaw[] goods;
+        static GoodRaw wild;
 
-        public static IReadOnlyList<ItemSet> Sets
+        public static string GoodsPath =>
+            Path.Combine(Application.streamingAssetsPath, "quota_goods_v1.0.json");
+
+        public static int Count
         {
             get
             {
                 EnsureLoaded();
-                return sets;
+                return goods.Length;
             }
         }
 
         public static void Load(string path)
         {
-            var text = File.ReadAllText(path);
-            text = Regex.Replace(text, "\"default\"", "\"isDefault\"");
-            var raw = JsonUtility.FromJson<CatalogFile>(text);
-            if (raw == null || raw.item_sets == null) throw new InvalidOperationException("item set catalog is empty");
-            var parsed = new ItemSet[raw.item_sets.Length];
-            var seen = new HashSet<string>();
-            var defaults = 0;
-            for (var i = 0; i < raw.item_sets.Length; i++)
+            var raw = JsonUtility.FromJson<GoodsFile>(File.ReadAllText(path));
+            if (raw == null || raw.goods == null || raw.goods.Length != 27)
+                throw new InvalidOperationException("trade goods must be numbered 1 through 27");
+            if (raw.wild == null || raw.wild.name != "金貨")
+                throw new InvalidOperationException("wild card must be 金貨");
+            for (var i = 0; i < raw.goods.Length; i++)
             {
-                parsed[i] = Parse(raw.item_sets[i]);
-                if (!seen.Add(parsed[i].Id)) throw new InvalidOperationException("item set ids must be unique");
-                if (parsed[i].IsDefault) defaults++;
+                if (raw.goods[i].number != i + 1)
+                    throw new InvalidOperationException("trade goods must be numbered 1 through 27");
             }
-            if (defaults != 1) throw new InvalidOperationException("item set catalog must have exactly one default");
-            sets = parsed;
+            goods = raw.goods;
+            wild = raw.wild;
+        }
+
+        public static ItemSet Theme(int[] indices)
+        {
+            EnsureLoaded();
+            if (indices == null || indices.Length != 4)
+                throw new ArgumentException("a game needs four distinct goods");
+            var faces = new Dictionary<string, ItemFace>();
+            var seen = new HashSet<int>();
+            for (var i = 0; i < 4; i++)
+            {
+                var index = indices[i];
+                if (index < 0 || index >= goods.Length || !seen.Add(index))
+                    throw new ArgumentException("a game needs four distinct goods");
+                var good = goods[index];
+                faces[SlotKinds[i]] = new ItemFace(SlotKinds[i], good.name, "", SlotColors[i], good.file);
+            }
+            faces["WILD"] = new ItemFace("WILD", wild.name, "", WildColor, wild.file);
+            return new ItemSet("trade", "交易品", "交易品。対局ごとに4品目。", true, faces, RankLabels, "＊");
         }
 
         public static ItemSet Default()
         {
-            EnsureLoaded();
-            foreach (var item in sets)
-                if (item.IsDefault) return item;
-            throw new InvalidOperationException("item set catalog must have exactly one default");
+            return Theme(new[] { 0, 1, 2, 3 });
         }
 
         public static ItemSet Resolve(string key)
         {
-            EnsureLoaded();
             var needle = (key ?? "").Trim();
-            foreach (var item in sets)
-                if (item.Id == needle || item.Name == needle) return item;
-            var names = new List<string>();
-            foreach (var item in sets) names.Add($"{item.Id}（{item.Name}）");
-            throw new ArgumentException($"未知のアイテムセットです: {key}。選べるのは {string.Join("、", names)}");
+            if (needle == "" || needle == "trade" || needle == "交易品") return Default();
+            throw new ArgumentException("アイテムセットは交易品だけです");
+        }
+
+        public static string NameAt(int index)
+        {
+            EnsureLoaded();
+            return goods[index].name;
         }
 
         static void EnsureLoaded()
         {
-            if (sets == null) Load(DefaultPath);
-        }
-
-        static ItemSet Parse(ItemSetRaw raw)
-        {
-            var faces = new Dictionary<string, ItemFace>();
-            foreach (var kind in raw.kinds)
-                faces[kind.id] = new ItemFace(kind.id, kind.name, kind.emoji, kind.color);
-            faces[raw.wild.id] = new ItemFace(raw.wild.id, raw.wild.name, raw.wild.emoji, raw.wild.color);
-            if (raw.rank_labels == null || raw.rank_labels.Length != 13)
-                throw new InvalidOperationException($"{raw.id}: rank_labels must have 13 entries");
-            var expected = new HashSet<string> { "K1", "K2", "K3", "K4", "WILD" };
-            if (!expected.SetEquals(faces.Keys))
-                throw new InvalidOperationException($"{raw.id}: kinds must be K1..K4 and WILD");
-            return new ItemSet(raw.id, raw.name, raw.description, raw.isDefault, faces, raw.rank_labels, raw.wild_rank_label);
+            if (goods == null) Load(GoodsPath);
         }
 
         [Serializable]
-        class CatalogFile
+        class GoodsFile
         {
-            public ItemSetRaw[] item_sets;
+            public GoodRaw[] goods;
+            public GoodRaw wild;
         }
 
         [Serializable]
-        class ItemSetRaw
+        class GoodRaw
         {
-            public string id;
+            public int number;
             public string name;
-            public string description;
-            public bool isDefault;
-            public KindRaw[] kinds;
-            public KindRaw wild;
-            public string[] rank_labels;
-            public string wild_rank_label;
-        }
-
-        [Serializable]
-        class KindRaw
-        {
-            public string id;
-            public string name;
-            public string emoji;
-            public string color;
+            public string file;
         }
     }
 }

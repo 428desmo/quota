@@ -57,6 +57,7 @@ namespace Quota.Tests
                 var caption = button.GetComponentInChildren<Text>();
                 Assert.Greater(caption.rectTransform.rect.height, 16f, caption.text);
                 Assert.Greater(caption.rectTransform.rect.width, 40f, caption.text);
+                Assert.IsFalse(caption.text.Contains("アイテムセット"), caption.text);
             }
 
             Text title = null;
@@ -64,6 +65,24 @@ namespace Quota.Tests
                 if (label.text == "QUOTA") title = label;
             Assert.IsNotNull(title);
             Assert.Greater(title.rectTransform.rect.height, 20f);
+        }
+
+        [Test]
+        public void MarketCardsShowTheGoodsPicture()
+        {
+            host = Open();
+            Set("seedText", "7");
+            Click("対局開始");
+            Image icon = null;
+            foreach (var image in host.GetComponentsInChildren<Image>())
+            {
+                if (image.gameObject.name != "suit" || image.sprite == null) continue;
+                icon = image;
+                break;
+            }
+            Assert.IsNotNull(icon);
+            Assert.Greater(icon.rectTransform.rect.width, 70f);
+            Assert.Less(icon.rectTransform.rect.width, 100f);
         }
 
         [Test]

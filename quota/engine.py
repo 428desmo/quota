@@ -113,6 +113,7 @@ class Game:
     end_reason: EndReason | None
     turn_number: int
     log: list[str]
+    goods: tuple[int, int, int, int]
     rng: random.Random
     reshuffle_count: int = 0
     turn_gain: bool = False
@@ -150,6 +151,10 @@ class Game:
             for i in range(cfg.num_players)
         ]
         first = rng.randrange(cfg.num_players)
+        # Drawn after the deal so the opening cards stay tied to the seed.
+        from quota.items import deal_goods
+
+        goods = deal_goods(rng)
         game = cls(
             config=cfg,
             deck=deck,
@@ -164,6 +169,7 @@ class Game:
             end_reason=None,
             turn_number=1,
             log=[],
+            goods=goods,
             rng=rng,
             turn_gain=False,
         )
@@ -207,24 +213,25 @@ class Game:
             raise ValueError(f"illegal action: {action}")
         p = self.players[self.current]
         gained = False
+        theme = self.theme()
         if isinstance(action, TakeQuota):
             card = self._take_market(action.card_id)
             gained = True
             if card.rank == 1:
                 self._achieve(p, [card], 1)
-                self.log.append(f"{p.name} が {card.label()} をノルマ札にし、即達成（1点）")
+                self.log.append(f"{p.name} が {card.label(theme)} をノルマ札にし、即達成（1点）")
             else:
                 p.quota = card
                 p.collection = []
                 self.log.append(
-                    f"{p.name} が {card.label()} をノルマ札にした（{card.rank}枚、{score_for(card.rank)}点）"
+                    f"{p.name} が {card.label(theme)} をノルマ札にした（{card.rank}枚、{score_for(card.rank)}点）"
                 )
         elif isinstance(action, Collect):
             assert p.quota is not None and p.quota.rank is not None
             taken = [self._take_market(card_id) for card_id in action.card_ids]
             gained = True
             p.collection.extend(taken)
-            labels = "、".join(card.label() for card in taken)
+            labels = "、".join(card.label(theme) for card in taken)
             self.log.append(f"{p.name} が {labels} を収集")
             self.turn_gain = True
             if 1 + len(p.collection) == p.quota.rank:
@@ -378,11 +385,14 @@ class Game:
                 groups[-1].append(seat)
         return groups
 
+    def theme(self):
+        from quota.items import theme_for
+
+        return theme_for(self.goods)
+
     def public_view(self) -> dict:
         """Observation without deck order or removed cards."""
-        from quota.items import resolve_item_set
-
-        theme = resolve_item_set(self.config.item_set)
+        theme = self.theme()
         return {
             "item_set": theme.id,
             "market": [None if c is None else c.label(theme) for c in self.market],
