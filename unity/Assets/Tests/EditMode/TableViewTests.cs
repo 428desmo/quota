@@ -36,6 +36,17 @@ namespace Quota.Tests
             LayoutRebuilder.ForceRebuildLayoutImmediate(frame);
             Canvas.ForceUpdateCanvases();
 
+            Text splash = null;
+            foreach (var label in host.GetComponentsInChildren<Text>())
+                if (label.text.StartsWith("港で働く仲買人のあなた。")) splash = label;
+            Assert.IsNotNull(splash);
+            Assert.IsNull(host.transform.Find("Root/Frame/setup"));
+            var hold = (float)typeof(TableView).GetField("SplashSeconds", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            Assert.AreEqual(3f, hold);
+            typeof(TableView).GetMethod("DismissSplash", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(view, null);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(frame);
+            Canvas.ForceUpdateCanvases();
+
             Assert.AreEqual(1080f, frame.sizeDelta.x, 0.01f);
             Assert.AreEqual(1920f, frame.sizeDelta.y, 0.01f);
             var backdrop = host.transform.Find("Root/Backdrop") as RectTransform;
@@ -228,6 +239,8 @@ namespace Quota.Tests
             var viewHost = new GameObject("Quota");
             var view = viewHost.AddComponent<TableView>();
             typeof(TableView).GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, null);
+            typeof(TableView).GetMethod("DismissSplash", BindingFlags.Instance | BindingFlags.NonPublic)
                 .Invoke(view, null);
             var canvas = viewHost.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
