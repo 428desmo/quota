@@ -1,18 +1,30 @@
-"""Item-set catalog. Display only; game logic stays on suit ids."""
+"""Trade-goods catalog. Display only; game logic stays on suit ids."""
 
 from __future__ import annotations
 
 import json
+import random
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 from quota.cards import Card
 
-CATALOG_PATH = Path(__file__).resolve().parent.parent / "quota_item_sets_v1.0.json"
+GOODS_PATH = Path(__file__).resolve().parent.parent / "quota_goods_v1.0.json"
 
-# Deck order is S, H, D, C. Kinds follow the trade-goods correspondence.
+# Deck order is S, H, D, C. The four dealt goods follow S, H, C, D.
 KIND_OF_SUIT = {"S": "K1", "H": "K2", "C": "K3", "D": "K4", "JOKER": "WILD"}
+SLOT_KIND_IDS = ("K1", "K2", "K3", "K4")
+SLOT_COLORS = ("#A0522D", "#7B3FA0", "#2E7D32", "#1E5AA8")
+WILD_COLOR = "#C4A035"
+RANK_LABELS = tuple(str(n) for n in range(1, 14))
+
+
+@dataclass(frozen=True, slots=True)
+class Good:
+    number: int
+    name: str
+    file: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +33,7 @@ class ItemFace:
     name: str
     emoji: str
     color: str
+    file: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,49 +59,62 @@ class ItemSet:
         return f"{face.emoji}{self.rank_label(card)} {face.name} #{card.id}"
 
 
-def _parse(raw: dict) -> ItemSet:
+@lru_cache(maxsize=1)
+def _catalog() -> tuple[tuple[Good, ...], Good]:
+    data = json.loads(GOODS_PATH.read_text(encoding="utf-8"))
+    goods = tuple(Good(item["number"], item["name"], item["file"]) for item in data["goods"])
+    wild = data["wild"]
+    if [item.number for item in goods] != list(range(1, 28)):
+        raise ValueError("trade goods must be numbered 1 through 27")
+    if len({item.file for item in goods}) != len(goods):
+        raise ValueError("trade good files must be unique")
+    return goods, Good(wild["number"], wild["name"], wild["file"])
+
+
+def goods_pool() -> tuple[Good, ...]:
+    return _catalog()[0]
+
+
+def wild_good() -> Good:
+    return _catalog()[1]
+
+
+def theme_for(indices: tuple[int, ...]) -> ItemSet:
+    pool = goods_pool()
+    if len(indices) != 4 or len(set(indices)) != 4:
+        raise ValueError("a game needs four distinct goods")
     faces: dict[str, ItemFace] = {}
-    for kind in raw["kinds"]:
-        faces[kind["id"]] = ItemFace(kind["id"], kind["name"], kind["emoji"], kind["color"])
-    wild = raw["wild"]
-    faces[wild["id"]] = ItemFace(wild["id"], wild["name"], wild["emoji"], wild["color"])
-    labels = tuple(raw["rank_labels"])
-    if len(labels) != 13:
-        raise ValueError(f"{raw['id']}: rank_labels must have 13 entries")
-    expected = {"K1", "K2", "K3", "K4", "WILD"}
-    if set(faces) != expected:
-        raise ValueError(f"{raw['id']}: kinds must be K1..K4 and WILD")
+    for kind_id, color, index in zip(SLOT_KIND_IDS, SLOT_COLORS, indices):
+        if index < 0 or index >= len(pool):
+            raise ValueError("goods index is outside the pool")
+        good = pool[index]
+        faces[kind_id] = ItemFace(kind_id, good.name, "", color, good.file)
+    wild = wild_good()
+    faces["WILD"] = ItemFace("WILD", wild.name, "", WILD_COLOR, wild.file)
     return ItemSet(
-        id=raw["id"],
-        name=raw["name"],
-        description=raw["description"],
-        default=bool(raw.get("default")),
+        id="trade",
+        name="交易品",
+        description="交易品。対局ごとに4品目。",
+        default=True,
         faces=faces,
-        rank_labels=labels,
-        wild_rank_label=raw["wild_rank_label"],
+        rank_labels=RANK_LABELS,
+        wild_rank_label="＊",
     )
 
 
-@lru_cache(maxsize=1)
-def catalog() -> tuple[ItemSet, ...]:
-    data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    sets = tuple(_parse(raw) for raw in data["item_sets"])
-    defaults = [item for item in sets if item.default]
-    if len(defaults) != 1:
-        raise ValueError("item set catalog must have exactly one default")
-    if len({item.id for item in sets}) != len(sets):
-        raise ValueError("item set ids must be unique")
-    return sets
+def deal_goods(rng: random.Random) -> tuple[int, int, int, int]:
+    order = list(range(len(goods_pool())))
+    rng.shuffle(order)
+    picked = tuple(order[:4])
+    return picked  # type: ignore[return-value]
 
 
 def default_item_set() -> ItemSet:
-    return next(item for item in catalog() if item.default)
+    return theme_for((0, 1, 2, 3))
 
 
 def resolve_item_set(key: str) -> ItemSet:
     needle = key.strip()
-    for item in catalog():
-        if item.id == needle or item.name == needle:
-            return item
-    names = "、".join(f"{item.id}（{item.name}）" for item in catalog())
-    raise ValueError(f"未知のアイテムセットです: {key}。選べるのは {names}")
+    if needle in ("", "trade", "交易品"):
+        return default_item_set()
+    raise ValueError("アイテムセットは交易品だけです")

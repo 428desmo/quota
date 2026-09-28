@@ -46,9 +46,14 @@ function cardHtml(card, z = 1, marks = null, compact = false) {
   return `<div class="card ${card.joker ? "joker" : ""} ${hidden}${fresh}" data-id="${card.id}" style="z-index:${z}">
     ${rank}
     ${mark}
-    <div class="emoji">${card.emoji}</div>
+    ${iconHtml(card)}
     ${goodsHtml(card, compact)}
   </div>`;
+}
+
+function iconHtml(card) {
+  if (card.image) return `<img class="goods-icon" src="${card.image}" alt="">`;
+  return `<div class="emoji">${card.emoji || ""}</div>`;
 }
 
 function goodsHtml(card, compact = false) {
@@ -188,7 +193,6 @@ function render() {
   if (!state || state.phase === "hall") {
     const saved = savedOptions() || {};
     const players = String(saved.players || 3);
-    const itemSet = saved.item_set || "";
     app.innerHTML = `
       <header class="hero">
         <h1>
@@ -205,11 +209,6 @@ function render() {
       ${guideHtml()}
       <form class="panel" id="start">
         <div class="row">
-          <label>アイテムセット
-            <select name="item_set">
-              ${(state.item_sets || []).map((item) => `<option value="${item.id}" ${(itemSet ? item.id === itemSet : item.default) ? "selected" : ""}>${item.name}</option>`).join("")}
-            </select>
-          </label>
           <label>人数
             <select name="players">
               ${[3, 4].map((n) => `<option value="${n}" ${String(n) === players ? "selected" : ""}>${n}</option>`).join("")}
@@ -282,7 +281,6 @@ function render() {
         sequence: data.get("sequence") === "on",
         title: data.get("title") === "on",
         special: data.get("special") === "on",
-        item_set: data.get("item_set"),
         ok_timeout: Number(data.get("ok_timeout")),
         turn_timeout: Number(data.get("turn_timeout")),
         left_handed: data.get("left_handed") === "on",
@@ -378,7 +376,7 @@ function render() {
     const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
     const idle = state.settling || (state.your_turn && !canPlay(card, me)) ? "idle" : "";
     return `<div class="card ${card.joker ? "joker" : ""} ${idle}" data-id="${card.id}">
-      <button type="button" class="pick">${rank}<div class="emoji">${card.emoji}</div>${goodsHtml(card)}</button>
+      <button type="button" class="pick">${rank}${iconHtml(card)}${goodsHtml(card)}</button>
     </div>`;
   }).join("");
 
