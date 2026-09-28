@@ -160,15 +160,15 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .card.selected { outline: 3px solid #c45c26; }
 .card .emoji { font-size: calc(26px * var(--card-scale)); }
 .card .goods-icon {
-  width: calc(45px * var(--card-scale));
-  height: calc(45px * var(--card-scale));
+  width: calc(39.2px * var(--card-scale));
+  height: calc(39.2px * var(--card-scale));
   object-fit: contain;
   flex: none;
   pointer-events: none;
 }
 .line.record .goods-icon {
-  width: calc(27px * var(--card-scale));
-  height: calc(27px * var(--card-scale));
+  width: calc(23.8px * var(--card-scale));
+  height: calc(23.8px * var(--card-scale));
 }
 .card.idle { opacity: 0.4; }
 .card.gap { visibility: hidden; }
