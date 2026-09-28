@@ -14,6 +14,10 @@ namespace Quota
         const float SeatTop = 400f;
         const float SeatHeight = 380f;
         const float ActionStride = 74f;
+        const float SplashSeconds = 3f;
+        const float SplashFadeSeconds = 0.6f;
+        const int AdvancedPromptAfter = 3;
+        const string SplashCopy = "港で働く仲買人のあなた。大口顧客のために、舶来の交易品を買い集めよう。買い付けノルマは、自分で決める。";
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
@@ -43,6 +47,9 @@ namespace Quota
         bool sequenceRule;
         bool titleRule;
         bool specialRule;
+        bool finishCounted;
+        bool offerStandard;
+        Coroutine splashRun;
         string seedText = "";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -91,7 +98,8 @@ namespace Quota
             frame.pivot = new Vector2(0.5f, 0.5f);
             frame.anchoredPosition = Vector2.zero;
             Fit();
-            ShowSetup();
+            LoadRules();
+            ShowSplash();
         }
 
         void Update()
@@ -149,6 +157,65 @@ namespace Quota
             return sprite;
         }
 
+        void ShowSplash()
+        {
+            Clear();
+            var splash = Portrait.Rect(frame, "splash", 0f, 0f, ScreenWidth, ScreenHeight);
+            splash.gameObject.AddComponent<CanvasGroup>();
+            Portrait.Solid(splash, "veil", 0f, 760f, ScreenWidth, 400f, new Color(0f, 0f, 0f, 0.45f));
+            TextAt(splash, SplashCopy, 72f, 800f, 936f, 320f, 34, Color.white, nameFont, TextAnchor.MiddleCenter);
+            if (Application.isPlaying) splashRun = StartCoroutine(FadeSplash());
+        }
+
+        IEnumerator FadeSplash()
+        {
+            yield return new WaitForSeconds(SplashSeconds);
+            var splash = frame.Find("splash");
+            var group = splash != null ? splash.GetComponent<CanvasGroup>() : null;
+            var elapsed = 0f;
+            while (elapsed < SplashFadeSeconds)
+            {
+                elapsed += Time.deltaTime;
+                if (group != null) group.alpha = 1f - Mathf.Clamp01(elapsed / SplashFadeSeconds);
+                yield return null;
+            }
+            splashRun = null;
+            ShowSetup();
+        }
+
+        void DismissSplash()
+        {
+            if (splashRun != null) StopCoroutine(splashRun);
+            splashRun = null;
+            ShowSetup();
+        }
+
+        void LoadRules()
+        {
+            if (!Application.isPlaying) return;
+            if (PlayerPrefs.GetInt("quota.saved", 0) == 0)
+            {
+                sequenceRule = false;
+                titleRule = false;
+                specialRule = false;
+                SaveRules();
+                return;
+            }
+            sequenceRule = PlayerPrefs.GetInt("quota.sequence", 0) == 1;
+            titleRule = PlayerPrefs.GetInt("quota.title", 0) == 1;
+            specialRule = PlayerPrefs.GetInt("quota.special", 0) == 1;
+        }
+
+        void SaveRules()
+        {
+            if (!Application.isPlaying) return;
+            PlayerPrefs.SetInt("quota.saved", 1);
+            PlayerPrefs.SetInt("quota.sequence", sequenceRule ? 1 : 0);
+            PlayerPrefs.SetInt("quota.title", titleRule ? 1 : 0);
+            PlayerPrefs.SetInt("quota.special", specialRule ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
         void ShowSetup()
         {
             Clear();
@@ -171,16 +238,19 @@ namespace Quota
             SetupButton(column, $"並び順ボーナス  {(sequenceRule ? "オン" : "オフ")}", () =>
             {
                 sequenceRule = !sequenceRule;
+                SaveRules();
                 ShowSetup();
             });
             SetupButton(column, $"称号ボーナス  {(titleRule ? "オン" : "オフ")}", () =>
             {
                 titleRule = !titleRule;
+                SaveRules();
                 ShowSetup();
             });
             SetupButton(column, $"特殊アクション  {(specialRule ? "オン" : "オフ")}", () =>
             {
                 specialRule = !specialRule;
+                SaveRules();
                 ShowSetup();
             });
             SetupButton(column, "対局開始", () =>
@@ -200,6 +270,8 @@ namespace Quota
                     SpecialActionsRule = specialRule,
                 });
                 confirm = null;
+                finishCounted = false;
+                offerStandard = false;
                 ShowTable();
             });
         }
@@ -218,7 +290,11 @@ namespace Quota
             if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
             else if (confirm == null && !game.Finished) TextAt(frame, $"{game.Players[game.Current].Name} が考えています", 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
             if (!game.Finished) LeaveButton();
-            if (game.Finished) Result(game);
+            if (game.Finished)
+            {
+                Result(game);
+                if (offerStandard) DrawStandardOffer();
+            }
             else if (confirm != null) Confirm();
         }
 
@@ -463,8 +539,49 @@ namespace Quota
             });
         }
 
+        void NoteFinish()
+        {
+            if (!Application.isPlaying || finishCounted) return;
+            finishCounted = true;
+            if (PlayerPrefs.GetInt("quota.prompted", 0) == 1) return;
+            var games = PlayerPrefs.GetInt("quota.games", 0) + 1;
+            PlayerPrefs.SetInt("quota.games", games);
+            PlayerPrefs.Save();
+            if (games >= AdvancedPromptAfter) offerStandard = true;
+        }
+
+        void DrawStandardOffer()
+        {
+            var veil = Portrait.Rect(frame, "offer", 0f, 0f, ScreenWidth, ScreenHeight);
+            var shade = veil.gameObject.AddComponent<Image>();
+            shade.sprite = Portrait.White;
+            shade.color = new Color(0f, 0f, 0f, 0.35f);
+            shade.raycastTarget = true;
+            var panel = Portrait.Box(veil, "offer-card", 140f, 760f, 800f, 340f, 7f, 1f, Color.white, Color.black, false);
+            TextAt(panel, "標準ルールを試してみますか？\n（設定からいつでも切り替えられます）", 32f, 36f, 736f, 140f, 28, Color.black, nameFont, TextAnchor.MiddleCenter);
+            Pill(panel, "はい", 48f, 210f, 200f, 72f, 32, () =>
+            {
+                sequenceRule = true;
+                titleRule = true;
+                specialRule = true;
+                SaveRules();
+                PlayerPrefs.SetInt("quota.prompted", 1);
+                PlayerPrefs.Save();
+                offerStandard = false;
+                ShowTable();
+            });
+            Pill(panel, "いいえ", 800f - 48f - 240f, 210f, 240f, 72f, 32, () =>
+            {
+                PlayerPrefs.SetInt("quota.prompted", 1);
+                PlayerPrefs.Save();
+                offerStandard = false;
+                ShowTable();
+            });
+        }
+
         void Result(Game game)
         {
+            NoteFinish();
             var panel = Portrait.Box(frame, "result", 90f, 430f, 900f, 1100f, 7f, 1f, Color.white, Color.black, false);
             TextAt(panel, game.EndReason == "DECK" ? "ゲーム終了" : "膠着の連続", 32f, 24f, 836f, 56f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
             var place = 1;

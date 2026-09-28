@@ -1,4 +1,20 @@
 * { box-sizing: border-box; }
+#splash {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0; padding: 48px;
+  background: #1c140e; color: #f4efe4;
+  text-align: center;
+  transition: opacity 0.6s ease;
+}
+#splash p {
+  max-width: 18em; margin: 0;
+  font-size: 22px; line-height: 1.8; letter-spacing: 0.04em;
+}
+#splash.out { opacity: 0; }
+.standard-offer { z-index: 90; }
+.standard-offer .panel { width: min(28em, 92vw); text-align: center; }
+.standard-offer .ask-buttons { display: flex; gap: 12px; justify-content: center; }
 body {
   margin: 0;
   font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;

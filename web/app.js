@@ -28,6 +28,14 @@ let coverSeen = 0;
 let coverUntil = 0;
 let coverText = "";
 let rosterNote = "";
+let standardOffer = false;
+const splash = document.querySelector("#splash");
+if (splash) {
+  setTimeout(() => {
+    splash.classList.add("out");
+    setTimeout(() => splash.remove(), 600);
+  }, 3000);
+}
 let turnLeft = null;
 let turnLeftAt = 0;
 
@@ -128,14 +136,14 @@ const GUIDES = {
     ],
   },
   advanced: {
-    title: "上級モード",
+    title: "標準ルール（シンプルモードでは使わない）",
     lines: [
       "7枚以上の<strong>ノルマ達成</strong>で、枚数に応じて＋1／＋3／＋6点。",
       "<strong>達成</strong>の記録の並びで、前後する数字なら＋1点、同じ数字なら＋2点（組をまたいでもよい）。",
       "<strong>ワイルド</strong>不使用で3組以上<strong>達成</strong>したら、終了時に＋5点。",
       "同じ種類だけ（<strong>ワイルド</strong>は可）で3組以上<strong>達成</strong>したら、終了時に＋15点。",
-      "<strong>ダブル</strong>は、1ゲームに1回、行動の前に宣言する。1回行動し、場札を補充してから、もう1回行動する。",
-      "<strong>配り直し</strong>は、1ゲームに1回、行動の前に宣言する。場札を入れ替えてから、1回行動する。同じ手番に両方は使えない。",
+      "各プレイヤーは、ゲーム中に1回だけ、手番の最初に<strong>配り直し</strong>をしてから行動できる（ノルマの有無は問わない）。",
+      "各プレイヤーは、ゲーム中に1回だけ、手番の最初に宣言して「行動→補充→もう1行動」の<strong>ダブルアクション</strong>ができる。この2つは同じ手番では併用不可。",
     ],
   },
   hint: {
@@ -178,6 +186,51 @@ function rememberName(name) {
   document.cookie = `quota_name=${encodeURIComponent(name)}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
 
+function rememberOptions(options) {
+  document.cookie = `quota_options=${encodeURIComponent(JSON.stringify(options))}; Path=/; Max-Age=31536000; SameSite=Lax`;
+}
+
+function noteFinishedGame() {
+  if (!state || !state.finished || !state.table_id || !state.you || state.you.observer || state.you.seat == null) return;
+  try {
+    if (localStorage.getItem("quota.advancedPrompted") === "1") return;
+    let count = Number(localStorage.getItem("quota.finishedGames") || "0");
+    if (localStorage.getItem("quota.countedTable") !== state.table_id) {
+      count += 1;
+      localStorage.setItem("quota.finishedGames", String(count));
+      localStorage.setItem("quota.countedTable", state.table_id);
+    }
+    if (count >= 3) standardOffer = true;
+  } catch {
+    standardOffer = false;
+  }
+}
+
+function standardOfferHtml() {
+  if (!standardOffer) return "";
+  return `<div class="rollover standard-offer"><div class="panel">
+    <p>標準ルールを試してみますか？（設定からいつでも切り替えられます）</p>
+    <p class="ask-buttons"><button type="button" id="standard-yes">はい</button><button type="button" id="standard-no">いいえ</button></p>
+  </div></div>`;
+}
+
+function dismissStandardOffer(enable) {
+  standardOffer = false;
+  try {
+    localStorage.setItem("quota.advancedPrompted", "1");
+  } catch {
+    /* the choice still closes the dialog for this view */
+  }
+  if (enable) {
+    const saved = savedOptions() || {};
+    saved.sequence = true;
+    saved.title = true;
+    saved.special = true;
+    rememberOptions(saved);
+  }
+  render();
+}
+
 function savedOptions() {
   const match = document.cookie.match(/(?:^|; )quota_options=([^;]*)/);
   if (!match) return null;
@@ -203,7 +256,7 @@ function render() {
       </header>
       <p class="guide-buttons">
         <button type="button" data-guide="basic">基本ルール</button>
-        <button type="button" data-guide="advanced">上級モード</button>
+        <button type="button" data-guide="advanced">標準ルール</button>
         <button type="button" data-guide="hint">ヒント</button>
       </p>
       ${guideHtml()}
@@ -232,7 +285,7 @@ function render() {
           </label>
         </div>
         <div class="row tight">
-          <label><span>上級</span>
+          <label><span>標準</span>
             <input name="sequence" type="checkbox" ${saved.sequence ? "checked" : ""}> 並び順ボーナス
           </label>
           <label><span>称号</span>
@@ -301,6 +354,7 @@ function render() {
     return;
   }
 
+  noteFinishedGame();
   const seats = state.players.map((player, index) => {
     const focus = state.settling ? state.settling_seat : state.current;
     const turn = index === focus && !state.finished ? " turn" : "";
@@ -397,6 +451,7 @@ function render() {
     </section>
     ${seats}
     ${state.finished && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
+    ${standardOfferHtml()}
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
     ${coverHtml()}
     ${askHtml()}
@@ -441,6 +496,10 @@ function render() {
   if (ack) ack.onclick = () => post("/api/ack", {});
   const ok = app.querySelector("#ok");
   if (ok) ok.onclick = () => post(state.you && state.you.observer ? "/api/leave" : "/api/again", {});
+  const standardYes = app.querySelector("#standard-yes");
+  if (standardYes) standardYes.onclick = () => dismissStandardOffer(true);
+  const standardNo = app.querySelector("#standard-no");
+  if (standardNo) standardNo.onclick = () => dismissStandardOffer(false);
   if (!recordPrimed && state.phase === "playing") {
     document.querySelectorAll(".line.record .card").forEach((card) => recordSeen.add(card.dataset.id));
     recordPrimed = true;
