@@ -36,6 +36,7 @@ namespace Quota
         Sprite verticalBackground;
         Sprite horizontalBackground;
         readonly Dictionary<string, Sprite> goodsSprites = new Dictionary<string, Sprite>();
+        readonly List<RectTransform> seatFrames = new List<RectTransform>();
         bool busy;
         string confirm;
         int playerCount = 3;
@@ -206,6 +207,7 @@ namespace Quota
         void ShowTable()
         {
             Clear();
+            seatFrames.Clear();
             var game = match.Game;
             var theme = game.Theme();
             for (var i = 0; i < game.Players.Count; i++)
@@ -214,7 +216,7 @@ namespace Quota
             DrawMarket(game, theme);
             DrawTitle(game);
             if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
-            else if (!game.Finished) TextAt(frame, $"{game.Players[game.Current].Name} が考えています", 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
+            else if (confirm == null && !game.Finished) TextAt(frame, $"{game.Players[game.Current].Name} が考えています", 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
             if (!game.Finished) LeaveButton();
             if (game.Finished) Result(game);
             else if (confirm != null) Confirm();
@@ -270,6 +272,8 @@ namespace Quota
             var player = game.Players[index];
             var top = SeatTop + index * SeatHeight;
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, SeatHeight);
+            while (seatFrames.Count <= index) seatFrames.Add(null);
+            seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
             Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
             var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
@@ -441,7 +445,7 @@ namespace Quota
             }
             var game = match.Game;
             var seatIndex = confirm == "leave" ? HumanSeat(game) : game.Current;
-            var seat = frame.Find("seat" + seatIndex);
+            var seat = seatFrames[seatIndex];
             const float panelWidth = 700f;
             const float panelHeight = 280f;
             var panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
@@ -566,6 +570,7 @@ namespace Quota
             for (var i = frame.childCount - 1; i >= 0; i--)
             {
                 var child = frame.GetChild(i).gameObject;
+                child.name = "retired";
                 if (Application.isPlaying) Destroy(child);
                 else DestroyImmediate(child);
             }

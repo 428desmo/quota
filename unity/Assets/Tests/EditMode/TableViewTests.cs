@@ -152,6 +152,26 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void AbandonConfirmAttachesToTheLiveSeat()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var frame = host.transform.Find("Root/Frame");
+            var live = frame.Find("seat0");
+            var stale = new GameObject("seat0", typeof(RectTransform));
+            stale.transform.SetParent(frame, false);
+            stale.transform.SetAsFirstSibling();
+            Set("confirm", "abandon");
+            typeof(TableView).GetMethod("Confirm", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(view, null);
+
+            Assert.IsNotNull(live.Find("confirm"));
+            Assert.IsNull(stale.transform.Find("confirm"));
+            Object.DestroyImmediate(stale);
+        }
+
+        [Test]
         public void AbandonPassNextAndLeaveAskBeforeActing()
         {
             host = Open();
