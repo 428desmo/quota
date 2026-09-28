@@ -52,7 +52,10 @@ namespace Quota
         {
             var host = Rect(parent, name, x, y, width, height);
             var strokeImage = host.gameObject.AddComponent<Image>();
-            strokeImage.sprite = Rounded(width, height, radius, rightCornersOnly);
+            var hollow = border > 0f && fill.a < 1f;
+            strokeImage.sprite = hollow
+                ? RoundedRing(width, height, radius, border, rightCornersOnly)
+                : Rounded(width, height, radius, rightCornersOnly);
             strokeImage.type = Image.Type.Simple;
             strokeImage.color = border > 0 ? stroke : fill;
             strokeImage.raycastTarget = false;
@@ -125,6 +128,36 @@ namespace Quota
                 {
                     var alpha = Coverage(px + 0.5f, (h - py) - 0.5f, w, h, limit, rightCornersOnly);
                     texture.SetPixel(px, py, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+            texture.Apply();
+            sprite = Sprite.Create(texture, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect);
+            sprites[key] = sprite;
+            return sprite;
+        }
+
+        static Sprite RoundedRing(float width, float height, float radius, float border, bool rightCornersOnly)
+        {
+            var w = Mathf.Max(1, Mathf.RoundToInt(width));
+            var h = Mathf.Max(1, Mathf.RoundToInt(height));
+            var key = "ring" + w + "x" + h + ":" + radius.ToString("0.##") + ":" + border.ToString("0.##") + (rightCornersOnly ? "R" : "A");
+            Sprite sprite;
+            if (sprites.TryGetValue(key, out sprite)) return sprite;
+            var texture = NewTexture(w, h);
+            var limit = Mathf.Min(radius, Mathf.Min(w, h) * 0.5f);
+            var innerW = w - border * 2f;
+            var innerH = h - border * 2f;
+            var innerRadius = Mathf.Max(0f, radius - border);
+            for (var py = 0; py < h; py++)
+            {
+                for (var px = 0; px < w; px++)
+                {
+                    var y = (h - py) - 0.5f;
+                    var outer = Coverage(px + 0.5f, y, w, h, limit, rightCornersOnly);
+                    var inner = innerW > 1f && innerH > 1f
+                        ? Coverage(px + 0.5f - border, y - border, innerW, innerH, innerRadius, rightCornersOnly)
+                        : 0f;
+                    texture.SetPixel(px, py, new Color(1f, 1f, 1f, Mathf.Clamp01(outer - inner)));
                 }
             }
             texture.Apply();
