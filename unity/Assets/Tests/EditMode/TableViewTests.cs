@@ -119,8 +119,11 @@ namespace Quota.Tests
             Assert.AreEqual(new Vector2(1030f, 340f), plate.sizeDelta);
             Assert.AreEqual(Color.black, plate.GetComponent<Image>().color);
             var fill = plate.Find("fill") as RectTransform;
-            Assert.AreEqual(Color.white, fill.GetComponent<Image>().color);
-            Assert.AreEqual(1f, fill.GetComponent<Image>().color.a);
+            var fillColor = fill.GetComponent<Image>().color;
+            Assert.AreEqual(1f, fillColor.r, 0.001f);
+            Assert.AreEqual(1f, fillColor.g, 0.001f);
+            Assert.AreEqual(1f, fillColor.b, 0.001f);
+            Assert.AreEqual(0.7f, fillColor.a, 0.001f);
             Assert.AreEqual(new Vector2(1f, -1f), fill.anchoredPosition);
             Assert.AreEqual(new Vector2(1028f, 338f), fill.sizeDelta);
 
@@ -163,17 +166,20 @@ namespace Quota.Tests
             Show(view);
 
             Click("放棄");
+            AssertConfirmInside("seat0");
             Assert.IsNotNull(FindText("本当に放棄しますか？"));
             Click("キャンセル");
             Assert.IsNull(FindText("本当に放棄しますか？"));
 
             Click("パス");
+            AssertConfirmInside("seat0");
             Assert.IsNotNull(FindText("本当にパスしますか？"));
             Click("キャンセル");
 
             game.TurnGain = true;
             Show(view);
             Click("次へ");
+            AssertConfirmInside("seat0");
             Assert.IsNotNull(FindText("本当に次へ進みますか？"));
             Click("キャンセル");
 
@@ -190,6 +196,7 @@ namespace Quota.Tests
             Assert.AreNotEqual(0, game.Current);
 
             Click("ゲームから抜ける");
+            AssertConfirmInside("seat0");
             Assert.IsNotNull(FindText("本当にゲームから抜けますか？"));
             Assert.IsNotNull(ButtonNamed("抜ける"));
             Click("キャンセル");
@@ -216,6 +223,18 @@ namespace Quota.Tests
         {
             ButtonNamed(caption).onClick.Invoke();
             Rebuild(host);
+        }
+
+        void AssertConfirmInside(string seatName)
+        {
+            var panel = host.transform.Find("Root/Frame/" + seatName + "/confirm") as RectTransform;
+            Assert.IsNotNull(panel, seatName);
+            Assert.IsNull(host.transform.Find("Root/Frame/confirm"));
+            Assert.GreaterOrEqual(panel.anchoredPosition.x, 25f);
+            Assert.LessOrEqual(panel.anchoredPosition.x + panel.sizeDelta.x, 1055f);
+            var top = -panel.anchoredPosition.y;
+            Assert.GreaterOrEqual(top, 25f);
+            Assert.LessOrEqual(top + panel.sizeDelta.y, 365f);
         }
 
         Button ButtonNamed(string caption)

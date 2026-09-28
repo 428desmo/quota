@@ -213,7 +213,7 @@ namespace Quota
             Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, new Color(1f, 1f, 1f, 0.5f), Color.white, false);
             DrawMarket(game, theme);
             DrawTitle(game);
-            if (match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
+            if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
             else if (!game.Finished) TextAt(frame, $"{game.Players[game.Current].Name} が考えています", 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
             if (!game.Finished) LeaveButton();
             if (game.Finished) Result(game);
@@ -270,7 +270,7 @@ namespace Quota
             var player = game.Players[index];
             var top = SeatTop + index * SeatHeight;
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, SeatHeight);
-            Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, Color.white, Color.black, false);
+            Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
             Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
             var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -439,7 +439,12 @@ namespace Quota
                 yes = "パスする";
                 run = () => Play(new Pass());
             }
-            var panel = Portrait.Box(frame, "confirm", 190f, 760f, 700f, 280f, 7f, 1f, Color.white, Color.black, false);
+            var game = match.Game;
+            var seatIndex = confirm == "leave" ? HumanSeat(game) : game.Current;
+            var seat = frame.Find("seat" + seatIndex);
+            const float panelWidth = 700f;
+            const float panelHeight = 280f;
+            var panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
             TextAt(panel, message, 24f, 28f, 652f, 80f, 32, Color.black, nameFont, TextAnchor.MiddleCenter);
             var yesWidth = yes.Length * 32f + 30f;
             Pill(panel, yes, 40f, 150f, yesWidth, 72f, 32, () =>
@@ -497,6 +502,13 @@ namespace Quota
             }
             busy = false;
             ShowTable();
+        }
+
+        static int HumanSeat(Game game)
+        {
+            for (var i = 0; i < game.Players.Count; i++)
+                if (game.Players[i].IsHuman) return i;
+            return game.Current;
         }
 
         static bool HasTakeable(Game game, Player player)
