@@ -11,6 +11,9 @@ namespace Quota
     {
         const float ScreenWidth = 1080f;
         const float ScreenHeight = 1920f;
+        const float SeatTop = 400f;
+        const float SeatHeight = 380f;
+        const float ActionStride = 74f;
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
@@ -265,9 +268,9 @@ namespace Quota
         void DrawPlayer(Game game, ItemSet theme, int index)
         {
             var player = game.Players[index];
-            var top = 400f + index * 380f;
-            var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, 380f);
-            Portrait.Gradient(seat, "wash", 0f, 0f, ScreenWidth, 380f, Color.white, Hex("#999999"), -60f, 0.2f);
+            var top = SeatTop + index * SeatHeight;
+            var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, SeatHeight);
+            Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, Color.white, Color.black, false);
             Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
             var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -346,7 +349,8 @@ namespace Quota
         void DrawControls(Game game)
         {
             var me = game.Players[game.Current];
-            var controls = Portrait.Rect(frame, "controls", 0f, 364f, ScreenWidth, 72f);
+            var top = SeatTop + game.Current * SeatHeight;
+            var controls = Portrait.Rect(frame, "controls", 0f, top, ScreenWidth, SeatHeight);
             var entries = new List<KeyValuePair<string, UnityAction>>();
             var canDeclare = game.Plan == "normal" && !game.TurnGain && game.DoubleStage == 0;
             if (canDeclare && me.DoubleActionLeft > 0) entries.Add(Item("ダブル", () =>
@@ -374,21 +378,10 @@ namespace Quota
                 if (!HasTakeable(game, me)) Play(new Pass());
                 else Ask(passLabel == "次へ" ? "next" : "pass");
             }));
-            var gap = 12f;
-            var margin = 16f;
-            var widths = new float[entries.Count];
-            var total = 0f;
             for (var i = 0; i < entries.Count; i++)
             {
-                widths[i] = entries[i].Key.Length * 48f + 30f;
-                total += widths[i];
-            }
-            total += gap * (entries.Count - 1);
-            var x = ScreenWidth - margin - total;
-            for (var i = 0; i < entries.Count; i++)
-            {
-                Pill(controls, entries[i].Key, x, 0f, widths[i], 72f, 48, entries[i].Value);
-                x += widths[i] + gap;
+                var width = entries[i].Key.Length * 48f + 30f;
+                Pill(controls, entries[i].Key, ScreenWidth - width, i * ActionStride, width, 72f, 48, entries[i].Value);
             }
         }
 

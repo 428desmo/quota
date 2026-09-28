@@ -104,20 +104,38 @@ namespace Quota.Tests
         }
 
         [Test]
-        public void SpecialButtonsSitLeftOfPassAndDeclareWithoutAsking()
+        public void SpecialButtonsStackDownTheRightOfTheCurrentSeat()
         {
             host = Open();
             Set("specialRule", true);
             Set("seedText", "0");
             Click("対局開始");
 
-            var controls = host.transform.Find("Root/Frame/controls");
+            var seat = host.transform.Find("Root/Frame/seat0");
+            Assert.IsNull(seat.Find("wash"));
+            var plate = seat.Find("plate") as RectTransform;
+            Assert.AreEqual(0, plate.GetSiblingIndex());
+            Assert.AreEqual(new Vector2(25f, -25f), plate.anchoredPosition);
+            Assert.AreEqual(new Vector2(1030f, 340f), plate.sizeDelta);
+            Assert.AreEqual(Color.black, plate.GetComponent<Image>().color);
+            var fill = plate.Find("fill") as RectTransform;
+            Assert.AreEqual(Color.white, fill.GetComponent<Image>().color);
+            Assert.AreEqual(1f, fill.GetComponent<Image>().color.a);
+            Assert.AreEqual(new Vector2(1f, -1f), fill.anchoredPosition);
+            Assert.AreEqual(new Vector2(1028f, 338f), fill.sizeDelta);
+
+            var controls = host.transform.Find("Root/Frame/controls") as RectTransform;
             Assert.IsNotNull(controls);
+            Assert.AreEqual(new Vector2(0f, -400f), controls.anchoredPosition);
             var labels = new System.Collections.Generic.List<string>();
             for (var i = 0; i < controls.childCount; i++)
             {
-                var caption = controls.GetChild(i).GetComponentInChildren<Text>();
+                var button = controls.GetChild(i) as RectTransform;
+                var caption = button.GetComponentInChildren<Text>();
                 labels.Add(caption.text);
+                Assert.AreEqual(72f, button.sizeDelta.y, 0.01f);
+                Assert.AreEqual(1080f, button.anchoredPosition.x + button.sizeDelta.x, 0.01f);
+                Assert.AreEqual(-i * 74f, button.anchoredPosition.y, 0.01f);
             }
             CollectionAssert.AreEqual(new[] { "ダブル", "配り直し", "パス" }, labels);
 
