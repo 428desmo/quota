@@ -44,6 +44,7 @@ namespace Quota
         bool busy;
         string confirm;
         int playerCount = 3;
+        bool simpleMode = true;
         bool sequenceRule;
         bool titleRule;
         bool specialRule;
@@ -190,26 +191,33 @@ namespace Quota
             ShowSetup();
         }
 
+        void ApplyMode()
+        {
+            sequenceRule = !simpleMode;
+            titleRule = !simpleMode;
+            specialRule = !simpleMode;
+        }
+
         void LoadRules()
         {
             if (!Application.isPlaying) return;
             if (PlayerPrefs.GetInt("quota.saved", 0) == 0)
             {
-                sequenceRule = false;
-                titleRule = false;
-                specialRule = false;
+                simpleMode = true;
+                ApplyMode();
                 SaveRules();
                 return;
             }
-            sequenceRule = PlayerPrefs.GetInt("quota.sequence", 0) == 1;
-            titleRule = PlayerPrefs.GetInt("quota.title", 0) == 1;
-            specialRule = PlayerPrefs.GetInt("quota.special", 0) == 1;
+            if (PlayerPrefs.HasKey("quota.simple")) simpleMode = PlayerPrefs.GetInt("quota.simple", 1) == 1;
+            else simpleMode = PlayerPrefs.GetInt("quota.sequence", 0) == 0 && PlayerPrefs.GetInt("quota.title", 0) == 0 && PlayerPrefs.GetInt("quota.special", 0) == 0;
+            ApplyMode();
         }
 
         void SaveRules()
         {
             if (!Application.isPlaying) return;
             PlayerPrefs.SetInt("quota.saved", 1);
+            PlayerPrefs.SetInt("quota.simple", simpleMode ? 1 : 0);
             PlayerPrefs.SetInt("quota.sequence", sequenceRule ? 1 : 0);
             PlayerPrefs.SetInt("quota.title", titleRule ? 1 : 0);
             PlayerPrefs.SetInt("quota.special", specialRule ? 1 : 0);
@@ -235,21 +243,10 @@ namespace Quota
             });
             var seed = Field(column, "シード（空ならランダム）", seedText);
             seed.onValueChanged.AddListener(value => seedText = value);
-            SetupButton(column, $"並び順ボーナス  {(sequenceRule ? "オン" : "オフ")}", () =>
+            SetupButton(column, $"シンプルモード  {(simpleMode ? "オン" : "オフ")}", () =>
             {
-                sequenceRule = !sequenceRule;
-                SaveRules();
-                ShowSetup();
-            });
-            SetupButton(column, $"称号ボーナス  {(titleRule ? "オン" : "オフ")}", () =>
-            {
-                titleRule = !titleRule;
-                SaveRules();
-                ShowSetup();
-            });
-            SetupButton(column, $"特殊アクション  {(specialRule ? "オン" : "オフ")}", () =>
-            {
-                specialRule = !specialRule;
+                simpleMode = !simpleMode;
+                ApplyMode();
                 SaveRules();
                 ShowSetup();
             });
@@ -561,9 +558,8 @@ namespace Quota
             TextAt(panel, "標準ルールを試してみますか？\n（設定からいつでも切り替えられます）", 32f, 36f, 736f, 140f, 28, Color.black, nameFont, TextAnchor.MiddleCenter);
             Pill(panel, "はい", 48f, 210f, 200f, 72f, 32, () =>
             {
-                sequenceRule = true;
-                titleRule = true;
-                specialRule = true;
+                simpleMode = false;
+                ApplyMode();
                 SaveRules();
                 PlayerPrefs.SetInt("quota.prompted", 1);
                 PlayerPrefs.Save();

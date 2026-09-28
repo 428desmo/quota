@@ -223,12 +223,19 @@ function dismissStandardOffer(enable) {
   }
   if (enable) {
     const saved = savedOptions() || {};
+    saved.simple = false;
     saved.sequence = true;
     saved.title = true;
     saved.special = true;
     rememberOptions(saved);
   }
   render();
+}
+
+function simpleOn(saved) {
+  if (Object.prototype.hasOwnProperty.call(saved, "simple")) return !!saved.simple;
+  if (saved.sequence || saved.title || saved.special) return false;
+  return true;
 }
 
 function savedOptions() {
@@ -284,15 +291,9 @@ function render() {
             <input class="short" name="turn_timeout" type="number" min="1" step="1" value="${saved.turn_timeout ?? 30}">
           </label>
         </div>
-        <div class="row tight">
-          <label><span>標準</span>
-            <input name="sequence" type="checkbox" ${saved.sequence ? "checked" : ""}> 並び順ボーナス
-          </label>
-          <label><span>称号</span>
-            <input name="title" type="checkbox" ${saved.title ? "checked" : ""}> 称号ボーナス
-          </label>
-          <label><span>特殊</span>
-            <input name="special" type="checkbox" ${saved.special ? "checked" : ""}> ダブル／配り直し
+        <div class="row">
+          <label>
+            <input name="simple" type="checkbox" ${simpleOn(saved) ? "checked" : ""}> シンプルモード
           </label>
         </div>
         <div class="row">
@@ -326,14 +327,16 @@ function render() {
       const data = new FormData(event.target);
       const players = Number(data.get("players"));
       const name = String(data.get("player_name") || "");
+      const simple = data.get("simple") === "on";
       rememberName(name);
       await post("/api/table", {
         players,
         name,
         seed: data.get("seed"),
-        sequence: data.get("sequence") === "on",
-        title: data.get("title") === "on",
-        special: data.get("special") === "on",
+        simple,
+        sequence: !simple,
+        title: !simple,
+        special: !simple,
         ok_timeout: Number(data.get("ok_timeout")),
         turn_timeout: Number(data.get("turn_timeout")),
         left_handed: data.get("left_handed") === "on",

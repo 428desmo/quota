@@ -63,13 +63,19 @@ namespace Quota.Tests
 
             var buttons = host.GetComponentsInChildren<Button>();
             Assert.Greater(buttons.Length, 0);
+            var sawSimple = false;
             foreach (var button in buttons)
             {
                 var caption = button.GetComponentInChildren<Text>();
                 Assert.Greater(caption.rectTransform.rect.height, 16f, caption.text);
                 Assert.Greater(caption.rectTransform.rect.width, 40f, caption.text);
                 Assert.IsFalse(caption.text.Contains("アイテムセット"), caption.text);
+                Assert.IsFalse(caption.text.Contains("並び順ボーナス"), caption.text);
+                Assert.IsFalse(caption.text.Contains("称号ボーナス"), caption.text);
+                Assert.IsFalse(caption.text.Contains("特殊アクション"), caption.text);
+                if (caption.text.StartsWith("シンプルモード")) sawSimple = true;
             }
+            Assert.IsTrue(sawSimple);
 
             Text title = null;
             foreach (var label in host.GetComponentsInChildren<Text>())
