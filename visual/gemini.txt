@@ -1,0 +1,39 @@
+共通ベースプロンプト: A clean, minimalist game asset illustration on a pure white background. Style is a simplified, elegant natural history illustration combining fine dark sepia ink outlines with soft, blended, flat watercolor washes (like a high-quality technical drawing meets botanical art). No text, labels, or shadows from external objects are present. The focus is on the isolated, iconic form of the object, rendered with extreme clarity for small screen visibility. Lighting is even and soft.
+
+先ほど定義した共通スタイル（純粋な白背景、文字なし、細いインクのアウトラインとフラットな水彩、ミニマルなアイコン的形状）を使って、以下の6つのアイテムを描いてください。
+※各アイテムは独立した画像として生成してください。
+
+
+1 胡椒
+2 シナモン
+3 クローブ
+4 ナツメグ
+5 サフラン
+6 生姜
+
+7 絹
+8 綿花
+9 ルビー
+10 サファイア
+11 エメラルド
+12 真珠
+13 トルコ石
+14 瑪瑙
+15 明礬
+16 染料（ケルメス）
+17 藍
+18 香木（白檀・沈香）
+19 蜜蝋
+20 毛皮
+21 琥珀
+22 穀物
+23 木材
+24 象牙
+25 陶磁器
+26 ガラス素材（ソーダ灰）
+27 皮革
+
+最後に、先ほど定義した共通スタイル（純粋な白背景、文字なし、細いインクのアウトラインとフラットな水彩、ミニマルなアイコン的形状>）を使って、次のアイテムを描いてください。
+- ドゥカート金貨（ただし、コインの面にはヴェネツィア共和国のシンボルである「有翼の獅子」を描いてほしい。文字は入れなくて良いが、もしも文字を入れるなら「DVCATVS」） 
+
+0 ドゥカート金貨
