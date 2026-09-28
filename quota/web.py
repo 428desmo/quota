@@ -62,11 +62,20 @@ class Table:
         self.turn_timeout = _seconds(body.get("turn_timeout"), 30, minimum=1)
         self.left_handed = bool(body.get("left_handed"))
         self.seed = body.get("seed")
+        if "simple" in body:
+            simple = bool(body.get("simple"))
+            sequence = title = special = not simple
+        else:
+            sequence = bool(body.get("sequence"))
+            title = bool(body.get("title"))
+            special = bool(body.get("special"))
+            simple = not (sequence or title or special)
         self.last_options = {
             "players": players,
-            "sequence": bool(body.get("sequence")),
-            "title": bool(body.get("title")),
-            "special": bool(body.get("special")),
+            "simple": simple,
+            "sequence": sequence,
+            "title": title,
+            "special": special,
             "ok_timeout": self.ok_timeout,
             "turn_timeout": self.turn_timeout,
             "left_handed": self.left_handed,
