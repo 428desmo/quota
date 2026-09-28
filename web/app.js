@@ -1010,48 +1010,29 @@ function marketById(cards) {
 }
 
 function layoutMarket(next) {
-  const incoming = next.market || [];
+  const incoming = (next.market || []).slice();
   const refreshOpen = (gate) => gate && !gate.released;
   if (refreshOpen(next.refresh_gate) || (state && refreshOpen(state.refresh_gate) && !refreshOpen(next.refresh_gate))) {
-    marketSlots = incoming.map((card) => card);
+    marketSlots = incoming;
     pendingMarket = null;
     return;
   }
   if (next.plan === "reshuffle" && (!state || state.plan !== "reshuffle")) {
-    marketSlots = incoming.map((card) => card);
+    marketSlots = incoming;
     pendingMarket = null;
     return;
   }
-  const sameTurn = state && state.phase === "playing" && next.phase !== "hall" && state.turn_number === next.turn_number;
-  if (!sameTurn && marketSlots.length && (next.settling || inFlight.size || parked.size)) {
-    pendingMarket = incoming;
-    const byId = marketById(incoming);
-    marketSlots = marketSlots.map((slot) => (slot && byId.has(slot.id) ? byId.get(slot.id) : slot ? null : null));
-    return;
-  }
-  if (!sameTurn) {
-    marketSlots = incoming.map((card) => card);
+  const hold = marketSlots.length && (inFlight.size || parked.size || next.settling);
+  if (!hold) {
+    marketSlots = incoming;
     pendingMarket = null;
     return;
   }
   const byId = marketById(incoming);
-  const known = new Set(marketSlots.filter(Boolean).map((card) => card.id));
-  const refilled = incoming.some((card) => !known.has(card.id));
-  const survivors = marketSlots.filter((slot) => slot && byId.has(slot.id));
-  if (refilled && survivors.length === 0) {
-    marketSlots = incoming.map((card) => card);
-    pendingMarket = null;
-    return;
-  }
-  if (refilled) pendingMarket = incoming.map((card) => card);
-  marketSlots = marketSlots.map((slot) => {
-    if (!slot || !byId.has(slot.id)) return null;
-    return byId.get(slot.id);
-  });
-  if (refilled && !inFlight.size && !parked.size) {
-    marketSlots = pendingMarket.map((card) => card);
-    pendingMarket = null;
-  }
+  pendingMarket = incoming;
+  const kept = marketSlots.map((slot) => (slot && byId.has(slot.id) ? byId.get(slot.id) : null));
+  while (kept.length < incoming.length) kept.push(null);
+  marketSlots = kept;
 }
 
 function flushMarket() {
