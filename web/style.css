@@ -8,8 +8,10 @@
   transition: opacity 0.6s ease;
 }
 #splash p {
-  max-width: 18em; margin: 0;
-  font-size: 22px; line-height: 1.8; letter-spacing: 0.04em;
+  margin: 0;
+  font-size: min(22px, calc((100vw - 96px) / 26));
+  line-height: 1.8; letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 #splash.out { opacity: 0; }
 .standard-offer { z-index: 90; }
@@ -85,6 +87,8 @@ button.primary { background: #111; color: #fff; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 #start .tight { flex-wrap: nowrap; }
 #start .short { width: 6.5em; padding: 6px 8px; }
+#start .option-gap { margin-top: 2em; }
+#start .check { flex-direction: row; align-items: center; gap: 8px; }
 #start .submit { text-align: center; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 :root { --card-scale: 1; --card-w: 76px; --card-h: 96px; }
