@@ -40,6 +40,7 @@ namespace Quota.Tests
             foreach (var label in host.GetComponentsInChildren<Text>())
                 if (label.text.StartsWith("港で働く仲買人のあなた。")) splash = label;
             Assert.IsNotNull(splash);
+            Assert.AreEqual("港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。", splash.text);
             Assert.IsNull(host.transform.Find("Root/Frame/setup"));
             var hold = (float)typeof(TableView).GetField("SplashSeconds", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             Assert.AreEqual(3f, hold);

@@ -17,7 +17,7 @@ namespace Quota
         const float SplashSeconds = 3f;
         const float SplashFadeSeconds = 0.6f;
         const int AdvancedPromptAfter = 3;
-        const string SplashCopy = "港で働く仲買人のあなた。大口顧客のために、舶来の交易品を買い集めよう。買い付けノルマは、自分で決める。";
+        const string SplashCopy = "港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
@@ -164,7 +164,9 @@ namespace Quota
             var splash = Portrait.Rect(frame, "splash", 0f, 0f, ScreenWidth, ScreenHeight);
             splash.gameObject.AddComponent<CanvasGroup>();
             Portrait.Solid(splash, "veil", 0f, 760f, ScreenWidth, 400f, new Color(0f, 0f, 0f, 0.45f));
-            TextAt(splash, SplashCopy, 72f, 800f, 936f, 320f, 34, Color.white, nameFont, TextAnchor.MiddleCenter);
+            var copy = TextAt(splash, SplashCopy, 48f, 800f, 984f, 320f, 34, Color.white, nameFont, TextAnchor.MiddleCenter);
+            copy.horizontalOverflow = HorizontalWrapMode.Overflow;
+            copy.lineSpacing = 1.15f;
             if (Application.isPlaying) splashRun = StartCoroutine(FadeSplash());
         }
 

@@ -223,6 +223,7 @@ function dismissStandardOffer(enable) {
   }
   if (enable) {
     const saved = savedOptions() || {};
+    rememberSimple(false);
     saved.simple = false;
     saved.sequence = true;
     saved.title = true;
@@ -233,9 +234,23 @@ function dismissStandardOffer(enable) {
 }
 
 function simpleOn(saved) {
+  try {
+    const stored = localStorage.getItem("quota.simple");
+    if (stored === "0") return false;
+    if (stored === "1") return true;
+  } catch {
+    /* fall through to the saved options */
+  }
   if (Object.prototype.hasOwnProperty.call(saved, "simple")) return !!saved.simple;
-  if (saved.sequence || saved.title || saved.special) return false;
   return true;
+}
+
+function rememberSimple(on) {
+  try {
+    localStorage.setItem("quota.simple", on ? "1" : "0");
+  } catch {
+    /* the submitted options still record the choice */
+  }
 }
 
 function savedOptions() {
@@ -291,13 +306,13 @@ function render() {
             <input class="short" name="turn_timeout" type="number" min="1" step="1" value="${saved.turn_timeout ?? 30}">
           </label>
         </div>
-        <div class="row">
-          <label>
+        <div class="row option-gap">
+          <label class="check">
             <input name="simple" type="checkbox" ${simpleOn(saved) ? "checked" : ""}> シンプルモード
           </label>
         </div>
-        <div class="row">
-          <label><span>左利き</span>
+        <div class="row option-gap">
+          <label class="check"><span>左利き</span>
             <input name="left_handed" type="checkbox" ${saved.left_handed ? "checked" : ""}> ボタンを左に置く
           </label>
         </div>
@@ -329,6 +344,7 @@ function render() {
       const name = String(data.get("player_name") || "");
       const simple = data.get("simple") === "on";
       rememberName(name);
+      rememberSimple(simple);
       await post("/api/table", {
         players,
         name,
