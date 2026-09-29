@@ -511,7 +511,7 @@ namespace Quota
             TextAt(seat, "実績", 224f, boxY + 4f, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
             var achieved = Portrait.Rect(seat, "achieved-cards", 224f, boxY + 30f, 200f, boxH - 38f);
             achieved.gameObject.AddComponent<RectMask2D>();
-            LayCards(achieved, theme, player.Achieved, 2f, 26f, 0.62f);
+            LayCards(achieved, theme, player.Achieved, 2f, 3f, 0.62f);
 
             TextAt(seat, "ノルマ", 452f, boxY, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
             var quotaCards = Portrait.Rect(seat, "quota-cards", 452f, boxY + 22f, 730f, CardHeight + 4f);
