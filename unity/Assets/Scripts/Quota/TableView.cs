@@ -11,6 +11,16 @@ namespace Quota
     {
         const float ScreenWidth = 1080f;
         const float ScreenHeight = 1920f;
+        const float LandWidth = 1920f;
+        const float LandHeight = 1080f;
+        const float LandHeader = 120f;
+        const float LandSeatHeight = 240f;
+        const float LandLeft = 1220f;
+        const float LandMarketX = 1245f;
+        const float LandMarketY = 320f;
+        const float LandMarketW = 650f;
+        const float LandMarketH = 450f;
+        const float LandButtonRight = 28f;
         const float SeatTop = 400f;
         const float SeatHeight = 380f;
         const float ActionStride = 74f;
@@ -52,6 +62,8 @@ namespace Quota
         bool offerStandard;
         Coroutine splashRun;
         string seedText = "";
+        bool widePreview;
+        bool laidOutWide;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -106,6 +118,29 @@ namespace Quota
         void Update()
         {
             Fit();
+            if (!Application.isPlaying || frame == null) return;
+            var wide = WideScreen();
+            if (wide == laidOutWide) return;
+            if (frame.Find("splash") != null)
+            {
+                laidOutWide = wide;
+                return;
+            }
+            if (match.Game != null) ShowTable();
+            else ShowSetup();
+        }
+
+        bool WideScreen()
+        {
+            if (!Application.isPlaying) return widePreview;
+            return Screen.width > Screen.height && Screen.height > 0;
+        }
+
+        void UseFrame()
+        {
+            var wide = WideScreen();
+            frame.sizeDelta = new Vector2(wide ? LandWidth : ScreenWidth, wide ? LandHeight : ScreenHeight);
+            laidOutWide = wide;
         }
 
         void Fit()
@@ -121,7 +156,11 @@ namespace Quota
                 var cover = Mathf.Max(Screen.width / sprite.rect.width, Screen.height / sprite.rect.height);
                 backdrop.rectTransform.sizeDelta = new Vector2(sprite.rect.width * cover, sprite.rect.height * cover);
             }
-            var scale = Mathf.Min(Screen.width / ScreenWidth, Screen.height / ScreenHeight);
+            var wide = WideScreen();
+            var designW = wide ? LandWidth : ScreenWidth;
+            var designH = wide ? LandHeight : ScreenHeight;
+            frame.sizeDelta = new Vector2(designW, designH);
+            var scale = Mathf.Min(Screen.width / designW, Screen.height / designH);
             frame.localScale = new Vector3(scale, scale, 1f);
         }
 
@@ -161,10 +200,15 @@ namespace Quota
         void ShowSplash()
         {
             Clear();
-            var splash = Portrait.Rect(frame, "splash", 0f, 0f, ScreenWidth, ScreenHeight);
+            UseFrame();
+            var wide = WideScreen();
+            var width = wide ? LandWidth : ScreenWidth;
+            var height = wide ? LandHeight : ScreenHeight;
+            var splash = Portrait.Rect(frame, "splash", 0f, 0f, width, height);
             splash.gameObject.AddComponent<CanvasGroup>();
-            Portrait.Solid(splash, "veil", 0f, 760f, ScreenWidth, 400f, new Color(0f, 0f, 0f, 0.45f));
-            var copy = TextAt(splash, SplashCopy, 48f, 800f, 984f, 320f, 34, Color.white, nameFont, TextAnchor.MiddleCenter);
+            var veilY = wide ? (height - 400f) * 0.5f : 760f;
+            Portrait.Solid(splash, "veil", 0f, veilY, width, 400f, new Color(0f, 0f, 0f, 0.45f));
+            var copy = TextAt(splash, SplashCopy, 48f, wide ? (height - 320f) * 0.5f : 800f, width - 96f, 320f, 34, Color.white, nameFont, TextAnchor.MiddleCenter);
             copy.horizontalOverflow = HorizontalWrapMode.Overflow;
             copy.lineSpacing = 1.15f;
             if (Application.isPlaying) splashRun = StartCoroutine(FadeSplash());
@@ -229,9 +273,11 @@ namespace Quota
         void ShowSetup()
         {
             Clear();
-            TextAt(frame, "QUOTA", 48f, 36f, 700f, 72f, 64, Color.white, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, "揃えて、達成。", 48f, 112f, 700f, 36f, 28, Color.white, nameFont, TextAnchor.MiddleLeft);
-            var column = Portrait.Rect(frame, "setup", 48f, 180f, 984f, 1600f);
+            UseFrame();
+            var x = WideScreen() ? (LandWidth - 984f) * 0.5f : 48f;
+            TextAt(frame, "QUOTA", x, 36f, 700f, 72f, 64, Color.white, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, "揃えて、達成。", x, 112f, 700f, 36f, 28, Color.white, nameFont, TextAnchor.MiddleLeft);
+            var column = Portrait.Rect(frame, "setup", x, 180f, 984f, 1600f);
             var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.spacing = 16f;
             layout.childControlWidth = true;
@@ -279,15 +325,28 @@ namespace Quota
         {
             Clear();
             seatFrames.Clear();
+            UseFrame();
             var game = match.Game;
             var theme = game.Theme();
+            var wide = WideScreen();
             for (var i = 0; i < game.Players.Count; i++)
-                DrawPlayer(game, theme, i);
-            Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, new Color(1f, 1f, 1f, 0.5f), Color.white, false);
-            DrawMarket(game, theme);
-            DrawTitle(game);
+            {
+                if (wide) DrawPlayerWide(game, theme, i);
+                else DrawPlayer(game, theme, i);
+            }
+            if (wide) Portrait.Box(frame, "market-tray", LandMarketX, LandMarketY, LandMarketW, LandMarketH, 7f, 0f, new Color(0f, 0f, 0f, 0.45f), Color.white, false);
+            else Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, new Color(1f, 1f, 1f, 0.5f), Color.white, false);
+            if (wide) DrawMarketWide(game, theme);
+            else DrawMarket(game, theme);
+            if (wide) DrawTitleWide(game);
+            else DrawTitle(game);
             if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
-            else if (confirm == null && !game.Finished) TextAt(frame, $"{game.Players[game.Current].Name} が考えています", 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
+            else if (confirm == null && !game.Finished)
+            {
+                var note = $"{game.Players[game.Current].Name} が考えています";
+                if (wide) TextAt(frame, note, LandMarketX, LandMarketY + LandMarketH + 12f, LandMarketW, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
+                else TextAt(frame, note, 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
+            }
             if (!game.Finished) LeaveButton();
             if (game.Finished)
             {
@@ -314,6 +373,24 @@ namespace Quota
             TextAt(frame, hint, 28f, 116f, 1020f, 28f, 20, Color.white, nameFont, TextAnchor.MiddleLeft);
         }
 
+        void DrawTitleWide(Game game)
+        {
+            TextAt(frame, "QUOTA", 28f, 28f, 280f, 64f, 48, Color.white, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, "揃えて、達成。", 300f, 48f, 280f, 36f, 26, Color.white, nameFont, TextAnchor.MiddleLeft);
+            var note = "";
+            if (game.DoubleStage == 1) note = "ダブル：1回目の行動です。  ";
+            else if (game.DoubleStage == 2) note = "ダブル：2回目の行動です。  ";
+            else if (game.Plan == "reshuffle") note = "配り直しました。行動を選んでください。  ";
+            var me = game.Players[game.Current];
+            var hint = $"手番 {game.TurnNumber}  山札 {game.Deck.Count}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
+            if (me.Quota != null && me.Quota.Rank != null)
+            {
+                var need = me.Quota.Rank.Value - 1 - me.Collection.Count;
+                if (need > 0) hint = $"あと{need}枚   " + hint;
+            }
+            TextAt(frame, note + hint, 600f, 44f, 1000f, 36f, 20, Color.white, nameFont, TextAnchor.MiddleLeft);
+        }
+
         void DrawMarket(Game game, ItemSet theme)
         {
             var slots = Mathf.Max(game.MarketSize(), game.Market.Count);
@@ -335,6 +412,37 @@ namespace Quota
                 var takingQuota = me.Quota == null;
                 var x = origin + i * (cardWidth + gap);
                 DrawCard(frame, theme, card, x, y, MarketScale, playable ? () =>
+                {
+                    if (takingQuota) Play(new TakeQuota(cardId));
+                    else Play(new Collect(new[] { cardId }));
+                } : null, yours && !playable);
+            }
+        }
+
+        void DrawMarketWide(Game game, ItemSet theme)
+        {
+            const int columns = 4;
+            var slots = Mathf.Max(game.MarketSize(), game.Market.Count);
+            if (slots == 0) return;
+            var gapX = 18f;
+            var gapY = 16f;
+            var rows = Mathf.CeilToInt(slots / (float)columns);
+            var groupW = columns * CardWidth + (columns - 1) * gapX;
+            var groupH = rows * CardHeight + (rows - 1) * gapY;
+            var originX = LandMarketX + (LandMarketW - groupW) * 0.5f;
+            var originY = LandMarketY + (LandMarketH - groupH) * 0.5f;
+            var me = game.Players[game.Current];
+            var yours = match.IsHumanTurn && !busy && !game.Finished;
+            for (var i = 0; i < game.Market.Count; i++)
+            {
+                var card = game.Market[i];
+                if (card == null) continue;
+                var playable = yours && CanPlay(card, me);
+                var cardId = card.Id;
+                var takingQuota = me.Quota == null;
+                var x = originX + (i % columns) * (CardWidth + gapX);
+                var y = originY + (i / columns) * (CardHeight + gapY);
+                DrawCard(frame, theme, card, x, y, 1f, playable ? () =>
                 {
                     if (takingQuota) Play(new TakeQuota(cardId));
                     else Play(new Collect(new[] { cardId }));
@@ -374,13 +482,87 @@ namespace Quota
             TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
         }
 
-        void LayCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding, float stride)
+        void DrawPlayerWide(Game game, ItemSet theme, int index)
+        {
+            var player = game.Players[index];
+            var top = LandHeader + index * LandSeatHeight;
+            var seat = Portrait.Rect(frame, "seat" + index, 0f, top, LandLeft, LandSeatHeight);
+            while (seatFrames.Count <= index) seatFrames.Add(null);
+            seatFrames[index] = seat;
+            var current = index == game.Current && !game.Finished;
+            Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
+            Portrait.Box(seat, "nameplate", 16f, 6f, 270f, 46f, 4.5f, 1f, current ? Hex("#ffe56a") : Color.white, Color.black, false);
+            var name = TextAt(seat, player.Name, 28f, 6f, 246f, 46f, 30, Color.black, nameFont, TextAnchor.MiddleLeft);
+            name.horizontalOverflow = HorizontalWrapMode.Overflow;
+            if (game.Config.SpecialActionsRule)
+            {
+                var uses = $"ダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}　配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
+                TextAt(seat, uses, 860f, 14f, 320f, 28f, 16, Color.black, nameFont, TextAnchor.MiddleRight);
+            }
+
+            const float boxY = 66f;
+            const float boxH = 148f;
+            Portrait.Box(seat, "bonus-box", 28f, boxY, 176f, boxH, 7f, 1f, Color.white, Color.black, false);
+            TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
+            DrawBonusDots(seat, game, player, 40f, boxY + 32f, 152f);
+            TextAt(seat, $"{game.FinalScore(player)}点", 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
+
+            Portrait.Box(seat, "record-box", 216f, boxY, 220f, boxH, 7f, 1f, Color.white, Color.black, false);
+            TextAt(seat, "実績", 224f, boxY + 4f, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var achieved = Portrait.Rect(seat, "achieved-cards", 224f, boxY + 30f, 200f, boxH - 38f);
+            achieved.gameObject.AddComponent<RectMask2D>();
+            LayCards(achieved, theme, player.Achieved, 2f, 26f, 0.62f);
+
+            TextAt(seat, "ノルマ", 452f, boxY, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var quotaCards = Portrait.Rect(seat, "quota-cards", 452f, boxY + 22f, 730f, CardHeight + 4f);
+            quotaCards.gameObject.AddComponent<RectMask2D>();
+            var strip = new List<Card>();
+            if (player.Quota != null) strip.Add(player.Quota);
+            strip.AddRange(player.Collection);
+            var stride = CardWidth + 8f;
+            if (strip.Count > 1)
+            {
+                var need = CardWidth + (strip.Count - 1) * stride;
+                if (need > 730f) stride = (730f - CardWidth) / (strip.Count - 1);
+            }
+            LayCards(quotaCards, theme, strip, 0f, stride, 1f);
+        }
+
+        void DrawBonusDots(Transform seat, Game game, Player player, float x, float y, float width)
+        {
+            var green = 0;
+            var index = 0;
+            while (index < player.Achieved.Count)
+            {
+                var rank = player.Achieved[index].Rank;
+                if (rank == null) break;
+                green += Cards.Bonus(rank.Value);
+                index += rank.Value;
+            }
+            var purple = game.Config.SequenceRule ? Cards.SequenceBonus(player.Achieved) : 0;
+            const float diameter = 16f;
+            const float gap = 4f;
+            var columns = Mathf.Max(1, Mathf.FloorToInt(width / (diameter + gap)));
+            var n = 0;
+            for (var i = 0; i < purple; i++) PlaceDot(Hex("#b44cff"));
+            for (var i = 0; i < green; i++) PlaceDot(Hex("#3cce3c"));
+
+            void PlaceDot(Color color)
+            {
+                var column = n % columns;
+                var row = n / columns;
+                Portrait.Circle(seat, "dot", x + column * (diameter + gap), y + row * (diameter + gap), diameter, color);
+                n++;
+            }
+        }
+
+        void LayCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding, float stride, float scale = 1f)
         {
             var x = padding;
             var y = padding;
             foreach (var card in cards)
             {
-                DrawCard(area, theme, card, x, y, 1f, null, false);
+                DrawCard(area, theme, card, x, y, scale, null, false);
                 x += stride;
             }
         }
@@ -428,8 +610,10 @@ namespace Quota
         void DrawControls(Game game)
         {
             var me = game.Players[game.Current];
-            var top = SeatTop + game.Current * SeatHeight;
-            var controls = Portrait.Rect(frame, "controls", 0f, top, ScreenWidth, SeatHeight);
+            var wide = WideScreen();
+            var controls = wide
+                ? Portrait.Rect(frame, "controls", 0f, 0f, LandWidth, LandHeight)
+                : Portrait.Rect(frame, "controls", 0f, SeatTop + game.Current * SeatHeight, ScreenWidth, SeatHeight);
             var entries = new List<KeyValuePair<string, UnityAction>>();
             var canDeclare = game.Plan == "normal" && !game.TurnGain && game.DoubleStage == 0;
             if (canDeclare && me.DoubleActionLeft > 0) entries.Add(Item("ダブル", () =>
@@ -457,10 +641,12 @@ namespace Quota
                 if (!HasTakeable(game, me)) Play(new Pass());
                 else Ask(passLabel == "次へ" ? "next" : "pass");
             }));
+            var edge = wide ? LandWidth - LandButtonRight : ScreenWidth;
+            var y = wide ? LandMarketY + LandMarketH + 16f : 0f;
             for (var i = 0; i < entries.Count; i++)
             {
                 var width = entries[i].Key.Length * 48f + 30f;
-                Pill(controls, entries[i].Key, ScreenWidth - width, i * ActionStride, width, 72f, 48, entries[i].Value);
+                Pill(controls, entries[i].Key, edge - width, y + i * ActionStride, width, 72f, 48, entries[i].Value);
             }
         }
 
@@ -468,7 +654,9 @@ namespace Quota
         {
             const string caption = "ゲームから抜ける";
             var width = caption.Length * 28f + 8f;
-            var host = Portrait.Rect(frame, caption, ScreenWidth - 20f - width, 18f, width, 40f);
+            var x = WideScreen() ? LandWidth - 24f - width : ScreenWidth - 20f - width;
+            var y = WideScreen() ? 40f : 18f;
+            var host = Portrait.Rect(frame, caption, x, y, width, 40f);
             var hit = host.gameObject.AddComponent<Image>();
             hit.sprite = Portrait.White;
             hit.color = new Color(1f, 1f, 1f, 0f);
@@ -520,10 +708,16 @@ namespace Quota
             }
             var game = match.Game;
             var seatIndex = confirm == "leave" ? HumanSeat(game) : game.Current;
-            var seat = seatFrames[seatIndex];
             const float panelWidth = 700f;
             const float panelHeight = 280f;
-            var panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
+            RectTransform panel;
+            if (WideScreen())
+                panel = Portrait.Box(frame, "confirm", (LandWidth - panelWidth) * 0.5f, (LandHeight - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
+            else
+            {
+                var seat = seatFrames[seatIndex];
+                panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
+            }
             TextAt(panel, message, 24f, 28f, 652f, 80f, 32, Color.black, nameFont, TextAnchor.MiddleCenter);
             var yesWidth = yes.Length * 32f + 30f;
             Pill(panel, yes, 40f, 150f, yesWidth, 72f, 32, () =>
@@ -551,12 +745,16 @@ namespace Quota
 
         void DrawStandardOffer()
         {
-            var veil = Portrait.Rect(frame, "offer", 0f, 0f, ScreenWidth, ScreenHeight);
+            var veilW = WideScreen() ? LandWidth : ScreenWidth;
+            var veilH = WideScreen() ? LandHeight : ScreenHeight;
+            var veil = Portrait.Rect(frame, "offer", 0f, 0f, veilW, veilH);
             var shade = veil.gameObject.AddComponent<Image>();
             shade.sprite = Portrait.White;
             shade.color = new Color(0f, 0f, 0f, 0.35f);
             shade.raycastTarget = true;
-            var panel = Portrait.Box(veil, "offer-card", 140f, 760f, 800f, 340f, 7f, 1f, Color.white, Color.black, false);
+            var offerX = WideScreen() ? (LandWidth - 800f) * 0.5f : 140f;
+            var offerY = WideScreen() ? (LandHeight - 340f) * 0.5f : 760f;
+            var panel = Portrait.Box(veil, "offer-card", offerX, offerY, 800f, 340f, 7f, 1f, Color.white, Color.black, false);
             TextAt(panel, "標準ルールを試してみますか？\n（設定からいつでも切り替えられます）", 32f, 36f, 736f, 140f, 28, Color.black, nameFont, TextAnchor.MiddleCenter);
             Pill(panel, "はい", 48f, 210f, 200f, 72f, 32, () =>
             {
@@ -580,7 +778,10 @@ namespace Quota
         void Result(Game game)
         {
             NoteFinish();
-            var panel = Portrait.Box(frame, "result", 90f, 430f, 900f, 1100f, 7f, 1f, Color.white, Color.black, false);
+            var resultX = WideScreen() ? (LandWidth - 900f) * 0.5f : 90f;
+            var resultY = WideScreen() ? 80f : 430f;
+            var resultH = WideScreen() ? 920f : 1100f;
+            var panel = Portrait.Box(frame, "result", resultX, resultY, 900f, resultH, 7f, 1f, Color.white, Color.black, false);
             TextAt(panel, game.EndReason == "DECK" ? "ゲーム終了" : "膠着の連続", 32f, 24f, 836f, 56f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
             var place = 1;
             var y = 96f;
@@ -599,7 +800,7 @@ namespace Quota
                 }
                 place += group.Count;
             }
-            Pill(panel, "もう一局", 32f, 1000f, 280f, 72f, 32, ShowSetup);
+            Pill(panel, "もう一局", 32f, (WideScreen() ? 920f : 1100f) - 100f, 280f, 72f, 32, ShowSetup);
         }
 
         void Play(GameAction action)

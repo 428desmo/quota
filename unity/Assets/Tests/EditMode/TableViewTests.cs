@@ -170,6 +170,57 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void LandscapeKeepsCardSizeAndMovesTheMarketToTheRight()
+        {
+            host = Open();
+            Set("widePreview", true);
+            Set("seedText", "0");
+            Click("対局開始");
+
+            var frame = host.transform.Find("Root/Frame") as RectTransform;
+            Assert.AreEqual(1920f, frame.sizeDelta.x, 0.01f);
+            Assert.AreEqual(1080f, frame.sizeDelta.y, 0.01f);
+            var seat = host.transform.Find("Root/Frame/seat0") as RectTransform;
+            Assert.AreEqual(new Vector2(0f, -120f), seat.anchoredPosition);
+            Assert.AreEqual(new Vector2(1220f, 240f), seat.sizeDelta);
+            Assert.IsNotNull(seat.Find("nameplate"));
+            Assert.IsNotNull(seat.Find("bonus-box"));
+            Assert.IsNotNull(seat.Find("record-box"));
+            var quota = seat.Find("quota-cards");
+            Assert.IsNotNull(quota);
+            if (quota.childCount > 0)
+            {
+                var card = quota.GetChild(0) as RectTransform;
+                Assert.AreEqual(95f, card.sizeDelta.x, 0.01f);
+                Assert.AreEqual(132f, card.sizeDelta.y, 0.01f);
+            }
+
+            var tray = host.transform.Find("Root/Frame/market-tray") as RectTransform;
+            Assert.AreEqual(new Vector2(1245f, -320f), tray.anchoredPosition);
+            Assert.AreEqual(new Vector2(650f, 450f), tray.sizeDelta);
+            RectTransform marketCard = null;
+            for (var i = 0; i < frame.childCount; i++)
+            {
+                var child = frame.GetChild(i) as RectTransform;
+                if (!child.name.StartsWith("card")) continue;
+                marketCard = child;
+                break;
+            }
+            Assert.IsNotNull(marketCard);
+            Assert.AreEqual(95f, marketCard.sizeDelta.x, 0.01f);
+            Assert.AreEqual(132f, marketCard.sizeDelta.y, 0.01f);
+            Assert.Greater(marketCard.anchoredPosition.x, 1220f);
+
+            var controls = host.transform.Find("Root/Frame/controls");
+            Assert.IsNotNull(controls);
+            var button = controls.GetChild(0) as RectTransform;
+            Assert.AreEqual(1920f - 28f, button.anchoredPosition.x + button.sizeDelta.x, 0.01f);
+            Assert.AreEqual(-(320f + 450f + 16f), button.anchoredPosition.y, 0.01f);
+            Assert.AreEqual(72f, button.sizeDelta.y, 0.01f);
+            Assert.IsNull(frame.Find("confirm"));
+        }
+
+        [Test]
         public void AbandonConfirmAttachesToTheLiveSeat()
         {
             host = Open();
