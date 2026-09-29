@@ -218,6 +218,22 @@ namespace Quota.Tests
             Assert.AreEqual(-(320f + 450f + 16f), button.anchoredPosition.y, 0.01f);
             Assert.AreEqual(72f, button.sizeDelta.y, 0.01f);
             Assert.IsNull(frame.Find("confirm"));
+
+            var view = host.GetComponent<TableView>();
+            var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            var pile = match.Game.Players[0].Achieved;
+            pile.Add(match.Game.Deck[0]);
+            pile.Add(match.Game.Deck[1]);
+            pile.Add(match.Game.Deck[2]);
+            Show(view);
+            var record = host.transform.Find("Root/Frame/seat0/achieved-cards");
+            Assert.AreEqual(3, record.childCount);
+            for (var i = 1; i < record.childCount; i++)
+            {
+                var prev = record.GetChild(i - 1) as RectTransform;
+                var card = record.GetChild(i) as RectTransform;
+                Assert.AreEqual(prev.anchoredPosition.x + 3f, card.anchoredPosition.x, 0.01f);
+            }
         }
 
         [Test]
