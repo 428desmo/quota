@@ -43,9 +43,21 @@ h1 { font-size: 28px; margin: 0 0 8px; }
 h1.brand { font-size: 22px; margin: 0; }
 h1.brand .sub { font-size: 0.64em; }
 .hero .catch { margin: 4.9px 0 0; font-size: 14px; line-height: 1; text-align: center; }
-.guide .panel > p { text-align: center; }
+.guide .panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(78vh, 720px);
+  text-align: left;
+}
+.guide .panel > h2 { flex: none; }
+.guide .panel > p { text-align: center; flex: none; margin-bottom: 0; }
+.guide-body { overflow: auto; min-height: 0; }
 .guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: calc(1em + 14px); }
+.guide h3 { font-size: 16px; margin: 14px 0 4px; }
+.guide .lead { margin: 8px 0; }
 .guide ul { margin: 8px 0; padding-left: 1.2em; }
+.guide table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+.guide th, .guide td { border: 1px solid #222; padding: 4px 8px; text-align: left; }
 .rollover {
   position: fixed; inset: 0; z-index: 75;
   display: flex; align-items: center; justify-content: center;
