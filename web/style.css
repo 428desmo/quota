@@ -160,22 +160,24 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .card .rank.wide { font-size: calc(12px * var(--card-scale)); letter-spacing: -0.04em; }
 .card .coins {
   position: absolute;
-  z-index: 3;
-  left: 2px;
-  top: 16px;
+  z-index: 6;
+  left: 4px;
+  top: 20px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 .coin {
-  width: 12px;
-  height: 12px;
+  display: block;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 1px solid #222;
   box-sizing: border-box;
   pointer-events: none;
+  flex: none;
 }
-.card .coins .coin { position: relative; width: 9px; height: 9px; }
+.card .coins .coin { position: relative; }
 .coin.green { background: #3cce3c; }
 .coin.purple { background: #a04bff; }
 .coin.blue { background: #3c7dff; }
@@ -262,6 +264,8 @@ main:has(#leave) { padding-bottom: 44px; }
     padding: 2px 0;
   }
   .band-main, .market { flex: 1; min-width: 0; }
+  .card .coins { top: 14px; left: 2px; gap: 1px; }
+  .card .coins .coin { width: 11px; height: 11px; }
   .seat { padding: 4px 2px; }
   h1 { font-size: 22px; }
 }

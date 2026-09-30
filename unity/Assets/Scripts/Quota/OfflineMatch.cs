@@ -9,12 +9,12 @@ namespace Quota
         public bool IsHumanTurn =>
             Game != null && !Game.Finished && Game.Players[Game.Current].IsHuman;
 
-        public void Begin(GameConfig config)
+        public void Begin(GameConfig config, bool pumpCpus = true)
         {
             if (config.HumanSeats == null || config.HumanSeats.Count == 0)
                 config.HumanSeats = new List<int> { 0 };
             Game = Game.Start(config);
-            PumpCpus();
+            if (pumpCpus) PumpCpus();
         }
 
         public void Act(GameAction action)

@@ -51,9 +51,9 @@ function cardHtml(card, z = 1, coins = null, compact = false) {
     : "";
   return `<div class="card ${card.joker ? "joker" : ""} ${hidden}${fresh}" data-id="${card.id}" style="z-index:${z}">
     ${rank}
-    ${pile}
     ${iconHtml(card)}
     ${goodsHtml(card, compact)}
+    ${pile}
   </div>`;
 }
 
@@ -83,6 +83,7 @@ function baseScore(player) {
 }
 
 const titleReady = new Set();
+const coinHold = new Set();
 
 function scatter(id, index) {
   let hash = 2166136261;
@@ -160,7 +161,8 @@ function titleCoinsVisible(index) {
 function trayHtml(bank) {
   return bank.map((coin, index) => {
     const spot = scatter(coin.id, index);
-    return `<i class="coin ${coin.kind}" data-id="${coin.id}" data-kind="${coin.kind}" style="left:${spot.x}%;top:${spot.y}%;z-index:${index + 1}"></i>`;
+    const hidden = coinHold.has(coin.id) ? "opacity:0;" : "";
+    return `<i class="coin ${coin.kind}" data-id="${coin.id}" data-kind="${coin.kind}" style="left:${spot.x}%;top:${spot.y}%;z-index:${index + 1};${hidden}"></i>`;
   }).join("");
 }
 
@@ -823,23 +825,35 @@ function flyCoins(seatIndex, flights) {
   if (seatIndex == null || !flights.length) return;
   const tray = document.querySelector(`[data-seat="${seatIndex}"] .coin-tray`);
   if (!tray) return;
-  flights.forEach((flight) => {
+  const ordered = flights.slice().sort((a, b) => a.rect.left - b.rect.left || a.rect.top - b.rect.top);
+  ordered.forEach((flight, index) => {
+    coinHold.add(flight.id);
     const target = tray.querySelector(`[data-id="${flight.id}"]`);
     if (target) target.style.opacity = "0";
     const ghost = document.createElement("i");
     ghost.className = `coin ${flight.kind} flying`;
+    ghost.style.transition = "none";
+    ghost.style.width = `${flight.rect.width}px`;
+    ghost.style.height = `${flight.rect.height}px`;
     ghost.style.left = `${flight.rect.left}px`;
     ghost.style.top = `${flight.rect.top}px`;
     document.body.appendChild(ghost);
-    requestAnimationFrame(() => {
-      const to = target ? target.getBoundingClientRect() : tray.getBoundingClientRect();
-      ghost.style.left = `${to.left}px`;
-      ghost.style.top = `${to.top}px`;
-      setTimeout(() => {
-        ghost.remove();
-        if (target) target.style.opacity = "";
-      }, 420);
-    });
+    const launch = () => {
+      ghost.style.transition = "left .3s ease, top .3s ease";
+      requestAnimationFrame(() => {
+        const live = tray.querySelector(`[data-id="${flight.id}"]`);
+        const to = live ? live.getBoundingClientRect() : tray.getBoundingClientRect();
+        ghost.style.left = `${to.left}px`;
+        ghost.style.top = `${to.top}px`;
+        setTimeout(() => {
+          ghost.remove();
+          coinHold.delete(flight.id);
+          const placed = tray.querySelector(`[data-id="${flight.id}"]`);
+          if (placed) placed.style.opacity = "";
+        }, 300);
+      });
+    };
+    setTimeout(() => requestAnimationFrame(launch), index * 100);
   });
 }
 
@@ -867,6 +881,8 @@ function hopParked(ids) {
         rect: coin.getBoundingClientRect(),
       });
     });
+    const pile = el.querySelector(".coins");
+    if (pile) pile.remove();
     lifted.push(liftElement(el));
     parked.delete(id);
     inFlight.add(id);
@@ -941,6 +957,8 @@ function applyState(next) {
       pendingMarket = null;
       marksTaken.clear();
       titleReady.clear();
+      coinHold.clear();
+      document.querySelectorAll(".coin.flying").forEach((el) => el.remove());
       tallyScores.clear();
       tally = null;
       recordSeen.clear();
@@ -1005,6 +1023,8 @@ function applyState(next) {
     pendingMarket = null;
     marksTaken.clear();
     titleReady.clear();
+    coinHold.clear();
+    document.querySelectorAll(".coin.flying").forEach((el) => el.remove());
     tallyScores.clear();
     tally = null;
     recordSeen.clear();
