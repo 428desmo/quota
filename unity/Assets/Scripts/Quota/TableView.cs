@@ -64,6 +64,10 @@ namespace Quota
         string seedText = "";
         bool widePreview;
         bool laidOutWide;
+        int cpuRun;
+        float cpuNotBefore;
+        int coinMotion;
+        Dictionary<string, Vector3> coinFrom = new Dictionary<string, Vector3>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -313,16 +317,19 @@ namespace Quota
                     SequenceRule = sequenceRule,
                     TitleRule = titleRule,
                     SpecialActionsRule = specialRule,
-                });
+                }, pumpCpus: !Application.isPlaying);
                 confirm = null;
                 finishCounted = false;
                 offerStandard = false;
+                cpuNotBefore = Application.isPlaying ? Time.time + 1f : 0f;
                 ShowTable();
+                if (Application.isPlaying) StartCoroutine(RunCpus(++cpuRun));
             });
         }
 
         void ShowTable()
         {
+            coinFrom = SnapshotCardCoins();
             Clear();
             seatFrames.Clear();
             UseFrame();
@@ -544,7 +551,7 @@ namespace Quota
             var bank = new List<BonusCoin>();
             foreach (var coin in coins)
             {
-                if (coin.CardId < 0)
+                if (coin.InTray)
                 {
                     bank.Add(coin);
                     continue;
@@ -564,20 +571,106 @@ namespace Quota
                 for (var i = 0; i < pair.Value.Count; i++)
                     DrawCoin(host, pair.Value[i], 4f * cardScale, (28f * cardScale) + i * step, diameter * cardScale);
             }
+            var slides = new List<CoinSlide>();
             for (var i = 0; i < bank.Count; i++)
             {
                 var coin = bank[i];
                 var px = x + Hash01(coin.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
                 var py = y + Hash01(coin.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
-                DrawCoin(tray, coin, px, py, diameter);
+                var drawn = DrawCoin(tray, coin, px, py, diameter);
+                var spot = "spot-" + coin.Key;
+                if (!Application.isPlaying || !coinFrom.TryGetValue(spot, out var fromRing)) continue;
+                slides.Add(new CoinSlide
+                {
+                    Ring = drawn.ring,
+                    Disk = drawn.disk,
+                    ToRing = drawn.ring.position,
+                    ToDisk = drawn.disk.position,
+                    FromRing = fromRing,
+                    FromDisk = drawn.disk.position + (fromRing - drawn.ring.position),
+                    FromX = fromRing.x,
+                    Serial = coin.Serial,
+                });
             }
+            if (slides.Count == 0) return;
+            slides.Sort((a, b) =>
+            {
+                var order = a.FromX.CompareTo(b.FromX);
+                return order != 0 ? order : a.Serial.CompareTo(b.Serial);
+            });
+            for (var i = 0; i < slides.Count; i++)
+            {
+                slides[i].Delay = i * 0.1f;
+                slides[i].Ring.SetAsLastSibling();
+                slides[i].Disk.SetAsLastSibling();
+            }
+            coinMotion++;
+            StartCoroutine(SlideCoins(slides));
         }
 
-        void DrawCoin(Transform parent, BonusCoin coin, float x, float y, float diameter)
+        (RectTransform ring, RectTransform disk) DrawCoin(Transform parent, BonusCoin coin, float x, float y, float diameter)
         {
             var color = coin.Kind == CoinKind.Purple ? Hex("#a04bff") : coin.Kind == CoinKind.Blue ? Hex("#3c7dff") : Hex("#3cce3c");
-            Portrait.Circle(parent, "coin-ring", x - 1f, y - 1f, diameter + 2f, Color.black);
-            Portrait.Circle(parent, "coin", x, y, diameter, color);
+            var ring = Portrait.Circle(parent, "spot-" + coin.Key, x - 1f, y - 1f, diameter + 2f, Color.black);
+            var disk = Portrait.Circle(parent, "coin", x, y, diameter, color);
+            return (ring, disk);
+        }
+
+        Dictionary<string, Vector3> SnapshotCardCoins()
+        {
+            var spots = new Dictionary<string, Vector3>();
+            if (!Application.isPlaying || frame == null) return spots;
+            foreach (var rect in frame.GetComponentsInChildren<RectTransform>(true))
+            {
+                if (!rect.name.StartsWith("spot-") || rect.parent == null || !rect.parent.name.StartsWith("card")) continue;
+                spots[rect.name] = rect.position;
+            }
+            return spots;
+        }
+
+        IEnumerator SlideCoins(List<CoinSlide> slides)
+        {
+            foreach (var slide in slides)
+            {
+                if (slide.Ring != null) slide.Ring.position = slide.FromRing;
+                if (slide.Disk != null) slide.Disk.position = slide.FromDisk;
+            }
+            var started = Time.time;
+            var span = slides[slides.Count - 1].Delay + 0.3f;
+            while (Time.time - started < span)
+            {
+                var now = Time.time - started;
+                var alive = false;
+                foreach (var slide in slides)
+                {
+                    if (slide.Ring == null) continue;
+                    alive = true;
+                    var along = now <= slide.Delay ? 0f : Mathf.Clamp01((now - slide.Delay) / 0.3f);
+                    slide.Ring.position = Vector3.Lerp(slide.FromRing, slide.ToRing, along);
+                    if (slide.Disk != null) slide.Disk.position = Vector3.Lerp(slide.FromDisk, slide.ToDisk, along);
+                }
+                if (!alive) break;
+                yield return null;
+            }
+            foreach (var slide in slides)
+            {
+                if (slide.Ring != null) slide.Ring.position = slide.ToRing;
+                if (slide.Disk != null) slide.Disk.position = slide.ToDisk;
+            }
+            coinMotion = Mathf.Max(0, coinMotion - 1);
+        }
+
+        sealed class CoinSlide
+        {
+            public RectTransform Ring;
+            public RectTransform Disk;
+            public Vector3 FromRing;
+            public Vector3 ToRing;
+            public Vector3 FromDisk;
+            public Vector3 ToDisk;
+            public float FromX;
+            public float Delay;
+            public int Serial;
         }
 
         static float Hash01(int seed)
@@ -844,20 +937,33 @@ namespace Quota
             if (busy || !match.IsHumanTurn || !match.Game.IsLegal(action)) return;
             confirm = null;
             match.Game.Step(action);
-            StartCoroutine(RunCpus());
+            StartCoroutine(RunCpus(++cpuRun));
         }
 
-        IEnumerator RunCpus()
+        IEnumerator RunCpus(int ticket)
         {
             busy = true;
             ShowTable();
+            yield return WaitForCoins();
+            busy = false;
+            var wait = cpuNotBefore - Time.time;
+            if (wait > 0f) yield return new WaitForSeconds(wait);
+            if (ticket != cpuRun || match.Game == null || match.Game.Finished || match.IsHumanTurn) yield break;
+            busy = true;
             while (match.StepOneCpu())
             {
                 ShowTable();
+                yield return WaitForCoins();
                 yield return new WaitForSeconds(0.35f);
+                if (ticket != cpuRun) break;
             }
             busy = false;
-            ShowTable();
+            if (ticket == cpuRun) ShowTable();
+        }
+
+        IEnumerator WaitForCoins()
+        {
+            while (coinMotion > 0) yield return null;
         }
 
         static int HumanSeat(Game game)

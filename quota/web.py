@@ -47,6 +47,7 @@ class Table:
         self.table_id = ""
         self.display_name = ""
         self.seed = None
+        self.cpu_after = 0.0
 
     def touch(self) -> None:
         self.idle_at = time.monotonic()
@@ -131,6 +132,7 @@ class Table:
         self.refresh_acked = set()
         self.refresh_notice_at = None
         self.refresh_released = False
+        self.cpu_after = time.monotonic() + 1.0
 
     def again(self, client_id: str) -> None:
         if self.phase != "finished":
@@ -274,6 +276,8 @@ class Table:
     def step_cpu(self) -> None:
         game = self.game
         if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
+            return
+        if time.monotonic() < self.cpu_after:
             return
         if game.players[game.current].is_human:
             return

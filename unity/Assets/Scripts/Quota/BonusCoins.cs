@@ -13,14 +13,20 @@ namespace Quota
     {
         public readonly CoinKind Kind;
         public readonly int CardId;
+        public readonly bool InTray;
         public readonly int Serial;
+        public readonly int Index;
 
-        public BonusCoin(CoinKind kind, int cardId, int serial)
+        public BonusCoin(CoinKind kind, int cardId, bool inTray, int serial, int index)
         {
             Kind = kind;
             CardId = cardId;
+            InTray = inTray;
             Serial = serial;
+            Index = index;
         }
+
+        public string Key => CardId + "-" + (int)Kind + "-" + Index;
     }
 
     public static class BonusCoins
@@ -37,7 +43,7 @@ namespace Quota
                 if (achieved.Count > 0 && quotaLine.Count > 0) AddPair(achieved[achieved.Count - 1], quotaLine[0], false);
                 for (var i = 1; i < quotaLine.Count; i++) AddPair(quotaLine[i - 1], quotaLine[i], false);
             }
-            for (var i = 0; i < titleCoins; i++) coins.Add(new BonusCoin(CoinKind.Blue, -1, serial++));
+            for (var i = 0; i < titleCoins; i++) coins.Add(new BonusCoin(CoinKind.Blue, -1, true, serial++, i));
             return coins;
 
             void AddGreens(IReadOnlyList<Card> cards, bool bank)
@@ -58,8 +64,8 @@ namespace Quota
             void Add(IReadOnlyList<Card> cards, int index, CoinKind kind, int count, bool bank)
             {
                 if (index < 0 || index >= cards.Count || count <= 0) return;
-                var cardId = bank ? -1 : cards[index].Id;
-                for (var i = 0; i < count; i++) coins.Add(new BonusCoin(kind, cardId, serial++));
+                var cardId = cards[index].Id;
+                for (var i = 0; i < count; i++) coins.Add(new BonusCoin(kind, cardId, bank, serial++, i));
             }
 
             void AddPair(Card left, Card right, bool bank)
@@ -68,8 +74,7 @@ namespace Quota
                 if (left.Rank == null || right.Rank == null) return;
                 var count = left.Rank == right.Rank ? 2 : (System.Math.Abs(left.Rank.Value - right.Rank.Value) == 1 ? 1 : 0);
                 if (count == 0) return;
-                var cardId = bank ? -1 : right.Id;
-                for (var i = 0; i < count; i++) coins.Add(new BonusCoin(CoinKind.Purple, cardId, serial++));
+                for (var i = 0; i < count; i++) coins.Add(new BonusCoin(CoinKind.Purple, right.Id, bank, serial++, i));
             }
         }
     }
