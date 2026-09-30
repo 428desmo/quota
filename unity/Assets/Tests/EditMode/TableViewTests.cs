@@ -257,9 +257,10 @@ namespace Quota.Tests
             player.Collection.Add(new Card(9007, Suit.H, 3));
             Show(view);
 
-            var card = host.transform.Find("Root/Frame/seat0/quota-cards/card9007");
-            Assert.IsNotNull(card);
-            Assert.IsNotNull(card.Find("coin"));
+            var quota = host.transform.Find("Root/Frame/seat0/quota-cards/card9001");
+            Assert.IsNotNull(quota);
+            Assert.IsNotNull(quota.Find("coin"));
+            Assert.IsNull(host.transform.Find("Root/Frame/seat0/quota-cards/card9007/coin"));
             Assert.IsNull(host.transform.Find("Root/Frame/seat0/chip-tray/coin"));
 
             player.Achieved.Add(player.Quota);

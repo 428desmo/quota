@@ -276,10 +276,17 @@ namespace Quota.Tests
         public void BonusCoinsStayOnAnOpenQuotaAndMoveWhenItIsAchieved()
         {
             Card C(Suit suit, int rank, int id) => new Card(id, suit, rank);
+            Assert.AreEqual(3, BonusCoins.Plan(new List<Card>(), new List<Card> { C(Suit.H, 10, 50) }, false, 0)
+                .FindAll(coin => coin.CardId == 50 && coin.Kind == CoinKind.Green && !coin.InTray).Count);
+            Assert.AreEqual(6, BonusCoins.Plan(new List<Card>(), new List<Card> { C(Suit.H, 13, 51) }, false, 0)
+                .FindAll(coin => coin.CardId == 51 && coin.Kind == CoinKind.Green && !coin.InTray).Count);
+            Assert.AreEqual(0, BonusCoins.Plan(new List<Card>(), new List<Card> { C(Suit.H, 6, 52) }, false, 0).Count);
+
             var quota = C(Suit.H, 7, 1);
             var line = new List<Card> { quota, C(Suit.H, 2, 10), C(Suit.H, 4, 11), C(Suit.H, 6, 12), C(Suit.H, 1, 13), C(Suit.H, 5, 14), C(Suit.H, 3, 15) };
             var open = BonusCoins.Plan(new List<Card>(), line, true, 0);
-            Assert.AreEqual(1, open.FindAll(coin => coin.CardId == 15 && coin.Kind == CoinKind.Green && !coin.InTray).Count);
+            Assert.AreEqual(1, open.FindAll(coin => coin.CardId == 1 && coin.Kind == CoinKind.Green && !coin.InTray).Count);
+            Assert.AreEqual(0, open.FindAll(coin => coin.CardId == 15 && coin.Kind == CoinKind.Green).Count);
             Assert.AreEqual(0, open.FindAll(coin => coin.InTray).Count);
 
             line.Add(C(Suit.H, 3, 20));
@@ -289,7 +296,7 @@ namespace Quota.Tests
 
             var achieved = BonusCoins.Plan(line.GetRange(0, 7), new List<Card>(), true, 15);
             Assert.AreEqual(0, achieved.FindAll(coin => !coin.InTray).Count);
-            Assert.AreEqual(1, achieved.FindAll(coin => coin.Kind == CoinKind.Green && coin.CardId == 15).Count);
+            Assert.AreEqual(1, achieved.FindAll(coin => coin.Kind == CoinKind.Green && coin.CardId == 1 && coin.InTray).Count);
             Assert.AreEqual(0, achieved.FindAll(coin => coin.Kind == CoinKind.Purple).Count);
             Assert.AreEqual(15, achieved.FindAll(coin => coin.Kind == CoinKind.Blue).Count);
             Assert.Greater(achieved[achieved.Count - 1].Serial, achieved[0].Serial);
