@@ -945,17 +945,19 @@ namespace Quota
             busy = true;
             ShowTable();
             yield return WaitForCoins();
-            busy = false;
             var wait = cpuNotBefore - Time.time;
-            if (wait > 0f) yield return new WaitForSeconds(wait);
-            if (ticket != cpuRun || match.Game == null || match.Game.Finished || match.IsHumanTurn) yield break;
-            busy = true;
-            while (match.StepOneCpu())
+            if (wait > 0f && match.Game != null && !match.IsHumanTurn && !match.Game.Finished)
+                yield return new WaitForSeconds(wait);
+            if (ticket != cpuRun || match.Game == null) yield break;
+            if (!match.Game.Finished && !match.IsHumanTurn)
             {
-                ShowTable();
-                yield return WaitForCoins();
-                yield return new WaitForSeconds(0.35f);
-                if (ticket != cpuRun) break;
+                while (match.StepOneCpu())
+                {
+                    ShowTable();
+                    yield return WaitForCoins();
+                    yield return new WaitForSeconds(0.35f);
+                    if (ticket != cpuRun) yield break;
+                }
             }
             busy = false;
             if (ticket == cpuRun) ShowTable();

@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
@@ -339,6 +341,56 @@ namespace Quota.Tests
             Assert.IsNotNull(ButtonNamed("抜ける"));
             Click("キャンセル");
             Assert.IsNotNull(ButtonNamed("ゲームから抜ける"));
+        }
+
+        [Test]
+        public void PartialCollectKeepsTheTurnAndShowsNext()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            var game = match.Game;
+            var player = game.Players[game.Current];
+            player.Quota = new Card(9001, Suit.H, 7);
+            player.Collection.Clear();
+            game.Market.Clear();
+            game.Market.Add(new Card(9101, Suit.H, 3));
+            game.Market.Add(new Card(9102, Suit.H, 4));
+            game.Step(new Collect(new[] { 9101 }));
+            Assert.IsTrue(match.IsHumanTurn);
+            Assert.IsTrue(game.TurnGain);
+            Assert.AreEqual(1, player.Collection.Count);
+
+            Set("cpuRun", 1);
+            var run = (IEnumerator)typeof(TableView).GetMethod("RunCpus", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, new object[] { 1 });
+            Drive(run);
+
+            Assert.IsNotNull(FindButton("次へ"));
+            Assert.IsNotNull(FindButton("放棄"));
+            var second = host.transform.Find("Root/Frame/card9102");
+            Assert.IsNotNull(second);
+            Assert.IsNotNull(second.GetComponent<Button>());
+        }
+
+        static void Drive(IEnumerator enumerator)
+        {
+            var stack = new Stack<IEnumerator>();
+            stack.Push(enumerator);
+            var guard = 0;
+            while (stack.Count > 0)
+            {
+                if (++guard > 10000) Assert.Fail("coroutine did not finish");
+                var current = stack.Peek();
+                if (!current.MoveNext())
+                {
+                    stack.Pop();
+                    continue;
+                }
+                if (current.Current is IEnumerator nested) stack.Push(nested);
+            }
         }
 
         GameObject Open()
