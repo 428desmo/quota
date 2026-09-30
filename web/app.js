@@ -39,21 +39,19 @@ if (splash) {
 let turnLeft = null;
 let turnLeftAt = 0;
 
-function cardHtml(card, z = 1, marks = null, compact = false) {
+function cardHtml(card, z = 1, coins = null, compact = false) {
   const id = String(card.id);
   const hidden = hiding.has(id) || inFlight.has(id) ? "incoming" : "";
   const fresh = compact && recordPrimed && !recordSeen.has(id) ? " just-in" : "";
   if (compact && recordPrimed) recordSeen.add(id);
   const wide = card.face && [...card.face].length > 2 ? " wide" : "";
   const rank = card.face ? `<div class="rank${wide}" style="color:${card.color}">${card.face}</div>` : "";
-  const show = marks && !marksTaken.has(id) ? marks : null;
-  const dots = show
-    ? [...Array(show.green || 0).fill("🟢"), ...Array(show.purple || 0).fill("🟣")]
-    : [];
-  const mark = dots.length ? `<div class="marks">${dots.map((dot) => `<span>${dot}</span>`).join("")}</div>` : "";
+  const pile = !compact && coins && coins.length
+    ? `<div class="coins">${coins.map((coin) => `<i class="coin ${coin.kind}" data-id="${coin.id}" data-kind="${coin.kind}"></i>`).join("")}</div>`
+    : "";
   return `<div class="card ${card.joker ? "joker" : ""} ${hidden}${fresh}" data-id="${card.id}" style="z-index:${z}">
     ${rank}
-    ${mark}
+    ${pile}
     ${iconHtml(card)}
     ${goodsHtml(card, compact)}
   </div>`;
@@ -84,41 +82,86 @@ function baseScore(player) {
   return total;
 }
 
-function addMark(marks, card, kind, count) {
-  if (!card || !count) return;
-  const key = String(card.id);
-  const current = marks.get(key) || { green: 0, purple: 0 };
-  current[kind] = (current[kind] || 0) + count;
-  marks.set(key, current);
+const titleReady = new Set();
+
+function scatter(id, index) {
+  let hash = 2166136261;
+  const text = `${id}:${index}`;
+  for (let i = 0; i < text.length; i += 1) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  const next = () => {
+    hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+    hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
+    return ((hash >>> 0) % 1000) / 1000;
+  };
+  return { x: 6 + next() * 78, y: 8 + next() * 62 };
 }
 
-function deliveryMarks(cards, sequence) {
-  const marks = new Map();
-  let index = 0;
-  while (index < cards.length) {
-    const quota = cards[index];
-    const rank = quota.rank;
-    if (!rank) break;
-    if (rank >= 7) addMark(marks, cards[index + 6], "green", 1);
-    if (rank >= 10) addMark(marks, cards[index + 9], "green", 2);
-    if (rank === 13) addMark(marks, cards[index + 12], "green", 3);
-    index += rank;
+function coinPlan(player, index) {
+  const recorded = (player.achieved || []).filter((card) => !parked.has(String(card.id)));
+  const open = [];
+  if (player.quota) open.push(player.quota, ...(player.collection || []));
+  const parkedCards = (player.achieved || []).filter((card) => parked.has(String(card.id)));
+  const onCard = new Map();
+  const bank = [];
+  const add = (card, kind, count, banked) => {
+    if (!card || count <= 0) return;
+    for (let n = 0; n < count; n += 1) {
+      const id = `${card.id}-${kind}-${n}`;
+      if (banked) bank.push({ kind, id });
+      else {
+        const key = String(card.id);
+        const pile = onCard.get(key) || [];
+        pile.push({ kind, id });
+        onCard.set(key, pile);
+      }
+    }
+  };
+  const greens = (cards, banked) => {
+    let cursor = 0;
+    while (cursor < cards.length) {
+      const rank = cards[cursor] && cards[cursor].rank;
+      if (!rank) break;
+      if (rank >= 7) add(cards[cursor + 6], "green", 1, banked);
+      if (rank >= 10) add(cards[cursor + 9], "green", 2, banked);
+      if (rank === 13) add(cards[cursor + 12], "green", 3, banked);
+      cursor += rank;
+    }
+  };
+  greens(recorded, true);
+  greens(open, false);
+  greens(parkedCards, false);
+  if (state && state.sequence_rule) {
+    const line = recorded.concat(parkedCards, open);
+    const waiting = new Set(parkedCards.concat(open).map((card) => card.id));
+    for (let i = 1; i < line.length; i += 1) {
+      const prev = line[i - 1];
+      const card = line[i];
+      if (!prev || !card || prev.joker || card.joker || prev.rank == null || card.rank == null) continue;
+      const purple = prev.rank === card.rank ? 2 : Math.abs(prev.rank - card.rank) === 1 ? 1 : 0;
+      if (purple) add(card, "purple", purple, !waiting.has(card.id));
+    }
   }
-  if (!sequence) return marks;
-  for (let i = 1; i < cards.length; i += 1) {
-    const prev = cards[i - 1];
-    const card = cards[i];
-    if (prev.joker || card.joker) continue;
-    const left = prev.rank;
-    const right = card.rank;
-    const purple = left === right ? 2 : Math.abs(left - right) === 1 ? 1 : 0;
-    if (!purple) continue;
-    const key = String(card.id);
-    const current = marks.get(key) || { green: 0, purple: 0 };
-    current.purple += purple;
-    marks.set(key, current);
+  if (state && state.finished && titleCoinsVisible(index)) {
+    let points = 0;
+    for (const title of player.titles || []) points += title.points || 0;
+    for (let n = 0; n < points; n += 1) bank.push({ kind: "blue", id: `title-${index}-${n}` });
   }
-  return marks;
+  return { onCard, bank };
+}
+
+function titleCoinsVisible(index) {
+  if (!state || !state.finished) return false;
+  if (titleReady.has(index)) return true;
+  if (!watched) return true;
+  if (bonusCashed) return true;
+  return !!(tally && tally.phase === "done");
+}
+
+function trayHtml(bank) {
+  return bank.map((coin, index) => {
+    const spot = scatter(coin.id, index);
+    return `<i class="coin ${coin.kind}" data-id="${coin.id}" data-kind="${coin.kind}" style="left:${spot.x}%;top:${spot.y}%;z-index:${index + 1}"></i>`;
+  }).join("");
 }
 
 const GUIDES = {
@@ -382,14 +425,14 @@ function render() {
     const orderCards = [];
     if (player.quota) orderCards.push(player.quota);
     orderCards.push(...player.collection, ...parkedHere);
+    const coins = coinPlan(player, index);
     const order = orderCards.length
-      ? orderCards.map((card, index) => cardHtml(card, index + 1)).join("")
+      ? orderCards.map((card, cardIndex) => cardHtml(card, cardIndex + 1, coins.onCard.get(String(card.id)))).join("")
       : "<span class='note'>ノルマなし</span>";
-    const marks = deliveryMarks(player.achieved, state.sequence_rule);
     const recordRows = achievedRows(recorded);
     if (!recordRows.length) recordRows.push([]);
     const done = recordRows.map((row, rowIndex) => {
-      const cards = row.map((card, index) => cardHtml(card, index + 1, marks.get(String(card.id)), true)).join("");
+      const cards = row.map((card, cardIndex) => cardHtml(card, cardIndex + 1, null, true)).join("");
       return `<div class="line record" style="z-index:${rowIndex + 1}">${cards}</div>`;
     }).join("");
     const score = scoreBits(index, baseScore(player));
@@ -415,6 +458,10 @@ function render() {
       <div class="band">
         <div class="vlabel">実績</div>
         <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
+      </div>
+      <div class="band">
+        <div class="vlabel">ボーナス</div>
+        <div class="coin-tray">${trayHtml(coins.bank)}</div>
       </div>
     </section>`;
   }).join("");
@@ -772,6 +819,30 @@ function flyLifted(lifted, onDone) {
   });
 }
 
+function flyCoins(seatIndex, flights) {
+  if (seatIndex == null || !flights.length) return;
+  const tray = document.querySelector(`[data-seat="${seatIndex}"] .coin-tray`);
+  if (!tray) return;
+  flights.forEach((flight) => {
+    const target = tray.querySelector(`[data-id="${flight.id}"]`);
+    if (target) target.style.opacity = "0";
+    const ghost = document.createElement("i");
+    ghost.className = `coin ${flight.kind} flying`;
+    ghost.style.left = `${flight.rect.left}px`;
+    ghost.style.top = `${flight.rect.top}px`;
+    document.body.appendChild(ghost);
+    requestAnimationFrame(() => {
+      const to = target ? target.getBoundingClientRect() : tray.getBoundingClientRect();
+      ghost.style.left = `${to.left}px`;
+      ghost.style.top = `${to.top}px`;
+      setTimeout(() => {
+        ghost.remove();
+        if (target) target.style.opacity = "";
+      }, 420);
+    });
+  });
+}
+
 function onBoard() {
   return state && (state.phase === "playing" || state.phase === "finished");
 }
@@ -779,17 +850,29 @@ function onBoard() {
 function hopParked(ids) {
   if (!onBoard()) return;
   const lifted = [];
+  const flights = [];
+  let seatIndex = null;
   for (const id of ids) {
     const el = document.querySelector(`.line.order [data-id="${id}"]`);
     if (!el) {
       parked.delete(id);
       continue;
     }
+    const seat = el.closest("[data-seat]");
+    if (seat) seatIndex = Number(seat.dataset.seat);
+    el.querySelectorAll(".coin").forEach((coin) => {
+      flights.push({
+        id: coin.dataset.id,
+        kind: coin.dataset.kind,
+        rect: coin.getBoundingClientRect(),
+      });
+    });
     lifted.push(liftElement(el));
     parked.delete(id);
     inFlight.add(id);
   }
   render();
+  flyCoins(seatIndex, flights);
   flyLifted(lifted, () => {
     if (pendingBonus >= 7) showBonus(pendingBonus, pendingBonusSeat);
     pendingBonus = 0;
@@ -857,6 +940,7 @@ function applyState(next) {
       marketSlots = [];
       pendingMarket = null;
       marksTaken.clear();
+      titleReady.clear();
       tallyScores.clear();
       tally = null;
       recordSeen.clear();
@@ -920,6 +1004,7 @@ function applyState(next) {
     marketSlots = [];
     pendingMarket = null;
     marksTaken.clear();
+    titleReady.clear();
     tallyScores.clear();
     tally = null;
     recordSeen.clear();
@@ -966,6 +1051,7 @@ function showTitle(index, titles, n) {
   }
   const title = titles[n];
   const player = state.players[index];
+  titleReady.add(index);
   titleCheer = {
     text: `${player.name}が『${title.name}』を達成したので+${title.points}のボーナス獲得`,
     plus: title.points,
@@ -996,7 +1082,7 @@ function settleLate() {
   if (!state || !state.finished || watched || tally) return;
   state.players.forEach((player, index) => {
     tallyScores.set(index, player.score);
-    deliveryMarks(player.achieved, state.sequence_rule).forEach((_, id) => marksTaken.add(id));
+    titleReady.add(index);
   });
   bonusCashed = true;
   gathering = false;
@@ -1037,7 +1123,7 @@ function scoreSeat(index) {
   }
   tally = { phase: "seats", seat: index };
   const seat = document.querySelector(`[data-seat="${index}"]`);
-  const dots = seat ? [...seat.querySelectorAll(".line.record .marks span")] : [];
+  const dots = seat ? [...seat.querySelectorAll(".coin-tray .coin")].filter((coin) => coin.dataset.kind !== "blue") : [];
   if (!dots.length) {
     finishSeat(index);
     return;
@@ -1055,17 +1141,11 @@ function scoreSeat(index) {
     const dot = dots[n];
     n += 1;
     const from = dot.getBoundingClientRect();
-    const ghost = document.createElement("span");
-    ghost.className = "gain-dot fast";
-    ghost.textContent = dot.textContent;
+    const ghost = document.createElement("i");
+    ghost.className = `coin ${dot.dataset.kind} flying`;
     ghost.style.left = `${from.left}px`;
     ghost.style.top = `${from.top}px`;
     document.body.appendChild(ghost);
-    dot.style.visibility = "hidden";
-    const card = dot.closest(".card");
-    if (card && ![...card.querySelectorAll(".marks span")].some((span) => span.style.visibility !== "hidden")) {
-      marksTaken.add(card.dataset.id);
-    }
     requestAnimationFrame(() => {
       const target = points ? points.getBoundingClientRect() : from;
       ghost.style.left = `${target.left}px`;

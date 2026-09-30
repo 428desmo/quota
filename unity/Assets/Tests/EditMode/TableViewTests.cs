@@ -237,6 +237,39 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void PendingBonusCoinSitsOnTheQuotaCardUntilTheSetIsAchieved()
+        {
+            host = Open();
+            Set("seedText", "1");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            var player = match.Game.Players[0];
+            player.Quota = new Card(9001, Suit.H, 7);
+            player.Collection.Clear();
+            player.Collection.Add(new Card(9002, Suit.H, 2));
+            player.Collection.Add(new Card(9003, Suit.H, 4));
+            player.Collection.Add(new Card(9004, Suit.H, 6));
+            player.Collection.Add(new Card(9005, Suit.H, 1));
+            player.Collection.Add(new Card(9006, Suit.H, 5));
+            player.Collection.Add(new Card(9007, Suit.H, 3));
+            Show(view);
+
+            var card = host.transform.Find("Root/Frame/seat0/quota-cards/card9007");
+            Assert.IsNotNull(card);
+            Assert.IsNotNull(card.Find("coin"));
+            Assert.IsNull(host.transform.Find("Root/Frame/seat0/chip-tray/coin"));
+
+            player.Achieved.Add(player.Quota);
+            player.Achieved.AddRange(player.Collection);
+            player.Quota = null;
+            player.Collection.Clear();
+            Show(view);
+            Assert.IsNull(host.transform.Find("Root/Frame/seat0/quota-cards/card9007"));
+            Assert.IsNotNull(host.transform.Find("Root/Frame/seat0/chip-tray/coin"));
+        }
+
+        [Test]
         public void AbandonConfirmAttachesToTheLiveSeat()
         {
             host = Open();

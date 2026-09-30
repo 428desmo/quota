@@ -158,21 +158,43 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   line-height: 1;
 }
 .card .rank.wide { font-size: calc(12px * var(--card-scale)); letter-spacing: -0.04em; }
-.line.record .marks { left: 0; }
-.marks {
+.card .coins {
   position: absolute;
-  top: calc(28px * var(--card-scale));
-  left: calc(5px * var(--card-scale));
+  z-index: 3;
+  left: 2px;
+  top: 16px;
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
-.marks span {
-  display: block;
-  font-size: 5px;
-  line-height: 5px;
-  height: 5px;
+.coin {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #222;
+  box-sizing: border-box;
+  pointer-events: none;
 }
+.card .coins .coin { position: relative; width: 9px; height: 9px; }
+.coin.green { background: #3cce3c; }
+.coin.purple { background: #a04bff; }
+.coin.blue { background: #3c7dff; }
+.coin.flying {
+  position: fixed;
+  z-index: 40;
+  margin: 0;
+  transition: left .4s ease, top .4s ease;
+}
+.coin-tray {
+  position: relative;
+  flex: 1;
+  height: 48px;
+  border: 2px solid #222;
+  border-radius: 7px;
+  background: #fff;
+  overflow: hidden;
+}
+.coin-tray .coin { position: absolute; }
 .card.incoming { visibility: hidden; }
 .card .goods {
   position: absolute;

@@ -474,7 +474,8 @@ namespace Quota
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 6.5f, 3f);
             TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
-            Portrait.Box(seat, "chip-tray", 775f, 240f, 220f, 105f, 7f, 1f, Color.white, Color.black, false);
+            var tray = Portrait.Box(seat, "chip-tray", 775f, 240f, 220f, 105f, 7f, 1f, Color.white, Color.black, false);
+            PlaceBonus(game, player, quotaCards, tray, 8f, 8f, 204f, 89f, 14f, 1f);
             var side = $"{game.FinalScore(player)}点";
             if (game.Config.SpecialActionsRule)
                 side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
@@ -504,7 +505,6 @@ namespace Quota
             const float boxH = 148f;
             Portrait.Box(seat, "bonus-box", 28f, boxY, 176f, boxH, 7f, 1f, Color.white, Color.black, false);
             TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
-            DrawBonusDots(seat, game, player, 40f, boxY + 32f, 152f);
             TextAt(seat, $"{game.FinalScore(player)}点", 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
 
             Portrait.Box(seat, "record-box", 216f, boxY, 220f, boxH, 7f, 1f, Color.white, Color.black, false);
@@ -526,33 +526,69 @@ namespace Quota
                 if (need > 730f) stride = (730f - CardWidth) / (strip.Count - 1);
             }
             LayCards(quotaCards, theme, strip, 0f, stride, 1f);
+            var bonusBox = seat.Find("bonus-box");
+            PlaceBonus(game, player, quotaCards, bonusBox, 8f, 28f, 160f, 82f, 12f, 1f);
         }
 
-        void DrawBonusDots(Transform seat, Game game, Player player, float x, float y, float width)
+        void PlaceBonus(Game game, Player player, Transform quotaArea, Transform tray, float x, float y, float width, float height, float diameter, float cardScale)
         {
-            var green = 0;
-            var index = 0;
-            while (index < player.Achieved.Count)
+            var line = new List<Card>();
+            if (player.Quota != null)
             {
-                var rank = player.Achieved[index].Rank;
-                if (rank == null) break;
-                green += Cards.Bonus(rank.Value);
-                index += rank.Value;
+                line.Add(player.Quota);
+                line.AddRange(player.Collection);
             }
-            var purple = game.Config.SequenceRule ? Cards.SequenceBonus(player.Achieved) : 0;
-            const float diameter = 16f;
-            const float gap = 4f;
-            var columns = Mathf.Max(1, Mathf.FloorToInt(width / (diameter + gap)));
-            var n = 0;
-            for (var i = 0; i < purple; i++) PlaceDot(Hex("#b44cff"));
-            for (var i = 0; i < green; i++) PlaceDot(Hex("#3cce3c"));
-
-            void PlaceDot(Color color)
+            var title = game.Finished ? game.TitlePoints(player) : 0;
+            var coins = BonusCoins.Plan(player.Achieved, line, game.Config.SequenceRule, title);
+            var parked = new Dictionary<int, List<BonusCoin>>();
+            var bank = new List<BonusCoin>();
+            foreach (var coin in coins)
             {
-                var column = n % columns;
-                var row = n / columns;
-                Portrait.Circle(seat, "dot", x + column * (diameter + gap), y + row * (diameter + gap), diameter, color);
-                n++;
+                if (coin.CardId < 0)
+                {
+                    bank.Add(coin);
+                    continue;
+                }
+                if (!parked.TryGetValue(coin.CardId, out var pile))
+                {
+                    pile = new List<BonusCoin>();
+                    parked[coin.CardId] = pile;
+                }
+                pile.Add(coin);
+            }
+            foreach (var pair in parked)
+            {
+                var host = quotaArea.Find("card" + pair.Key);
+                if (host == null) continue;
+                var step = (diameter + 1f) * cardScale;
+                for (var i = 0; i < pair.Value.Count; i++)
+                    DrawCoin(host, pair.Value[i], 4f * cardScale, (28f * cardScale) + i * step, diameter * cardScale);
+            }
+            for (var i = 0; i < bank.Count; i++)
+            {
+                var coin = bank[i];
+                var px = x + Hash01(coin.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
+                var py = y + Hash01(coin.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
+                DrawCoin(tray, coin, px, py, diameter);
+            }
+        }
+
+        void DrawCoin(Transform parent, BonusCoin coin, float x, float y, float diameter)
+        {
+            var color = coin.Kind == CoinKind.Purple ? Hex("#a04bff") : coin.Kind == CoinKind.Blue ? Hex("#3c7dff") : Hex("#3cce3c");
+            Portrait.Circle(parent, "coin-ring", x - 1f, y - 1f, diameter + 2f, Color.black);
+            Portrait.Circle(parent, "coin", x, y, diameter, color);
+        }
+
+        static float Hash01(int seed)
+        {
+            unchecked
+            {
+                var value = (uint)seed * 747796405u + 2891336453u;
+                var shift = (int)(value >> 28) + 4;
+                value = ((value >> shift) + 4) ^ value;
+                value *= 277803737u;
+                return (value >> 8) * (1f / 16777216f);
             }
         }
 
