@@ -122,9 +122,7 @@ function coinPlan(player, index) {
     while (cursor < cards.length) {
       const rank = cards[cursor] && cards[cursor].rank;
       if (!rank) break;
-      if (rank >= 7) add(cards[cursor + 6], "green", 1, banked);
-      if (rank >= 10) add(cards[cursor + 9], "green", 2, banked);
-      if (rank === 13) add(cards[cursor + 12], "green", 3, banked);
+      add(cards[cursor], "green", achievementCoins(rank), banked);
       cursor += rank;
     }
   };
@@ -156,6 +154,13 @@ function titleCoinsVisible(index) {
   if (!watched) return true;
   if (bonusCashed) return true;
   return !!(tally && tally.phase === "done");
+}
+
+function achievementCoins(rank) {
+  if (rank >= 13) return 6;
+  if (rank >= 10) return 3;
+  if (rank >= 7) return 1;
+  return 0;
 }
 
 function trayHtml(bank) {
@@ -821,15 +826,19 @@ function flyLifted(lifted, onDone) {
   });
 }
 
+function liveTrayCoin(seatIndex, id) {
+  const tray = document.querySelector(`[data-seat="${seatIndex}"] .coin-tray`);
+  if (!tray) return null;
+  return { tray, coin: tray.querySelector(`[data-id="${id}"]`) };
+}
+
 function flyCoins(seatIndex, flights) {
   if (seatIndex == null || !flights.length) return;
-  const tray = document.querySelector(`[data-seat="${seatIndex}"] .coin-tray`);
-  if (!tray) return;
   const ordered = flights.slice().sort((a, b) => a.rect.left - b.rect.left || a.rect.top - b.rect.top);
   ordered.forEach((flight, index) => {
     coinHold.add(flight.id);
-    const target = tray.querySelector(`[data-id="${flight.id}"]`);
-    if (target) target.style.opacity = "0";
+    const current = liveTrayCoin(seatIndex, flight.id);
+    if (current && current.coin) current.coin.style.opacity = "0";
     const ghost = document.createElement("i");
     ghost.className = `coin ${flight.kind} flying`;
     ghost.style.transition = "none";
@@ -839,19 +848,26 @@ function flyCoins(seatIndex, flights) {
     ghost.style.top = `${flight.rect.top}px`;
     document.body.appendChild(ghost);
     const launch = () => {
+      if (!ghost.isConnected) return;
+      const spot = liveTrayCoin(seatIndex, flight.id);
+      if (!spot) {
+        ghost.remove();
+        coinHold.delete(flight.id);
+        return;
+      }
+      if (spot.coin) spot.coin.style.opacity = "0";
+      const to = (spot.coin || spot.tray).getBoundingClientRect();
       ghost.style.transition = "left .3s ease, top .3s ease";
       requestAnimationFrame(() => {
-        const live = tray.querySelector(`[data-id="${flight.id}"]`);
-        const to = live ? live.getBoundingClientRect() : tray.getBoundingClientRect();
         ghost.style.left = `${to.left}px`;
         ghost.style.top = `${to.top}px`;
-        setTimeout(() => {
-          ghost.remove();
-          coinHold.delete(flight.id);
-          const placed = tray.querySelector(`[data-id="${flight.id}"]`);
-          if (placed) placed.style.opacity = "";
-        }, 300);
       });
+      setTimeout(() => {
+        if (ghost.isConnected) ghost.remove();
+        coinHold.delete(flight.id);
+        const placed = liveTrayCoin(seatIndex, flight.id);
+        if (placed && placed.coin) placed.coin.style.opacity = "";
+      }, 300);
     };
     setTimeout(() => requestAnimationFrame(launch), index * 100);
   });

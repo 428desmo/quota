@@ -54,9 +54,7 @@ namespace Quota
                     var rank = cards[index].Rank;
                     if (rank == null) break;
                     var size = rank.Value;
-                    if (size >= 7) Add(cards, index + 6, CoinKind.Green, 1, bank);
-                    if (size >= 10) Add(cards, index + 9, CoinKind.Green, 2, bank);
-                    if (size == 13) Add(cards, index + 12, CoinKind.Green, 3, bank);
+                    Add(cards, index, CoinKind.Green, Cards.Bonus(size), bank);
                     index += size;
                 }
             }
