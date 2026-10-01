@@ -552,7 +552,7 @@ function render() {
         <div class="vlabel">実績</div>
         <div class="record-row">
           <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
-          <div class="coin-tray" aria-label="ボーナス">${trayHtml(coins.bank)}</div>
+          <div class="coin-tray" aria-label="ボーナス">${trayHtml(ceremony && !ceremony.review && ceremony.coins.has(index) ? ceremony.coins.get(index) : coins.bank)}</div>
         </div>
       </div>
     </section>`;
@@ -1099,8 +1099,8 @@ function flyTitleCoin(job) {
   const source = document.querySelector(`[data-bonus="${job.index}"]`);
   const from = source ? source.getBoundingClientRect() : { left: 40, top: 40, width: 14, height: 14 };
   flyDot(from, () => {
-    const live = document.querySelector(`[data-ceremony-row="${job.seat}"] .ceremony-coins`);
-    return live ? live.getBoundingClientRect() : from;
+    const live = document.querySelector(`[data-seat="${job.seat}"] .coin-tray`);
+    return live ? trayCenter(live.getBoundingClientRect()) : from;
   }, "blue", () => {
     if (!ceremony) return;
     const line = ceremony.lines[job.index];
@@ -1119,7 +1119,7 @@ function flyTitleCoin(job) {
 }
 
 function flyScoreCoin(job) {
-  const source = document.querySelector(`[data-ceremony-coin="${job.id}"]`);
+  const source = document.querySelector(`[data-seat="${job.seat}"] .coin-tray [data-id="${job.id}"]`);
   const from = source ? source.getBoundingClientRect() : { left: 80, top: 80, width: 14, height: 14 };
   const pile = ceremony.coins.get(job.seat) || [];
   const index = pile.findIndex((coin) => coin.id === job.id);
@@ -1128,7 +1128,7 @@ function flyScoreCoin(job) {
   render();
   flyDot(from, () => {
     const points = document.querySelector(`[data-ceremony-score="${job.seat}"]`);
-    return points ? points.getBoundingClientRect() : from;
+    return points ? trayCenter(points.getBoundingClientRect()) : from;
   }, coin.kind, () => {
     if (!ceremony) return;
     ceremony.scores.set(job.seat, (ceremony.scores.get(job.seat) || 0) + 1);
@@ -1140,6 +1140,10 @@ function flyScoreCoin(job) {
     }
     render();
   });
+}
+
+function trayCenter(rect) {
+  return { left: rect.left + rect.width / 2 - 7, top: rect.top + rect.height / 2 - 7, width: 14, height: 14 };
 }
 
 function flyDot(from, toRect, kind, onDone) {
@@ -1208,14 +1212,10 @@ function ceremonyHtml() {
   const rows = ceremony.order.map((seat, row) => {
     const player = state.players[seat];
     const place = ceremony.places ? `${ceremony.places.get(seat)}位` : "";
-    const coins = (ceremony.coins.get(seat) || [])
-      .map((coin) => `<i class="coin ${coin.kind}" data-ceremony-coin="${coin.id}"></i>`)
-      .join("");
     return `<div class="ceremony-row" data-ceremony-row="${seat}">
       <span class="ceremony-rank">${place}</span>
       <span class="ceremony-name">${escapeText(player.name)}</span>
       <span class="ceremony-figure" data-ceremony-score="${seat}">${ceremonyFigure(seat, row)}</span>
-      <span class="ceremony-coins">${coins}</span>
     </div>`;
   }).join("");
   const showOk = ceremony.phase === "titles" || ceremony.phase === "wait-sort" || ceremony.phase === "wait-prev" || ceremony.phase === "ready";

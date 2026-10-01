@@ -329,9 +329,7 @@ main:has(#leave) { padding-bottom: 44px; }
 }
 .ceremony-rank { width: 2.8em; flex: none; font-weight: 700; }
 .ceremony-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ceremony-figure { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.ceremony-coins { display: flex; flex: none; flex-wrap: wrap; gap: 2px; width: 84px; max-height: 28px; overflow: hidden; justify-content: flex-end; }
-.ceremony-coins .coin { position: relative; }
+.ceremony-figure { flex: none; margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ceremony-action { min-height: 38px; margin: 8px 0 0; }
 .ceremony-action.pending button { visibility: hidden; }
 .round-plus { margin-left: 6px; color: #c45c26; font-weight: 700; }
