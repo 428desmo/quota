@@ -625,8 +625,8 @@ namespace Quota
             for (var i = 0; i < bank.Count; i++)
             {
                 var coin = bank[i];
-                var px = x + Hash01(coin.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
-                var py = y + Hash01(coin.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
+                var px = x + Centered(coin.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
+                var py = y + Centered(coin.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
                 var drawn = DrawCoin(tray, coin, px, py, diameter);
                 var spot = "spot-" + coin.Key;
                 if (!Application.isPlaying || !coinFrom.TryGetValue(spot, out var fromRing)) continue;
@@ -721,6 +721,11 @@ namespace Quota
             public float FromX;
             public float Delay;
             public int Serial;
+        }
+
+        static float Centered(int seed)
+        {
+            return (Hash01(seed) + Hash01(unchecked(seed * 747796405 + 13))) * 0.5f;
         }
 
         static float Hash01(int seed)
