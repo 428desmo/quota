@@ -1010,9 +1010,7 @@ function updateCeremony(now) {
   } else if (show.phase === "overall") {
     if (show.pressed || now - show.at >= 1500) {
       show.pressed = false;
-      show.order = sortSeats((seat) => show.previous.get(seat) || 0);
       show.scores = new Map(show.previous);
-      assignPlaces(show, (seat) => show.previous.get(seat) || 0);
       show.phase = "wait-prev";
       show.at = now;
       dirty = true;
