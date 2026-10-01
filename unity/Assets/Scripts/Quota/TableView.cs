@@ -838,6 +838,14 @@ namespace Quota
             DrawCeremonyPanel();
         }
 
+        string SeatPoints(Game game, int index, Player player)
+        {
+            var custom = PointsLabel(index);
+            if (custom != null) return custom;
+            var points = game.AwaitingNextRound || game.Finished ? game.FinalScore(player) : BaseScore(player);
+            return points + "点";
+        }
+
         string PointsLabel(int index)
         {
             if (!(ceremonyRunning || reviewMode) || scoreOverride == null || !scoreOverride.TryGetValue(index, out var shown)) return null;
@@ -1139,7 +1147,7 @@ namespace Quota
             var tray = Portrait.Box(seat, "chip-tray", 775f, 240f, 220f, 105f, 7f, 1f, Color.white, Color.black, false);
             PlaceBonus(game, player, quotaCards, tray, 8f, 8f, 204f, 89f, 14f, 1f);
             var custom = PointsLabel(index);
-            var side = custom ?? $"{game.FinalScore(player)}点";
+            var side = custom ?? SeatPoints(game, index, player);
             if (custom == null && game.Config.SpecialActionsRule)
                 side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
             if (custom == null && index == game.Current && !game.Finished) side = "▶ " + side;
@@ -1170,7 +1178,7 @@ namespace Quota
             const float boxH = 148f;
             Portrait.Box(seat, "bonus-box", 28f, boxY, 176f, boxH, 7f, 1f, Color.white, Color.black, false);
             TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
-            var wideScore = TextAt(seat, PointsLabel(index) ?? $"{game.FinalScore(player)}点", 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var wideScore = TextAt(seat, SeatPoints(game, index, player), 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
             wideScore.gameObject.name = "score";
             wideScore.supportRichText = true;
 

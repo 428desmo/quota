@@ -1462,6 +1462,7 @@ function applyState(next) {
   noteTurn(next);
   noteCover(next);
   noteWatch(next);
+  resetScoresForNewRound(next);
   if (!next || next.phase === "hall" || next.phase === "recruiting") {
     noteRoster(next);
     state = next;
@@ -1734,6 +1735,18 @@ function flushMarket() {
   marketSlots = pendingMarket.map((card) => card);
   pendingMarket = null;
   if (state && state.phase !== "hall") render();
+}
+
+function resetScoresForNewRound(next) {
+  if (!state || !next || !state.players || !next.players) return;
+  if (next.phase !== "playing" || next.awaiting_next_round || next.finished) return;
+  if (!state.table_id || next.table_id !== state.table_id) return;
+  if (!(next.round_index > state.round_index)) return;
+  scoreAnim.clear();
+  lockedScore.clear();
+  tallyScores.clear();
+  titleReady.clear();
+  titleCheer = null;
 }
 
 function noteScores(next) {
