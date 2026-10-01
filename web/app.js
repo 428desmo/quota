@@ -94,7 +94,9 @@ function scatter(id, index) {
     hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
     return ((hash >>> 0) % 1000) / 1000;
   };
-  return { x: 6 + next() * 78, y: 8 + next() * 62 };
+  // Average of two uniforms: still scattered, denser toward the middle of the tray.
+  const centered = () => (next() + next()) / 2;
+  return { x: 6 + centered() * 78, y: 8 + centered() * 62 };
 }
 
 function coinPlan(player, index) {
@@ -526,11 +528,10 @@ function render() {
       </div>
       <div class="band">
         <div class="vlabel">実績</div>
-        <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
-      </div>
-      <div class="band">
-        <div class="vlabel">ボーナス</div>
-        <div class="coin-tray">${trayHtml(coins.bank)}</div>
+        <div class="record-row">
+          <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
+          <div class="coin-tray" aria-label="ボーナス">${trayHtml(coins.bank)}</div>
+        </div>
       </div>
     </section>`;
   }).join("");
@@ -851,8 +852,9 @@ function achievedRows(cards) {
   if (!cards.length) return [];
   const width = app.clientWidth || 900;
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-w")) || 76;
-  const step = cardW * 0.68 * 0.3;
-  const perRow = Math.max(1, Math.floor((width - 48) / step));
+  const tray = cardW * 1.8;
+  const room = Math.max(80, width - tray - 72);
+  const perRow = Math.max(1, Math.floor(room / 4));
   const rows = [];
   for (let i = 0; i < cards.length; i += perRow) rows.push(cards.slice(i, i + perRow));
   return rows;
