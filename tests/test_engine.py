@@ -4,7 +4,7 @@ import pytest
 
 from quota.ai import choose_action
 from quota.cards import Card, bonus, make_deck, score_for, sequence_bonus
-from quota.engine import Bundle, Collect, Game, GameConfig, Pass, TakeQuota
+from quota.engine import Abandon, Bundle, Collect, Game, GameConfig, Pass, TakeQuota
 
 
 def test_deck_has_108_unique_cards():
@@ -355,6 +355,64 @@ def test_double_second_action_ends_when_nothing_eligible_remains():
         and not any(card is not None and (card.suit == player.quota.suit or card.suit == "JOKER") for card in game.market)
     )
     assert not stuck
+
+
+def test_abandon_does_not_spend_the_turn():
+    game = Game.start(GameConfig(seed=3, num_players=3))
+    seat = game.current
+    quota = next(card for card in game.deck if card.rank is not None and card.rank >= 2)
+    game.deck.remove(quota)
+    game.players[seat].quota = quota
+    turn = game.turn_number
+    streak = game.no_gain_streak
+    game.step(Abandon())
+    assert game.current == seat
+    assert game.turn_number == turn
+    assert game.players[seat].quota is None
+    assert game.no_gain_streak == streak
+    assert quota in game.discard
+    assert any(isinstance(action, TakeQuota) for action in game.legal_actions())
+    game.step(Pass())
+    assert game.current != seat
+    assert game.turn_number == turn + 1
+    assert game.no_gain_streak == streak + 1
+
+
+def test_rounds_rotate_the_leader_and_keep_banked_score():
+    game = Game.start(GameConfig(seed=11, num_players=4, rounds=4))
+    order = list(game.turn_order)
+    assert sorted(order) == [0, 1, 2, 3]
+    assert game.current == order[0]
+    assert game.round_count == 4
+    game.players[0].achieved = [Card(1, "H", 5), Card(2, "H", 5)]
+    game.players[0].score = 10
+    game.config.sequence_rule = True
+    game._end_round("DECK")
+    assert game.awaiting_next_round
+    assert game.finished is False
+    game.begin_next_round()
+    assert game.round_index == 2
+    assert game.current == order[1]
+    assert game.players[0].score == 12
+    assert game.players[0].achieved == []
+    assert game.turn_number == 1
+    game._end_round("STALL")
+    game.begin_next_round()
+    assert game.current == order[2]
+    game._end_round("DECK")
+    game.begin_next_round()
+    assert game.round_index == 4
+    assert game.current == order[3]
+    game._end_round("DECK")
+    assert game.finished
+    assert game.end_reason == "DECK"
+    again = Game.start(GameConfig(seed=11, num_players=4, rounds=4))
+    assert again.turn_order == order
+
+
+def test_one_round_is_the_default():
+    game = Game.start(GameConfig(num_players=3, seed=1, special_actions_rule=True))
+    assert game.round_count == 1
 
 
 def test_cpu_with_special_actions_finishes():

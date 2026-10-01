@@ -37,6 +37,7 @@ def main() -> None:
             sequence_rule=args.sequence,
             title_rule=args.title,
             special_actions_rule=args.special,
+            rounds=args.players if args.sequence or args.title or args.special else 1,
         )
     )
     assign_seats(game)
@@ -44,6 +45,10 @@ def main() -> None:
     kinds = "、".join(theme.faces[kind].name for kind in ("K1", "K2", "K3", "K4"))
     print(f"交易品: {kinds}　ワイルド: {theme.faces['WILD'].name}")
     while not game.finished:
+        if game.awaiting_next_round:
+            _print_round_break(game)
+            game.begin_next_round()
+            continue
         _print_table(game)
         player = game.players[game.current]
         if player.is_human:
@@ -73,10 +78,19 @@ def _theme(game: Game):
     return game.theme()
 
 
+def _print_round_break(game: Game) -> None:
+    reason = "山札切れ" if game.round_end_reason == "DECK" else "膠着の連続"
+    print()
+    print(f"第{game.round_index}ラウンド終了（{reason}）")
+    for player in game.players:
+        print(f"  {player.name}  {game.final_score(player)}点")
+
+
 def _print_table(game: Game) -> None:
     print()
+    round_label = f"第{game.round_index}ラウンド  " if game.round_count > 1 else ""
     print(
-        f"--- 手番 {game.turn_number}  山札 {len(game.deck)}  "
+        f"--- {round_label}手番 {game.turn_number}  山札 {len(game.deck)}  "
         f"連続パス {game.no_gain_streak}  "
         f"膠着状態 {1 if game.stall_flag else 0} ---"
     )

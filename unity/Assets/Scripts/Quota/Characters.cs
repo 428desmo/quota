@@ -159,6 +159,11 @@ namespace Quota
             if (took != null) note.Suit = took;
         }
 
+        public static void Forget(Game game)
+        {
+            Takes.Remove(game);
+        }
+
         public static void CommitIfTurnEnded(Game game, int seat, int turn)
         {
             TakeNote note;
@@ -398,7 +403,7 @@ namespace Quota
             if (me.Quota.Rank.Value - gathered < 5 || gathered * 2 > me.Quota.Rank.Value) return false;
             TakeNote note;
             if (!Takes.TryGetValue(game, out note) || !note.HasLast) return false;
-            var prev = (game.Current - 1 + game.Players.Count) % game.Players.Count;
+            var prev = game.PreviousSeat();
             if (note.LastSeat != prev || note.LastSuit != me.Quota.Suit) return false;
             var other = game.Players[prev];
             if (other.Quota == null || other.Quota.Rank == null || other.Quota.Suit != me.Quota.Suit) return false;
