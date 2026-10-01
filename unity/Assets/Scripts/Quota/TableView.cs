@@ -624,11 +624,9 @@ namespace Quota
                 RedrawCeremonyPanel();
                 yield return WaitOr(serial, 1.5f);
                 if (serial != cpuRun) yield break;
-                dialogOrder = SortBy(previousScores);
                 scoreOverride = new Dictionary<int, int>(previousScores);
                 plusOverride = null;
                 ceremonyEquation = false;
-                AssignPlaces(seat => previousScores.TryGetValue(seat, out var score) ? score : 0);
                 ceremonyButton = "OK";
                 ceremonyOk = false;
                 RedrawCeremonyPanel();
