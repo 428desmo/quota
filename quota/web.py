@@ -360,6 +360,7 @@ class Table:
             "left_handed": self.left_handed,
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
+            "turn_order": list(game.turn_order),
             "current_human": game.players[game.current].is_human and not game.finished and not game.awaiting_next_round and not self._settling() and not self._refresh_waiting(),
             "turn_left": self._turn_left(),
             "your_turn": self._your_turn(client_id),

@@ -208,7 +208,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   position: relative;
   width: calc(var(--card-w) * 1.8);
   flex: none;
-  height: 48px;
+  height: calc(var(--card-h) * 0.68);
   border: 2px solid #222;
   border-radius: 7px;
   background: #fff;

@@ -82,7 +82,8 @@ def _print_round_break(game: Game) -> None:
     reason = "山札切れ" if game.round_end_reason == "DECK" else "膠着の連続"
     print()
     print(f"第{game.round_index}ラウンド終了（{reason}）")
-    for player in game.players:
+    for index in _seat_order(game):
+        player = game.players[index]
         print(f"  {player.name}  {game.final_score(player)}点")
 
 
@@ -96,7 +97,8 @@ def _print_table(game: Game) -> None:
     )
     theme = _theme(game)
     print("場札: " + _market_line(game))
-    for i, p in enumerate(game.players):
+    for i in _seat_order(game):
+        p = game.players[i]
         mark = ">" if i == game.current and not game.finished else " "
         quota = "なし" if p.quota is None else p.quota.label(theme)
         held = "、".join(c.label(theme) for c in p.collection) or "なし"
@@ -104,6 +106,15 @@ def _print_table(game: Game) -> None:
         if game.config.sequence_rule:
             extra = f"  並び順{game.sequence_points(p)}点"
         print(f"{mark} {p.name}  {game.final_score(p)}点{extra}  ノルマ: {quota}  収集: {held}")
+
+
+def _seat_order(game: Game) -> list[int]:
+    count = len(game.players)
+    cycle = list(game.turn_order) if len(game.turn_order) == count else list(range(count))
+    humans = [i for i, player in enumerate(game.players) if player.is_human]
+    anchor = humans[0] if humans else cycle[0]
+    start = cycle.index(anchor) if anchor in cycle else 0
+    return cycle[start:] + cycle[:start]
 
 
 def _ask(game: Game):

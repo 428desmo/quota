@@ -346,10 +346,11 @@ namespace Quota
             var game = match.Game;
             var theme = game.Theme();
             var wide = WideScreen();
-            for (var i = 0; i < game.Players.Count; i++)
+            var rows = DisplayRows(game);
+            for (var row = 0; row < rows.Count; row++)
             {
-                if (wide) DrawPlayerWide(game, theme, i);
-                else DrawPlayer(game, theme, i);
+                if (wide) DrawPlayerWide(game, theme, rows[row], row);
+                else DrawPlayer(game, theme, rows[row], row);
             }
             if (wide) Portrait.Box(frame, "market-tray", LandMarketX, LandMarketY, LandMarketW, LandMarketH, 7f, 0f, new Color(0f, 0f, 0f, 0.45f), Color.white, false);
             else Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, new Color(1f, 1f, 1f, 0.5f), Color.white, false);
@@ -507,10 +508,10 @@ namespace Quota
             return Mathf.Clamp(fitted, 18, preferred);
         }
 
-        void DrawPlayer(Game game, ItemSet theme, int index)
+        void DrawPlayer(Game game, ItemSet theme, int index, int row)
         {
             var player = game.Players[index];
-            var top = SeatTop + index * SeatHeight;
+            var top = SeatTop + row * SeatHeight;
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, SeatHeight);
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
@@ -540,10 +541,10 @@ namespace Quota
             TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
         }
 
-        void DrawPlayerWide(Game game, ItemSet theme, int index)
+        void DrawPlayerWide(Game game, ItemSet theme, int index, int row)
         {
             var player = game.Players[index];
-            var top = LandHeader + index * LandSeatHeight;
+            var top = LandHeader + row * LandSeatHeight;
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, LandLeft, LandSeatHeight);
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
@@ -797,7 +798,7 @@ namespace Quota
             var wide = WideScreen();
             var controls = wide
                 ? Portrait.Rect(frame, "controls", 0f, 0f, LandWidth, LandHeight)
-                : Portrait.Rect(frame, "controls", 0f, SeatTop + game.Current * SeatHeight, ScreenWidth, SeatHeight);
+                : Portrait.Rect(frame, "controls", 0f, SeatTop + RowOf(game, game.Current) * SeatHeight, ScreenWidth, SeatHeight);
             var entries = new List<KeyValuePair<string, UnityAction>>();
             var canDeclare = game.Plan == "normal" && !game.TurnGain && game.DoubleStage == 0;
             if (canDeclare && me.DoubleActionLeft > 0) entries.Add(Item("ダブル", () =>
@@ -1025,6 +1026,35 @@ namespace Quota
         IEnumerator WaitForCoins()
         {
             while (coinMotion > 0) yield return null;
+        }
+
+        static List<int> DisplayRows(Game game)
+        {
+            var count = game.Players.Count;
+            var cycle = game.TurnOrder.Count == count ? game.TurnOrder : new List<int>();
+            if (cycle.Count != count)
+            {
+                cycle = new List<int>();
+                for (var i = 0; i < count; i++) cycle.Add(i);
+            }
+            var anchor = cycle[0];
+            for (var i = 0; i < count; i++)
+            {
+                if (!game.Players[i].IsHuman) continue;
+                anchor = i;
+                break;
+            }
+            var start = cycle.IndexOf(anchor);
+            if (start < 0) start = 0;
+            var rows = new List<int>();
+            for (var i = 0; i < count; i++) rows.Add(cycle[(start + i) % count]);
+            return rows;
+        }
+
+        static int RowOf(Game game, int seat)
+        {
+            var row = DisplayRows(game).IndexOf(seat);
+            return row < 0 ? seat : row;
         }
 
         static int HumanSeat(Game game)
