@@ -7,7 +7,7 @@ namespace Quota
         public Game Game { get; private set; }
 
         public bool IsHumanTurn =>
-            Game != null && !Game.Finished && Game.Players[Game.Current].IsHuman;
+            Game != null && !Game.Finished && !Game.AwaitingNextRound && Game.Players[Game.Current].IsHuman;
 
         public void Begin(GameConfig config, bool pumpCpus = true)
         {
@@ -29,7 +29,7 @@ namespace Quota
 
         public bool StepOneCpu()
         {
-            if (Game.Finished || Game.Players[Game.Current].IsHuman) return false;
+            if (Game.Finished || Game.AwaitingNextRound || Game.Players[Game.Current].IsHuman) return false;
             var action = Cpu.ChooseAction(Game);
             var seat = Game.Current;
             var turn = Game.TurnNumber;

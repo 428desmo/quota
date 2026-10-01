@@ -325,6 +325,7 @@ namespace Quota
                     SequenceRule = sequenceRule,
                     TitleRule = titleRule,
                     SpecialActionsRule = specialRule,
+                    Rounds = simpleMode ? 1 : playerCount,
                 }, pumpCpus: !Application.isPlaying);
                 Characters.BindInOrder(match.Game, characters);
                 confirm = null;
@@ -356,7 +357,8 @@ namespace Quota
             else DrawMarket(game, theme);
             if (wide) DrawTitleWide(game);
             else DrawTitle(game);
-            if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
+            if (game.AwaitingNextRound) DrawRoundBreak(game);
+            else if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
             else if (confirm == null && !game.Finished)
             {
                 var note = $"{game.Players[game.Current].Name} が考えています";
@@ -372,10 +374,42 @@ namespace Quota
             else if (confirm != null) Confirm();
         }
 
+        static string RoundLabel(Game game)
+        {
+            if (game.RoundCount <= 1) return "揃えて、達成。";
+            return $"第{game.RoundIndex}ラウンド / {game.RoundCount}";
+        }
+
+        void DrawRoundBreak(Game game)
+        {
+            var reason = game.RoundEndReason == "DECK" ? "山札切れ" : "膠着の連続";
+            const float width = 760f;
+            var height = 220f + game.Players.Count * 36f;
+            var panel = WideScreen()
+                ? Portrait.Box(frame, "round-break", (LandWidth - width) * 0.5f, (LandHeight - height) * 0.5f, width, height, 7f, 1f, Color.white, Color.black, false)
+                : Portrait.Box(frame, "round-break", (ScreenWidth - width) * 0.5f, 640f, width, height, 7f, 1f, Color.white, Color.black, false);
+            TextAt(panel, $"第{game.RoundIndex}ラウンド終了（{reason}）", 32f, 24f, width - 64f, 48f, 32, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var y = 84f;
+            foreach (var group in game.Ranking())
+            {
+                foreach (var seat in group)
+                {
+                    var player = game.Players[seat];
+                    TextAt(panel, $"{player.Name}  {game.FinalScore(player)}点", 32f, y, width - 64f, 36f, 24, Color.black, nameFont, TextAnchor.MiddleLeft);
+                    y += 36f;
+                }
+            }
+            Pill(panel, "次のラウンド", 32f, height - 96f, 280f, 72f, 32, () =>
+            {
+                match.Game.BeginNextRound();
+                ShowTable();
+            });
+        }
+
         void DrawTitle(Game game)
         {
             TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Color.white, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, "揃えて、達成。", 28f, 84f, 640f, 32f, 24, Color.white, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, RoundLabel(game), 28f, 84f, 640f, 32f, 24, Color.white, nameFont, TextAnchor.MiddleLeft);
             if (game.DoubleStage == 1) TextAt(frame, "ダブル：1回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
             else if (game.DoubleStage == 2) TextAt(frame, "ダブル：2回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
             else if (game.Plan == "reshuffle") TextAt(frame, "配り直しました。行動を選んでください。", 280f, 28f, 480f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
@@ -392,7 +426,7 @@ namespace Quota
         void DrawTitleWide(Game game)
         {
             TextAt(frame, "QUOTA", 28f, 28f, 280f, 64f, 48, Color.white, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, "揃えて、達成。", 300f, 48f, 280f, 36f, 26, Color.white, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, RoundLabel(game), 300f, 48f, 280f, 36f, 26, Color.white, nameFont, TextAnchor.MiddleLeft);
             var note = "";
             if (game.DoubleStage == 1) note = "ダブル：1回目の行動です。  ";
             else if (game.DoubleStage == 2) note = "ダブル：2回目の行動です。  ";

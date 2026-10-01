@@ -83,6 +83,7 @@ class GameConfig:
     special_actions_rule: bool = False
     reshuffle_take_uses: int = 1
     double_action_uses: int = 1
+    rounds: int | None = None
     item_set: str = "trade"
 
     def resolved_market_size(self) -> int:
@@ -96,6 +97,12 @@ class GameConfig:
         if self.stall_threshold is not None:
             return self.stall_threshold
         return self.num_players
+
+    def resolved_rounds(self) -> int:
+        count = 1 if self.rounds is None else self.rounds
+        if count < 1:
+            raise ValueError("rounds must be at least 1")
+        return count
 
 
 @dataclass
@@ -120,6 +127,12 @@ class Game:
     plan: Literal["normal", "reshuffle", "double"] = "normal"
     double_stage: int = 0
     double_gained: bool = False
+    turn_order: list[int] = field(default_factory=list)
+    order_cursor: int = 0
+    round_index: int = 1
+    round_count: int = 1
+    awaiting_next_round: bool = False
+    round_end_reason: EndReason | None = None
 
     @classmethod
     def start(cls, config: GameConfig | None = None) -> Game:
@@ -150,11 +163,13 @@ class Game:
             )
             for i in range(cfg.num_players)
         ]
-        first = rng.randrange(cfg.num_players)
-        # Drawn after the deal so the opening cards stay tied to the seed.
+        # One draw here keeps the goods deal on the same stream as earlier seeds.
+        rng.randrange(cfg.num_players)
         from quota.items import deal_goods
 
         goods = deal_goods(rng)
+        turn_order = list(range(cfg.num_players))
+        rng.shuffle(turn_order)
         game = cls(
             config=cfg,
             deck=deck,
@@ -162,7 +177,7 @@ class Game:
             market=market,
             discard=[],
             players=players,
-            current=first,
+            current=turn_order[0],
             no_gain_streak=0,
             stall_flag=False,
             finished=False,
@@ -172,8 +187,12 @@ class Game:
             goods=goods,
             rng=rng,
             turn_gain=False,
+            turn_order=turn_order,
+            order_cursor=0,
+            round_index=1,
+            round_count=cfg.resolved_rounds(),
         )
-        game.log.append(f"先手: {players[first].name}")
+        game.log.append(f"第1ラウンド 先手: {players[turn_order[0]].name}")
         return game
 
     def _can_collect_more(self, player) -> bool:
@@ -186,6 +205,8 @@ class Game:
         return self.config.resolved_market_size()
 
     def legal_actions(self, seat: int | None = None) -> list[Action]:
+        if self.finished or self.awaiting_next_round:
+            return []
         p = self.players[self.current if seat is None else seat]
         if p.quota is None:
             acts: list[Action] = [
@@ -209,6 +230,8 @@ class Game:
     def step(self, action: Action) -> None:
         if self.finished:
             raise RuntimeError("game is already finished")
+        if self.awaiting_next_round:
+            raise RuntimeError("round is waiting to advance")
         if not self.is_legal(action):
             raise ValueError(f"illegal action: {action}")
         p = self.players[self.current]
@@ -251,6 +274,7 @@ class Game:
             self.log.append(f"{p.name} がノルマを放棄した")
             p.quota = None
             p.collection = []
+            return
         elif isinstance(action, Pass):
             self.log.append(f"{p.name} はパス")
         else:
@@ -289,6 +313,8 @@ class Game:
     def _declare(self, kind: str) -> None:
         if self.finished:
             raise RuntimeError("game is already finished")
+        if self.awaiting_next_round:
+            raise RuntimeError("round is waiting to advance")
         if not self.config.special_actions_rule:
             raise ValueError("特殊アクションは採用されていません")
         if self.plan != "normal" or self.turn_gain:
@@ -333,9 +359,7 @@ class Game:
             self.no_gain_streak += 1
             if self.no_gain_streak == self.config.resolved_stall_threshold():
                 if self.stall_flag:
-                    self.finished = True
-                    self.end_reason = "STALL"
-                    self.log.append("膠着の連続")
+                    self._end_round("STALL")
                     return
                 self._self_reshuffle()
                 self.no_gain_streak = 0
@@ -347,7 +371,8 @@ class Game:
         self.plan = "normal"
         self.double_stage = 0
         self.double_gained = False
-        self.current = (self.current + 1) % len(self.players)
+        self.order_cursor = (self.order_cursor + 1) % len(self.turn_order)
+        self.current = self.turn_order[self.order_cursor]
         self.turn_number += 1
         self.begin_turn()
 
@@ -359,12 +384,71 @@ class Game:
             if card is not None:
                 continue
             if not self.deck:
-                self.finished = True
-                self.end_reason = "DECK"
-                self.log.append("山札切れ")
+                self._end_round("DECK")
                 return False
             self.market[index] = self.deck.pop()
         return True
+
+    def previous_seat(self) -> int:
+        count = len(self.turn_order)
+        return self.turn_order[(self.order_cursor - 1) % count]
+
+    def begin_next_round(self) -> None:
+        if self.finished or not self.awaiting_next_round:
+            raise RuntimeError("次のラウンドはありません")
+        self._bank_round()
+        self.round_index += 1
+        self.awaiting_next_round = False
+        self.round_end_reason = None
+        self.cpu_takes = {}
+        self._open_round()
+
+    def _end_round(self, reason: EndReason) -> None:
+        self.round_end_reason = reason
+        label = "山札切れ" if reason == "DECK" else "膠着の連続"
+        self.log.append(label)
+        if self.round_index >= self.round_count:
+            self.finished = True
+            self.end_reason = reason
+            self.awaiting_next_round = False
+            if self.round_count > 1:
+                self.log.append("ゲーム終了")
+            return
+        self.awaiting_next_round = True
+        self.log.append(f"第{self.round_index}ラウンド終了")
+
+    def _bank_round(self) -> None:
+        for player in self.players:
+            player.score += self.sequence_points(player) + self.title_points(player)
+            player.achieved.clear()
+            player.bundles.clear()
+            player.quota = None
+            player.collection.clear()
+
+    def _open_round(self) -> None:
+        cfg = self.config
+        deck = make_deck(cfg.num_decks)
+        self.rng.shuffle(deck)
+        self.removed = [deck.pop() for _ in range(cfg.removed_count)]
+        self.market = [deck.pop() for _ in range(cfg.resolved_market_size())]
+        self.deck = deck
+        self.discard = []
+        take_left = cfg.reshuffle_take_uses if cfg.special_actions_rule else 0
+        double_left = cfg.double_action_uses if cfg.special_actions_rule else 0
+        for player in self.players:
+            player.reshuffle_take_left = take_left
+            player.double_action_left = double_left
+        self.no_gain_streak = 0
+        self.stall_flag = False
+        self.turn_gain = False
+        self.plan = "normal"
+        self.double_stage = 0
+        self.double_gained = False
+        self.turn_number = 1
+        self.reshuffle_count = 0
+        self.order_cursor = (self.round_index - 1) % len(self.turn_order)
+        self.current = self.turn_order[self.order_cursor]
+        self.log.append(f"第{self.round_index}ラウンド 先手: {self.players[self.current].name}")
 
     def ranking(self) -> list[list[int]]:
         """Seats grouped best-first. Ties share a group."""
@@ -404,6 +488,11 @@ class Game:
             "finished": self.finished,
             "end_reason": self.end_reason,
             "turn_number": self.turn_number,
+            "round_index": self.round_index,
+            "round_count": self.round_count,
+            "awaiting_next_round": self.awaiting_next_round,
+            "round_end_reason": self.round_end_reason,
+            "turn_order": list(self.turn_order),
             "sequence_rule": self.config.sequence_rule,
             "special_actions_rule": self.config.special_actions_rule,
             "plan": self.plan,

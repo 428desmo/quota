@@ -84,6 +84,7 @@ namespace Quota
         public bool SpecialActionsRule;
         public int ReshuffleTakeUses = 1;
         public int DoubleActionUses = 1;
+        public int Rounds = 1;
         public string ItemSet = "trade";
 
         public int ResolvedMarketSize()
@@ -96,6 +97,12 @@ namespace Quota
         {
             if (StallThreshold != null) return StallThreshold.Value;
             return NumPlayers;
+        }
+
+        public int ResolvedRounds()
+        {
+            if (Rounds < 1) throw new ArgumentException("rounds must be at least 1");
+            return Rounds;
         }
     }
 
@@ -121,6 +128,12 @@ namespace Quota
         public int DoubleStage;
         public bool DoubleGained;
         public readonly int[] Goods;
+        public readonly List<int> TurnOrder = new List<int>();
+        public int OrderCursor;
+        public int RoundIndex = 1;
+        public int RoundCount = 1;
+        public bool AwaitingNextRound;
+        public string RoundEndReason;
 
         Game(GameConfig config, List<Card> deck, List<Card> removed, List<Card> market, List<Player> players, int current, int[] goods, PythonRandom rng)
         {
@@ -167,13 +180,20 @@ namespace Quota
                 player.DoubleActionLeft = doubleLeft;
                 players.Add(player);
             }
-            var first = rng.RandBelow(cfg.NumPlayers);
+            rng.RandBelow(cfg.NumPlayers);
             var order = new List<int>();
             for (var i = 0; i < ItemCatalog.Count; i++) order.Add(i);
             rng.Shuffle(order);
             var goods = new[] { order[0], order[1], order[2], order[3] };
-            var game = new Game(cfg, deck, removed, market, players, first, goods, rng);
-            game.Log.Add($"先手: {players[first].Name}");
+            var turnOrder = new List<int>();
+            for (var i = 0; i < cfg.NumPlayers; i++) turnOrder.Add(i);
+            rng.Shuffle(turnOrder);
+            var game = new Game(cfg, deck, removed, market, players, turnOrder[0], goods, rng);
+            game.TurnOrder.AddRange(turnOrder);
+            game.OrderCursor = 0;
+            game.RoundIndex = 1;
+            game.RoundCount = cfg.ResolvedRounds();
+            game.Log.Add($"第1ラウンド 先手: {players[turnOrder[0]].Name}");
             return game;
         }
 
@@ -189,6 +209,7 @@ namespace Quota
 
         public List<GameAction> LegalActions(int? seat = null)
         {
+            if (Finished || AwaitingNextRound) return new List<GameAction>();
             var player = Players[seat ?? Current];
             var actions = new List<GameAction>();
             if (player.Quota == null)
@@ -215,6 +236,7 @@ namespace Quota
         public void Step(GameAction action)
         {
             if (Finished) throw new InvalidOperationException("game is already finished");
+            if (AwaitingNextRound) throw new InvalidOperationException("round is waiting to advance");
             if (!IsLegal(action)) throw new ArgumentException($"illegal action: {action}");
             var player = Players[Current];
             var gained = false;
@@ -269,6 +291,7 @@ namespace Quota
                 Log.Add($"{player.Name} がノルマを放棄した");
                 player.Quota = null;
                 player.Collection.Clear();
+                return;
             }
             else if (action is Pass)
             {
@@ -315,6 +338,7 @@ namespace Quota
         void Declare(string kind)
         {
             if (Finished) throw new InvalidOperationException("game is already finished");
+            if (AwaitingNextRound) throw new InvalidOperationException("round is waiting to advance");
             if (!Config.SpecialActionsRule) throw new ArgumentException("特殊アクションは採用されていません");
             if (Plan != "normal" || TurnGain) throw new ArgumentException("この手番では特殊アクションを宣言できません");
             var player = Players[Current];
@@ -372,9 +396,7 @@ namespace Quota
                 {
                     if (StallFlag)
                     {
-                        Finished = true;
-                        EndReason = "STALL";
-                        Log.Add("膠着の連続");
+                        EndRound("STALL");
                         return;
                     }
                     SelfReshuffle();
@@ -389,9 +411,86 @@ namespace Quota
             Plan = "normal";
             DoubleStage = 0;
             DoubleGained = false;
-            Current = (Current + 1) % Players.Count;
+            OrderCursor = (OrderCursor + 1) % TurnOrder.Count;
+            Current = TurnOrder[OrderCursor];
             TurnNumber++;
             BeginTurn();
+        }
+
+        public int PreviousSeat()
+        {
+            var count = TurnOrder.Count;
+            return TurnOrder[(OrderCursor - 1 + count) % count];
+        }
+
+        public void BeginNextRound()
+        {
+            if (Finished || !AwaitingNextRound) throw new InvalidOperationException("次のラウンドはありません");
+            BankRound();
+            RoundIndex++;
+            AwaitingNextRound = false;
+            RoundEndReason = null;
+            Characters.Forget(this);
+            OpenRound();
+        }
+
+        void EndRound(string reason)
+        {
+            RoundEndReason = reason;
+            Log.Add(reason == "DECK" ? "山札切れ" : "膠着の連続");
+            if (RoundIndex >= RoundCount)
+            {
+                Finished = true;
+                EndReason = reason;
+                AwaitingNextRound = false;
+                if (RoundCount > 1) Log.Add("ゲーム終了");
+                return;
+            }
+            AwaitingNextRound = true;
+            Log.Add($"第{RoundIndex}ラウンド終了");
+        }
+
+        void BankRound()
+        {
+            foreach (var player in Players)
+            {
+                player.Score += SequencePoints(player) + TitlePoints(player);
+                player.Achieved.Clear();
+                player.Bundles.Clear();
+                player.Quota = null;
+                player.Collection.Clear();
+            }
+        }
+
+        void OpenRound()
+        {
+            var deck = Cards.MakeDeck(Config.NumDecks);
+            Rng.Shuffle(deck);
+            Removed.Clear();
+            Removed.AddRange(PopMany(deck, Config.RemovedCount));
+            Market.Clear();
+            Market.AddRange(PopMany(deck, MarketSize()));
+            Deck.Clear();
+            Deck.AddRange(deck);
+            Discard.Clear();
+            var takeLeft = Config.SpecialActionsRule ? Config.ReshuffleTakeUses : 0;
+            var doubleLeft = Config.SpecialActionsRule ? Config.DoubleActionUses : 0;
+            foreach (var player in Players)
+            {
+                player.ReshuffleTakeLeft = takeLeft;
+                player.DoubleActionLeft = doubleLeft;
+            }
+            NoGainStreak = 0;
+            StallFlag = false;
+            TurnGain = false;
+            Plan = "normal";
+            DoubleStage = 0;
+            DoubleGained = false;
+            TurnNumber = 1;
+            ReshuffleCount = 0;
+            OrderCursor = (RoundIndex - 1) % TurnOrder.Count;
+            Current = TurnOrder[OrderCursor];
+            Log.Add($"第{RoundIndex}ラウンド 先手: {Players[Current].Name}");
         }
 
         public bool BeginTurn()
@@ -402,9 +501,7 @@ namespace Quota
                 if (Market[i] != null) continue;
                 if (Deck.Count == 0)
                 {
-                    Finished = true;
-                    EndReason = "DECK";
-                    Log.Add("山札切れ");
+                    EndRound("DECK");
                     return false;
                 }
                 Market[i] = Pop(Deck);

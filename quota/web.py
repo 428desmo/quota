@@ -116,6 +116,7 @@ class Table:
                 sequence_rule=bool(self.last_options and self.last_options.get("sequence")),
                 title_rule=bool(self.last_options and self.last_options.get("title")),
                 special_actions_rule=bool(self.last_options and self.last_options.get("special")),
+                rounds=1 if self.last_options and self.last_options.get("simple") else players,
             )
         )
         self.phase = "playing"
@@ -135,6 +136,18 @@ class Table:
         self.refresh_released = False
         self.cpu_after = time.monotonic() + 1.0
         assign_seats(self.game)
+
+    def next_round(self, client_id: str) -> None:
+        game = self.game
+        if self.phase != "playing" or game is None or not game.awaiting_next_round:
+            raise ValueError("次のラウンドを始められません")
+        if not any(member["client"] == client_id for member in self.roster):
+            raise ValueError("参加者ではありません")
+        game.begin_next_round()
+        self.event = None
+        self.event_n += 1
+        self.cpu_after = time.monotonic() + 0.6
+        self.touch()
 
     def again(self, client_id: str) -> None:
         if self.phase != "finished":
@@ -203,6 +216,7 @@ class Table:
             if (
                 self.phase == "playing"
                 and not game.finished
+                and not game.awaiting_next_round
                 and game.current == seat
                 and not self._settling()
                 and not self._refresh_waiting()
@@ -222,6 +236,8 @@ class Table:
             raise ValueError("場札の入れ替えを待っています")
         if self._settling():
             raise ValueError("実績へ移しています")
+        if self.game is not None and self.game.awaiting_next_round:
+            raise ValueError("次のラウンドを待っています")
         game = self._require_playing()
         player = game.players[game.current]
         if not player.is_human:
@@ -280,6 +296,11 @@ class Table:
         game = self.game
         if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
             return
+        if game.awaiting_next_round:
+            if any(player.is_human for player in game.players):
+                return
+            game.begin_next_round()
+            return
         if time.monotonic() < self.cpu_after:
             return
         if game.players[game.current].is_human:
@@ -289,7 +310,7 @@ class Table:
 
     def step_timeout(self) -> None:
         game = self.game
-        if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
+        if self.phase != "playing" or game is None or game.finished or game.awaiting_next_round or self._settling() or self._refresh_waiting():
             self.turn_deadline = None
             return
         player = game.players[game.current]
@@ -327,6 +348,10 @@ class Table:
             "settling_seat": self.settling_seat if self._settling() else None,
             "finished": game.finished,
             "end_reason": game.end_reason,
+            "round_index": game.round_index,
+            "round_count": game.round_count,
+            "awaiting_next_round": game.awaiting_next_round,
+            "round_end_reason": game.round_end_reason,
             "sequence_rule": game.config.sequence_rule,
             "title_rule": game.config.title_rule,
             "special_actions_rule": game.config.special_actions_rule,
@@ -335,7 +360,7 @@ class Table:
             "left_handed": self.left_handed,
             "item_set": {"id": theme.id, "name": theme.name},
             "current": game.current,
-            "current_human": game.players[game.current].is_human and not game.finished and not self._settling() and not self._refresh_waiting(),
+            "current_human": game.players[game.current].is_human and not game.finished and not game.awaiting_next_round and not self._settling() and not self._refresh_waiting(),
             "turn_left": self._turn_left(),
             "your_turn": self._your_turn(client_id),
             "you": self._you(client_id),
@@ -488,7 +513,7 @@ class Table:
 
     def _turn_left(self) -> float | None:
         game = self.game
-        if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
+        if self.phase != "playing" or game is None or game.finished or game.awaiting_next_round or self._settling() or self._refresh_waiting():
             return None
         if not game.players[game.current].is_human or self._only_one_human():
             return None
@@ -498,7 +523,7 @@ class Table:
 
     def _your_turn(self, client_id: str) -> bool:
         game = self.game
-        if game is None or game.finished or self._settling() or self._refresh_waiting():
+        if game is None or game.finished or game.awaiting_next_round or self._settling() or self._refresh_waiting():
             return False
         if not game.players[game.current].is_human:
             return False
@@ -706,6 +731,9 @@ class Hall:
     def again(self, client: str) -> None:
         self._require(client).again(client)
 
+    def next_round(self, client: str) -> None:
+        self._require(client).next_round(client)
+
     def step(self) -> None:
         self.sweep()
         for table in list(self.tables.values()):
@@ -771,6 +799,8 @@ class Handler(BaseHTTPRequestHandler):
                     HALL.ack(client)
                 elif self.path == "/api/again":
                     HALL.again(client)
+                elif self.path == "/api/next-round":
+                    HALL.next_round(client)
                 else:
                     self.send_error(404)
                     return

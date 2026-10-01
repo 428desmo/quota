@@ -464,8 +464,7 @@ def _previous_take(game: Game):
     if not record or "last" not in record:
         return None
     seat, suit = record["last"]
-    prev = (game.current - 1) % len(game.players)
-    if seat != prev:
+    if seat != game.previous_seat():
         return None
     return suit
 
