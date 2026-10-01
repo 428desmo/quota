@@ -307,7 +307,15 @@ namespace Quota
                 int? parsed = null;
                 if (int.TryParse(seedText, out var number)) parsed = number;
                 var names = new List<string> { "あなた" };
-                for (var i = 1; i < playerCount; i++) names.Add($"CPU{i}");
+                var characters = new List<int>();
+                var used = new HashSet<int>();
+                var rng = new System.Random();
+                for (var i = 1; i < playerCount; i++)
+                {
+                    var character = Characters.PickFresh(rng, used);
+                    characters.Add(character);
+                    names.Add(Characters.NameOf(character));
+                }
                 match.Begin(new GameConfig
                 {
                     NumPlayers = playerCount,
@@ -318,6 +326,7 @@ namespace Quota
                     TitleRule = titleRule,
                     SpecialActionsRule = specialRule,
                 }, pumpCpus: !Application.isPlaying);
+                Characters.BindInOrder(match.Game, characters);
                 confirm = null;
                 finishCounted = false;
                 offerStandard = false;
@@ -457,6 +466,13 @@ namespace Quota
             }
         }
 
+        static int NameFontSize(string name, float width, int preferred)
+        {
+            if (string.IsNullOrEmpty(name)) return preferred;
+            var fitted = Mathf.FloorToInt(width * 0.92f / name.Length);
+            return Mathf.Clamp(fitted, 18, preferred);
+        }
+
         void DrawPlayer(Game game, ItemSet theme, int index)
         {
             var player = game.Players[index];
@@ -466,7 +482,7 @@ namespace Quota
             seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
             Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
-            var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, NameFontSize(player.Name, 276f, 36), Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             var quotaTop = 75f;
             TextAt(seat, "ノルマ", 0f, quotaTop, 122f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
@@ -500,7 +516,7 @@ namespace Quota
             var current = index == game.Current && !game.Finished;
             Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
             Portrait.Box(seat, "nameplate", 16f, 6f, 270f, 46f, 4.5f, 1f, current ? Hex("#ffe56a") : Color.white, Color.black, false);
-            var name = TextAt(seat, player.Name, 28f, 6f, 246f, 46f, 30, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var name = TextAt(seat, player.Name, 28f, 6f, 246f, 46f, NameFontSize(player.Name, 246f, 30), Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             if (game.Config.SpecialActionsRule)
             {
@@ -936,7 +952,11 @@ namespace Quota
         {
             if (busy || !match.IsHumanTurn || !match.Game.IsLegal(action)) return;
             confirm = null;
+            var seat = match.Game.Current;
+            var turn = match.Game.TurnNumber;
+            Characters.Observe(match.Game, action);
             match.Game.Step(action);
+            Characters.CommitIfTurnEnded(match.Game, seat, turn);
             StartCoroutine(RunCpus(++cpuRun));
         }
 

@@ -19,14 +19,23 @@ namespace Quota
 
         public void Act(GameAction action)
         {
+            var seat = Game.Current;
+            var turn = Game.TurnNumber;
+            Characters.Observe(Game, action);
             Game.Step(action);
+            Characters.CommitIfTurnEnded(Game, seat, turn);
             PumpCpus();
         }
 
         public bool StepOneCpu()
         {
             if (Game.Finished || Game.Players[Game.Current].IsHuman) return false;
-            Game.Step(Cpu.ChooseAction(Game));
+            var action = Cpu.ChooseAction(Game);
+            var seat = Game.Current;
+            var turn = Game.TurnNumber;
+            Characters.Observe(Game, action);
+            Game.Step(action);
+            Characters.CommitIfTurnEnded(Game, seat, turn);
             return true;
         }
 
