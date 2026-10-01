@@ -838,10 +838,9 @@ namespace Quota
                     var rank = ceremonyPlaces != null && ceremonyPlaces.TryGetValue(seat, out var place) ? $"{place}位" : "";
                     TextAt(row, rank, 0f, 0f, 72f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
                     TextAt(row, match.Game.Players[seat].Name, 76f, 0f, 190f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
-                    var figure = TextAt(row, FigureText(seat), 270f, 0f, 150f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleRight);
+                    var figure = TextAt(row, FigureText(seat), 270f, 0f, panelW - 32f - 286f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleRight);
                     figure.gameObject.name = "figure";
                     figure.supportRichText = true;
-                    Portrait.Rect(row, "coins", panelW - 32f - 116f, 8f, 100f, rowH - 16f);
                     y += rowH;
                 }
             }
@@ -1003,20 +1002,14 @@ namespace Quota
 
         Vector3 TrayPoint(int seat)
         {
-            var slot = CoinSlot(seat);
-            return slot != null ? CenterOf(slot) : Vector3.zero;
+            var tray = TrayOf(seat) as RectTransform;
+            return tray != null ? CenterOf(tray) : Vector3.zero;
         }
 
         Vector3 ScorePoint(int seat)
         {
             var host = frame != null ? frame.Find("ceremony/row" + seat + "/figure") as RectTransform : null;
             return host != null ? CenterOf(host) : TrayPoint(seat);
-        }
-
-        RectTransform CoinSlot(int seat)
-        {
-            if (frame == null) return null;
-            return frame.Find("ceremony/row" + seat + "/coins") as RectTransform;
         }
 
         static Vector3 CenterOf(RectTransform rect)
@@ -1037,31 +1030,23 @@ namespace Quota
 
         void SpawnDot(CeremonyDot dot)
         {
-            LayoutCeremonyDots();
+            var tray = TrayOf(dot.Seat);
+            if (tray == null || tray.Find("cdot-" + dot.Serial) != null) return;
+            if (WideScreen()) DrawStoredDot(tray, dot, 8f, 28f, 160f, 82f, 12f);
+            else DrawStoredDot(tray, dot, 8f, 8f, 204f, 89f, 14f);
         }
 
         void LayoutCeremonyDots()
         {
-            foreach (var dot in ceremonyTray)
-            {
-                var slot = CoinSlot(dot.Seat);
-                if (slot == null) continue;
-                var holder = transform.Find("cdot-" + dot.Serial) as RectTransform;
-                if (holder == null) holder = Portrait.Circle(transform, "cdot-" + dot.Serial, 0f, 0f, 16f, CoinColor(dot.Kind));
-                var center = CenterOf(slot);
-                var width = slot.rect.width;
-                var height = slot.rect.height;
-                var nx = Centered(dot.Serial * 2 + 1) - 0.5f;
-                var ny = 0.5f - Centered(dot.Serial * 2 + 5);
-                holder.position = center + new Vector3(nx * width * 0.7f, ny * height * 0.5f, 0f);
-            }
+            foreach (var dot in ceremonyTray) SpawnDot(dot);
         }
 
         Vector3 TakeDot(CeremonyDot dot)
         {
             ceremonyTray.Remove(dot);
-            var host = transform.Find("cdot-" + dot.Serial);
-            var from = host != null ? host.position : TrayPoint(dot.Seat);
+            var tray = TrayOf(dot.Seat);
+            var host = tray != null ? tray.Find("cdot-" + dot.Serial) as RectTransform : null;
+            var from = host != null ? CenterOf(host) : TrayPoint(dot.Seat);
             if (host != null) Destroy(host.gameObject);
             return from;
         }
@@ -1351,6 +1336,19 @@ namespace Quota
                 var step = (diameter + 1f) * cardScale;
                 for (var i = 0; i < pair.Value.Count; i++)
                     DrawCoin(host, pair.Value[i], 4f * cardScale, (28f * cardScale) + i * step, diameter * cardScale);
+            }
+            if (ceremonyRunning)
+            {
+                var seat = -1;
+                for (var i = 0; i < game.Players.Count; i++)
+                    if (ReferenceEquals(game.Players[i], player)) seat = i;
+                for (var i = 0; i < ceremonyTray.Count; i++)
+                {
+                    var dot = ceremonyTray[i];
+                    if (dot.Seat != seat || tray.Find("cdot-" + dot.Serial) != null) continue;
+                    DrawStoredDot(tray, dot, x, y, width, height, diameter);
+                }
+                return;
             }
             var slides = new List<CoinSlide>();
             for (var i = 0; i < bank.Count; i++)
