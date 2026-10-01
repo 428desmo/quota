@@ -613,7 +613,7 @@ function render() {
       ${controls}
     </section>
     ${seats}
-    ${state.finished && !ceremony && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
+    ${scoreDialogOpen() || (state.finished && !ceremony && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer) ? finishHtml() : ""}
     ${standardOfferHtml()}
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
     ${coverHtml()}
@@ -660,7 +660,13 @@ function render() {
   const ack = app.querySelector("#ack");
   if (ack) ack.onclick = () => post("/api/ack", {});
   const ok = app.querySelector("#ok");
-  if (ok) ok.onclick = () => post(state.you && state.you.observer ? "/api/leave" : "/api/again", {});
+  if (ok) ok.onclick = () => {
+    if (scoreDialogOpen()) {
+      pressCeremony();
+      return;
+    }
+    post(state.you && state.you.observer ? "/api/leave" : "/api/again", {});
+  };
   const standardYes = app.querySelector("#standard-yes");
   if (standardYes) standardYes.onclick = () => dismissStandardOffer(true);
   const standardNo = app.querySelector("#standard-no");
@@ -820,13 +826,20 @@ function roundParts(player) {
 
 let ceremony = null;
 let ceremonyTimer = null;
+let ceremonyClosed = false;
+
+function scoreDialogOpen() {
+  return !!(ceremony && state && state.finished && ceremony.phase === "ready");
+}
 
 function syncCeremony() {
   const live = state && (state.awaiting_next_round || state.finished);
   if (!live) {
     ceremony = null;
+    ceremonyClosed = false;
     return;
   }
+  if (ceremonyClosed) return;
   const key = `${state.table_id}:${state.round_index}:${state.finished ? 1 : 0}`;
   if (ceremony && ceremony.key === key) return;
   ceremony = state.finished && !watched ? finalCeremony(key) : startCeremony(key);
@@ -1146,13 +1159,15 @@ function flyDot(from, toRect, kind, onDone) {
 }
 
 function pressCeremony() {
-  if (!ceremony) return;
+  if (!ceremony || ceremonyClosed) return;
   if (ceremony.phase === "ready") {
-    const show = ceremony;
+    if (state.finished || state.round_index >= state.round_count) {
+      ceremonyClosed = true;
+      post("/api/leave", {});
+      return;
+    }
     ceremony = null;
-    if (state.finished || state.round_index >= state.round_count) post("/api/leave", {});
-    else post("/api/next-round", {});
-    show.pressed = false;
+    post("/api/next-round", {});
     return;
   }
   ceremony.pressed = true;
@@ -1161,7 +1176,7 @@ function pressCeremony() {
 }
 
 function ceremonyHtml() {
-  if (!ceremony) return "";
+  if (!ceremony || scoreDialogOpen()) return "";
   const reason = state.round_end_reason === "DECK" ? "山札切れ" : state.round_end_reason === "STALL" ? "膠着の連続" : "";
   const heading = ceremony.review ? "ゲーム終了" : `第${state.round_index}ラウンド終了${reason ? `（${reason}）` : ""}`;
   const lines = ceremony.lines.slice(0, ceremony.lineCount).filter((line) => !line.gone).map((line, index) => {
@@ -1213,7 +1228,7 @@ function finishHtml() {
     return text;
   }).join("<br>");
   const perks = perkHtml();
-  const nextLabel = state.you && state.you.observer ? "離れる" : "次のゲームを始める";
+  const nextLabel = scoreDialogOpen() ? "ゲームを終了" : (state.you && state.you.observer ? "離れる" : "次のゲームを始める");
   return `<div class="overlay"><div class="panel"><h2>${reason}</h2><p>${lines}</p>${perks}<button class="primary" id="ok">${nextLabel}</button></div></div>`;
 }
 

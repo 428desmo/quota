@@ -71,6 +71,7 @@ namespace Quota
         bool ceremonyRunning;
         bool ceremonyOk;
         bool ceremonyDismissed;
+        bool ceremonyScoreReady;
         bool reviewMode;
         string ceremonyHeading = "";
         string ceremonyButton;
@@ -304,6 +305,7 @@ namespace Quota
                 cpuRun++;
                 ceremonyRunning = false;
             }
+            ceremonyScoreReady = false;
             reviewMode = false;
             orderOverride = null;
             scoreOverride = null;
@@ -392,6 +394,7 @@ namespace Quota
         {
             if (match.Game == null || reviewOrder == null || reviewScores == null) return;
             reviewMode = true;
+            ceremonyScoreReady = true;
             ceremonyRunning = false;
             ceremonyDismissed = true;
             ceremonyHeading = "ゲーム終了";
@@ -434,19 +437,20 @@ namespace Quota
             else DrawMarket(game, theme);
             if (wide) DrawTitleWide(game);
             else DrawTitle(game);
-            if (reviewMode || (ceremonyBreak && Application.isPlaying)) DrawCeremonyPanel();
-            else if (ceremonyBreak && game.AwaitingNextRound) DrawRoundBreak(game);
-            else if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
-            else if (confirm == null && !game.Finished)
+            var showScore = game.Finished && (reviewMode || !ceremonyBreak);
+            if (!showScore && (reviewMode || (ceremonyBreak && Application.isPlaying))) DrawCeremonyPanel();
+            else if (!showScore && ceremonyBreak && game.AwaitingNextRound) DrawRoundBreak(game);
+            else if (!showScore && confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
+            else if (!showScore && confirm == null && !game.Finished)
             {
                 var note = $"{game.Players[game.Current].Name} が考えています";
                 if (wide) TextAt(frame, note, LandMarketX, LandMarketY + LandMarketH + 12f, LandMarketW, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
                 else TextAt(frame, note, 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
             }
             if (!game.Finished) LeaveButton();
-            if (game.Finished && !reviewMode && !ceremonyBreak)
+            if (showScore)
             {
-                Result(game);
+                Result(game, ceremonyScoreReady || reviewMode ? "ゲームを終了" : "もう一局");
                 if (offerStandard) DrawStandardOffer();
             }
             else if (confirm != null && !ceremonyBreak && !reviewMode) Confirm();
@@ -619,16 +623,21 @@ namespace Quota
             }
             if (serial != cpuRun) yield break;
             ceremonyLast = match.Game.Finished || match.Game.RoundIndex >= match.Game.RoundCount;
-            ceremonyButton = ceremonyLast ? "ゲームを終了" : "OK";
-            if (ceremonyLast) ceremonyHeading = "ゲーム終了";
             ceremonyOk = false;
             if (ceremonyLast)
             {
-                reviewOrder = new List<int>(orderOverride);
-                reviewScores = new Dictionary<int, int>(scoreOverride);
+                ceremonyScoreReady = true;
+                ceremonyDismissed = true;
+                reviewOrder = new List<int>(orderOverride ?? new List<int>());
+                reviewScores = new Dictionary<int, int>(scoreOverride ?? new Dictionary<int, int>());
                 reviewUntil = Time.realtimeSinceStartup + 180f;
+                ShowTable();
             }
-            RedrawCeremonyPanel();
+            else
+            {
+                ceremonyButton = "OK";
+                RedrawCeremonyPanel();
+            }
             while (!ceremonyOk)
             {
                 if (serial != cpuRun) yield break;
@@ -1566,7 +1575,7 @@ namespace Quota
             });
         }
 
-        void Result(Game game)
+        void Result(Game game, string button = "もう一局")
         {
             NoteFinish();
             var resultX = WideScreen() ? (LandWidth - 900f) * 0.5f : 90f;
@@ -1591,7 +1600,8 @@ namespace Quota
                 }
                 place += group.Count;
             }
-            Pill(panel, "もう一局", 32f, (WideScreen() ? 920f : 1100f) - 100f, 280f, 72f, 32, ShowSetup);
+            var width = Mathf.Max(280f, button.Length * 32f + 48f);
+            Pill(panel, button, 32f, resultH - 100f, width, 72f, 32, ShowSetup);
         }
 
         void Play(GameAction action)
