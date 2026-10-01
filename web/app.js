@@ -488,7 +488,8 @@ function render() {
   }
 
   noteFinishedGame();
-  const seats = state.players.map((player, index) => {
+  const seats = seatOrder().map((index, row) => {
+    const player = state.players[index];
     const focus = state.settling ? state.settling_seat : state.current;
     const turn = index === focus && !state.finished ? " turn" : "";
     const parkedHere = player.achieved.filter((card) => parked.has(String(card.id)));
@@ -507,7 +508,7 @@ function render() {
       return `<div class="line record" style="z-index:${rowIndex + 1}">${cards}</div>`;
     }).join("");
     const score = scoreBits(index, baseScore(player));
-    const alt = index % 2 ? " alt" : "";
+    const alt = row % 2 ? " alt" : "";
     const mine = state.you && state.you.seat === index;
     const onClock = index === state.current && state.current_human;
     const youTag = mine ? `<span class="you-tag${state.your_turn && onClock ? " live" : ""}">【あなた】</span>` : "";
@@ -759,10 +760,24 @@ function confirmHtml(message, gate, rollover) {
   return rollover ? `<div class="rollover">${body}</div>` : body;
 }
 
+function seatOrder() {
+  const count = state.players.length;
+  const cycle = Array.isArray(state.turn_order) && state.turn_order.length === count
+    ? state.turn_order
+    : state.players.map((_, index) => index);
+  const mine = state.you && state.you.seat != null ? state.you.seat : cycle[0];
+  const start = cycle.indexOf(mine);
+  const from = start < 0 ? 0 : start;
+  return cycle.slice(from).concat(cycle.slice(0, from));
+}
+
 function roundBreakHtml() {
   if (!state.awaiting_next_round) return "";
   const reason = state.round_end_reason === "DECK" ? "山札切れ" : "膠着の連続";
-  const lines = state.players.map((player) => `${escapeText(player.name)} ${player.score}点`).join("<br>");
+  const lines = seatOrder().map((index) => {
+    const player = state.players[index];
+    return `${escapeText(player.name)} ${player.score}点`;
+  }).join("<br>");
   return `<div class="rollover"><div class="panel"><p>第${state.round_index}ラウンド終了（${reason}）</p><p>${lines}</p><p class="submit"><button type="button" class="primary" id="next-round">次のラウンド</button></p></div></div>`;
 }
 
