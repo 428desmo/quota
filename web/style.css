@@ -304,16 +304,36 @@ main:has(#leave) { padding-bottom: 44px; }
 }
 .ceremony {
   position: fixed;
-  z-index: 40;
-  top: 8px;
-  left: 8px;
-  width: min(260px, 46vw);
+  z-index: 60;
+  top: 14vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, 92vw);
+  box-sizing: border-box;
   background: #fff;
   border: 2px solid #222;
-  padding: 10px 12px;
+  padding: 14px 16px 12px;
 }
-.ceremony-heading { margin: 0 0 6px; font-weight: 700; font-size: 14px; }
-.ceremony-line { margin: 3px 0; font-size: 13px; }
+.ceremony-heading { margin: 0 0 8px; font-weight: 700; }
+.ceremony-titles { margin-bottom: 6px; }
+.ceremony-line { margin: 0; min-height: 1.45em; font-size: 13px; line-height: 1.45; }
+.ceremony-board { display: flex; flex-direction: column; gap: 4px; }
+.ceremony-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+}
+.ceremony-rank { width: 2.8em; flex: none; font-weight: 700; }
+.ceremony-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ceremony-figure { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ceremony-coins { display: flex; flex: none; flex-wrap: wrap; gap: 2px; width: 84px; max-height: 28px; overflow: hidden; justify-content: flex-end; }
+.ceremony-coins .coin { position: relative; }
+.ceremony-action { min-height: 38px; margin: 8px 0 0; }
+.ceremony-action.pending button { visibility: hidden; }
 .round-plus { margin-left: 6px; color: #c45c26; font-weight: 700; }
 .overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.35);
