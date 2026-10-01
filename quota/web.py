@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from quota.ai import choose_action
+from quota.characters import assign_seats, bind_replacement
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
 
 ROOT = Path(__file__).resolve().parent.parent / "web"
@@ -133,6 +134,7 @@ class Table:
         self.refresh_notice_at = None
         self.refresh_released = False
         self.cpu_after = time.monotonic() + 1.0
+        assign_seats(self.game)
 
     def again(self, client_id: str) -> None:
         if self.phase != "finished":
@@ -192,6 +194,7 @@ class Table:
         if game is not None and seat is not None and self.phase in ("playing", "finished"):
             player = game.players[seat]
             player.is_human = False
+            bind_replacement(player)
             self._announce(f"{player.name}が抜けたので、CPUが代わりにプレイしました")
             if self._only_one_human():
                 self.turn_deadline = None

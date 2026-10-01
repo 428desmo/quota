@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from quota.ai import choose_action
+from quota.characters import assign_seats
 from quota.cards import Card
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
 
@@ -38,6 +39,7 @@ def main() -> None:
             special_actions_rule=args.special,
         )
     )
+    assign_seats(game)
     theme = game.theme()
     kinds = "、".join(theme.faces[kind].name for kind in ("K1", "K2", "K3", "K4"))
     print(f"交易品: {kinds}　ワイルド: {theme.faces['WILD'].name}")

@@ -7,6 +7,13 @@ namespace Quota
     {
         public static GameAction ChooseAction(Game game)
         {
+            var mind = Characters.MindFor(game.Players[game.Current]);
+            if (mind != null) return mind.Choose(game);
+            return ChooseStock(game);
+        }
+
+        public static GameAction ChooseStock(Game game)
+        {
             MaybeSpecial(game);
             var actions = game.LegalActions();
             var player = game.Players[game.Current];
@@ -35,9 +42,19 @@ namespace Quota
                 return need >= 6 ? (GameAction)new Abandon() : new Pass();
             if (need >= 6 && suits.Count == 0) return new Abandon();
             var picked = suits.Concat(jokers).ToList();
-            if (game.Config.SequenceRule) picked = OrderForSequence(player, picked);
+            if (game.Config.SequenceRule) picked = OrderForSequenceCore(player, picked);
             if (picked.Count > need) picked = picked.GetRange(0, need);
             return new Collect(picked.ConvertAll(card => card.Id));
+        }
+
+        public static void ConsiderSpecials(Game game)
+        {
+            MaybeSpecial(game);
+        }
+
+        public static List<Card> OrderForSequence(Player player, List<Card> cards)
+        {
+            return OrderForSequenceCore(player, cards);
         }
 
         static void MaybeSpecial(Game game)
@@ -67,7 +84,7 @@ namespace Quota
             return need > 0 && need <= 4 && eligible > 0;
         }
 
-        static List<Card> OrderForSequence(Player player, List<Card> cards)
+        static List<Card> OrderForSequenceCore(Player player, List<Card> cards)
         {
             int? tail = player.Quota != null ? player.Quota.Rank : null;
             if (player.Collection.Count > 0)

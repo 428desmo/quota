@@ -7,6 +7,15 @@ from quota.engine import Abandon, Action, Collect, Game, Pass, TakeQuota
 
 
 def choose_action(game: Game) -> Action:
+    from quota.characters import mind_for
+
+    mind = mind_for(game.players[game.current])
+    if mind is not None:
+        return mind.choose(game)
+    return choose_stock(game)
+
+
+def choose_stock(game: Game) -> Action:
     _maybe_special(game)
     actions = game.legal_actions()
     player = game.players[game.current]
