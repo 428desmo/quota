@@ -200,7 +200,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .coin.blue { background: #3c7dff; }
 .coin.flying {
   position: fixed;
-  z-index: 40;
+  z-index: 70;
   margin: 0;
   transition: left .4s ease, top .4s ease;
 }
@@ -315,6 +315,8 @@ main:has(#leave) { padding-bottom: 44px; }
   padding: 14px 16px 12px;
 }
 .ceremony-heading { margin: 0 0 8px; font-weight: 700; }
+.ceremony-overall { margin: 0 0 6px; min-height: 1.4em; font-weight: 700; }
+.ceremony-winner { margin: 8px 0 0; font-weight: 700; line-height: 1.45; }
 .ceremony-titles { margin-bottom: 6px; }
 .ceremony-line { margin: 0; min-height: 1.45em; font-size: 13px; line-height: 1.45; }
 .ceremony-board { display: flex; flex-direction: column; gap: 4px; }
