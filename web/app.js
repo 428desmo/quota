@@ -417,7 +417,7 @@ function render() {
             <input class="short" name="ok_timeout" type="number" min="0" step="0.5" value="${saved.ok_timeout ?? 3}">
           </label>
           <label>手番タイムアウト（秒）
-            <input class="short" name="turn_timeout" type="number" min="1" step="1" value="${saved.turn_timeout ?? 30}">
+            <input class="short" name="turn_timeout" type="number" min="1" step="1" value="${saved.turn_timeout ?? 120}">
           </label>
         </div>
         <div class="row option-gap">
@@ -431,13 +431,20 @@ function render() {
           </label>
         </div>
         <p class="submit"><button class="primary" type="submit">卓を新設</button></p>
+        <p class="submit"><button type="button" id="watch-cpu">CPU模擬戦を観戦</button></p>
       </form>
       <section class="panel">
         <h2>参加できる卓</h2>
-        ${(state.tables || []).length ? (state.tables || []).map((table) => `<div class="row table-line">
-          <span>${escapeText(table.leader)}の卓　${table.status}　${table.seated}/${table.players}人${table.observers ? `　観戦${table.observers}` : ""}</span>
-          <button type="button" data-join="${escapeAttr(table.id)}">${table.status === "募集中" && table.seated < table.players ? "参加" : "観戦"}</button>
-        </div>`).join("") : `<p class="note">いま開ける卓はありません。</p>`}
+        ${(state.tables || []).length ? (state.tables || []).map((table) => {
+          const ended = table.status === "ゲーム終了";
+          const openSeat = table.status === "募集中" && table.seated < table.players;
+          const label = ended ? "見る" : openSeat ? "参加" : "観戦";
+          const who = ended ? `${escapeText(table.leader)}　ゲーム終了` : `${escapeText(table.leader)}の卓　${table.status}　${table.seated}/${table.players}人${table.observers ? `　観戦${table.observers}` : ""}`;
+          return `<div class="row table-line">
+          <span>${who}</span>
+          <button type="button" data-join="${escapeAttr(table.id)}">${label}</button>
+        </div>`;
+        }).join("") : `<p class="note">いま開ける卓はありません。</p>`}
       </section>`;
     app.querySelectorAll("[data-guide]").forEach((button) => {
       button.onclick = () => {
@@ -472,6 +479,18 @@ function render() {
         left_handed: data.get("left_handed") === "on",
       });
     };
+    const watchCpu = app.querySelector("#watch-cpu");
+    if (watchCpu) watchCpu.onclick = () => {
+      const data = new FormData(form);
+      const simple = data.get("simple") === "on";
+      post("/api/table", {
+        cpu_match: true,
+        players: Number(data.get("players")),
+        name: String(data.get("player_name") || ""),
+        seed: data.get("seed"),
+        simple,
+      });
+    };
     app.querySelectorAll("[data-join]").forEach((button) => {
       button.onclick = () => {
         const name = String(new FormData(form).get("player_name") || "");
@@ -488,7 +507,8 @@ function render() {
   }
 
   noteFinishedGame();
-  const seats = seatOrder().map((index, row) => {
+  syncCeremony();
+  const seats = viewOrder().map((index, row) => {
     const player = state.players[index];
     const focus = state.settling ? state.settling_seat : state.current;
     const turn = index === focus && !state.finished ? " turn" : "";
@@ -507,7 +527,12 @@ function render() {
       const cards = row.map((card, cardIndex) => cardHtml(card, cardIndex + 1, null, true)).join("");
       return `<div class="line record" style="z-index:${rowIndex + 1}">${cards}</div>`;
     }).join("");
-    const score = scoreBits(index, baseScore(player));
+    const score = ceremony && ceremony.scores.has(index)
+      ? { points: ceremony.scores.get(index), plus: "" }
+      : scoreBits(index, baseScore(player));
+    const roundPlus = ceremony && ceremony.plusCount != null && row < ceremony.plusCount && !ceremony.plusCleared
+      ? `<span class="round-plus">+${ceremony.roundScore.get(index)}</span>`
+      : "";
     const alt = row % 2 ? " alt" : "";
     const mine = state.you && state.you.seat === index;
     const onClock = index === state.current && state.current_human;
@@ -522,7 +547,7 @@ function render() {
     return `<section class="seat${alt}${turn}" data-seat="${index}">
       ${toast}
       <div class="bar"><span class="who"><strong>${escapeText(player.name)}</strong>${youTag}${clock}${uses}</span>
-        <span class="score">${score.plus}<span class="points">${score.points}</span>点</span></div>
+        <span class="score">${score.plus}<span class="points">${score.points}</span>点${roundPlus}</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>
         <div class="band-main"><div class="line order">${order}</div></div>
@@ -531,7 +556,7 @@ function render() {
         <div class="vlabel">実績</div>
         <div class="record-row">
           <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
-          <div class="coin-tray" aria-label="ボーナス">${trayHtml(coins.bank)}</div>
+          <div class="coin-tray" aria-label="ボーナス">${trayHtml(ceremony && ceremony.coins.has(index) ? ceremony.coins.get(index) : coins.bank)}</div>
         </div>
       </div>
     </section>`;
@@ -581,14 +606,14 @@ function render() {
       ${state.sequence_rule ? " / 並び順" : ""}${state.title_rule ? " / 称号" : ""}${state.special_actions_rule ? " / 特殊" : ""}</p>
     ${watcherHtml()}
     ${gateHtml()}
-    ${roundBreakHtml()}
+    ${ceremonyHtml()}
     <section class="panel market-panel">
       <div class="market-label">場札${hint ? `<span class="thinking">${hint}</span>` : ""}</div>
       <div class="market" id="market">${market}</div>
       ${controls}
     </section>
     ${seats}
-    ${state.finished && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
+    ${state.finished && !ceremony && tally && tally.phase === "done" && !scoreAnim.size && !titleCheer ? finishHtml() : ""}
     ${standardOfferHtml()}
     ${titleCheer ? `<div class="rollover title-cheer"><div class="panel"><p>${titleCheer.text}</p><p class="title-plus">+${titleCheer.plus}</p></div></div>` : ""}
     ${coverHtml()}
@@ -598,8 +623,8 @@ function render() {
 
   const leave = app.querySelector("#leave");
   if (leave) leave.onclick = () => confirmLeave();
-  const nextRound = app.querySelector("#next-round");
-  if (nextRound) nextRound.onclick = () => post("/api/next-round", {});
+  const ceremonyOk = app.querySelector("#ceremony-ok");
+  if (ceremonyOk) ceremonyOk.onclick = () => pressCeremony();
   app.querySelectorAll(".pick").forEach((button) => {
     button.onclick = () => onPick(Number(button.parentElement.dataset.id));
   });
@@ -771,17 +796,386 @@ function seatOrder() {
   return cycle.slice(from).concat(cycle.slice(0, from));
 }
 
-function roundBreakHtml() {
-  if (!state.awaiting_next_round) return "";
-  const reason = state.round_end_reason === "DECK" ? "山札切れ" : "膠着の連続";
-  const lines = seatOrder().map((index) => {
-    const player = state.players[index];
-    return `${escapeText(player.name)} ${player.score}点`;
-  }).join("<br>");
-  return `<div class="rollover"><div class="panel"><p>第${state.round_index}ラウンド終了（${reason}）</p><p>${lines}</p><p class="submit"><button type="button" class="primary" id="next-round">次のラウンド</button></p></div></div>`;
+function viewOrder() {
+  if (ceremony && ceremony.order && ceremony.order.length === state.players.length) return ceremony.order;
+  return seatOrder();
+}
+
+function roundParts(player) {
+  const base = baseScore(player);
+  let green = 0;
+  let cursor = 0;
+  const cards = player.achieved || [];
+  while (cursor < cards.length) {
+    const rank = cards[cursor] && cards[cursor].rank;
+    if (!rank) break;
+    green += achievementCoins(rank);
+    cursor += rank;
+  }
+  const purple = player.sequence_bonus || 0;
+  const blue = (player.titles || []).reduce((sum, title) => sum + (title.points || 0), 0);
+  const previous = (player.delivery_score || 0) - base - green;
+  return { base, green, purple, blue, round: base + green + purple + blue, previous };
+}
+
+let ceremony = null;
+let ceremonyTimer = null;
+
+function syncCeremony() {
+  const live = state && (state.awaiting_next_round || state.finished);
+  if (!live) {
+    ceremony = null;
+    return;
+  }
+  const key = `${state.table_id}:${state.round_index}:${state.finished ? 1 : 0}`;
+  if (ceremony && ceremony.key === key) return;
+  ceremony = state.finished && !watched ? finalCeremony(key) : startCeremony(key);
+  if (!ceremonyTimer) ceremonyTimer = setInterval(pumpCeremony, 80);
+}
+
+function startCeremony(key) {
+  const parts = state.players.map((player) => roundParts(player));
+  const scores = new Map(parts.map((part, index) => [index, part.base]));
+  const coins = new Map(parts.map((part, index) => {
+    const pile = [];
+    for (let n = 0; n < part.green; n += 1) pile.push({ kind: "green", id: `g-${index}-${n}` });
+    for (let n = 0; n < part.purple; n += 1) pile.push({ kind: "purple", id: `p-${index}-${n}` });
+    return [index, pile];
+  }));
+  const leader = roundLeader();
+  const lines = [];
+  orderFrom(leader).forEach((seat) => {
+    for (const title of state.players[seat].titles || []) {
+      if (!title.points) continue;
+      lines.push({
+        seat,
+        text: `${state.players[seat].name} : ${title.name}ボーナス +${title.points}`,
+        points: title.points,
+        arrived: 0,
+        gone: false,
+      });
+    }
+  });
+  return {
+    key,
+    phase: lines.length ? "titles" : "bases",
+    at: Date.now(),
+    readyAt: null,
+    pressed: false,
+    lines,
+    lineCount: lines.length ? 1 : 0,
+    scores,
+    coins,
+    roundScore: new Map(parts.map((part, index) => [index, part.round])),
+    previous: new Map(parts.map((part, index) => [index, part.previous])),
+    order: state.turn_order && state.turn_order.length === state.players.length
+      ? state.turn_order.slice()
+      : state.players.map((_, index) => index),
+    flyLaunched: 0,
+    cashLaunched: 0,
+    cashJobs: null,
+    plusCount: null,
+    plusCleared: false,
+    rewriteCount: 0,
+  };
+}
+
+function finalCeremony(key) {
+  const seats = state.players.map((_, index) => index);
+  seats.sort((a, b) => (state.players[b].score || 0) - (state.players[a].score || 0));
+  return {
+    key,
+    phase: "ready",
+    at: Date.now(),
+    readyAt: Date.now(),
+    pressed: false,
+    lines: [],
+    lineCount: 0,
+    scores: new Map(state.players.map((player, index) => [index, player.score || 0])),
+    coins: new Map(state.players.map((_, index) => [index, []])),
+    roundScore: new Map(),
+    previous: new Map(),
+    order: seats,
+    flyLaunched: 0,
+    cashLaunched: 0,
+    cashJobs: [],
+    plusCount: null,
+    plusCleared: true,
+    rewriteCount: 0,
+    review: true,
+  };
+}
+
+function roundLeader() {
+  const cycle = state.turn_order || [];
+  if (!cycle.length) return 0;
+  return cycle[(state.round_index - 1) % cycle.length];
+}
+
+function orderFrom(seat) {
+  const cycle = (state.turn_order || state.players.map((_, index) => index)).slice();
+  const start = cycle.indexOf(seat);
+  if (start < 0) return cycle;
+  return cycle.slice(start).concat(cycle.slice(0, start));
+}
+
+function sortSeats(scoreOf) {
+  return state.players.map((_, index) => index).sort((a, b) => {
+    const diff = scoreOf(b) - scoreOf(a);
+    if (diff) return diff;
+    return (state.turn_order || []).indexOf(a) - (state.turn_order || []).indexOf(b);
+  });
+}
+
+function pumpCeremony() {
+  if (!ceremony || !state || (!state.awaiting_next_round && !state.finished)) {
+    if (ceremonyTimer && (!state || (!state.awaiting_next_round && !state.finished))) {
+      clearInterval(ceremonyTimer);
+      ceremonyTimer = null;
+    }
+    return;
+  }
+  const dirty = updateCeremony(Date.now());
+  if (dirty) render();
+  launchDueFlights();
+}
+
+function updateCeremony(now) {
+  const show = ceremony;
+  if (!show || show.review) return false;
+  let dirty = false;
+  if (show.phase === "titles") {
+    const shown = show.pressed ? show.lines.length : Math.min(show.lines.length, Math.floor((now - show.at) / 300) + 1);
+    if (shown !== show.lineCount) {
+      show.lineCount = shown;
+      dirty = true;
+    }
+    if (show.lineCount >= show.lines.length && show.readyAt == null) {
+      show.readyAt = now;
+      dirty = true;
+    }
+    if (show.lineCount >= show.lines.length && (show.pressed || now - show.readyAt >= 2000)) {
+      show.pressed = false;
+      show.readyAt = null;
+      show.phase = "fly";
+      show.at = now;
+      show.flyLaunched = 0;
+      dirty = true;
+    }
+  } else if (show.phase === "bases") {
+    if (now - show.at >= 400) {
+      show.phase = "cash";
+      show.at = now;
+      show.cashJobs = cashJobs();
+      show.cashLaunched = 0;
+      dirty = true;
+    }
+  } else if (show.phase === "wait-sort") {
+    if (show.pressed || now - show.at >= 2000) {
+      show.pressed = false;
+      show.order = sortSeats((seat) => show.scores.get(seat) || 0);
+      show.phase = state.round_index >= 2 ? "wait-prev" : "ready";
+      show.at = now;
+      dirty = true;
+    }
+  } else if (show.phase === "wait-prev") {
+    if (show.pressed || now - show.at >= 2000) {
+      show.pressed = false;
+      show.order = sortSeats((seat) => show.previous.get(seat) || 0);
+      show.scores = new Map(show.previous);
+      show.phase = "plus";
+      show.at = now;
+      show.readyAt = null;
+      show.plusCount = 1;
+      show.plusCleared = false;
+      dirty = true;
+    }
+  } else if (show.phase === "plus") {
+    const count = Math.min(show.order.length, Math.floor((now - show.at) / 200) + 1);
+    if (count !== show.plusCount) {
+      show.plusCount = count;
+      dirty = true;
+    }
+    if (count >= show.order.length && show.readyAt == null) show.readyAt = now;
+    if (count >= show.order.length && show.readyAt != null && now - show.readyAt >= 1000) {
+      show.phase = "rewrite";
+      show.at = now;
+      show.readyAt = null;
+      show.rewriteCount = 1;
+      show.scores.set(show.order[0], (show.previous.get(show.order[0]) || 0) + (show.roundScore.get(show.order[0]) || 0));
+      dirty = true;
+    }
+  } else if (show.phase === "rewrite") {
+    const count = Math.min(show.order.length, Math.floor((now - show.at) / 200) + 1);
+    if (count !== show.rewriteCount) {
+      show.rewriteCount = count;
+      for (let i = 0; i < count; i += 1) {
+        const seat = show.order[i];
+        show.scores.set(seat, (show.previous.get(seat) || 0) + (show.roundScore.get(seat) || 0));
+      }
+      dirty = true;
+    }
+    if (count >= show.order.length && show.readyAt == null) show.readyAt = now;
+    if (show.readyAt != null && now - show.readyAt >= 1000) {
+      show.order = sortSeats((seat) => show.scores.get(seat) || 0);
+      show.plusCleared = true;
+      show.phase = "ready";
+      show.at = now;
+      dirty = true;
+    }
+  }
+  return dirty;
+}
+
+function cashJobs() {
+  const jobs = [];
+  orderFrom(roundLeader()).forEach((seat) => {
+    for (const coin of ceremony.coins.get(seat) || []) jobs.push({ seat, id: coin.id, kind: coin.kind, done: false, started: false });
+  });
+  return jobs;
+}
+
+function titleJobs() {
+  const jobs = [];
+  ceremony.lines.forEach((line, index) => {
+    for (let n = 0; n < line.points; n += 1) jobs.push({ index, n, seat: line.seat, started: false });
+  });
+  return jobs;
+}
+
+function launchDueFlights() {
+  if (!ceremony || ceremony.review) return;
+  const now = Date.now();
+  if (ceremony.phase === "fly") {
+    const jobs = titleJobs();
+    while (ceremony.flyLaunched < jobs.length && now >= ceremony.at + ceremony.flyLaunched * 100) {
+      const job = jobs[ceremony.flyLaunched];
+      ceremony.flyLaunched += 1;
+      flyTitleCoin(job);
+    }
+    if (!jobs.length) {
+      ceremony.phase = "bases";
+      ceremony.at = now;
+      render();
+    }
+  } else if (ceremony.phase === "cash") {
+    const jobs = ceremony.cashJobs || [];
+    if (!jobs.length) {
+      ceremony.phase = "wait-sort";
+      ceremony.at = now;
+      ceremony.pressed = false;
+      render();
+      return;
+    }
+    while (ceremony.cashLaunched < jobs.length && now >= ceremony.at + ceremony.cashLaunched * 100) {
+      const job = jobs[ceremony.cashLaunched];
+      ceremony.cashLaunched += 1;
+      if (!job.started) {
+        job.started = true;
+        flyScoreCoin(job);
+      }
+    }
+  }
+}
+
+function flyTitleCoin(job) {
+  const source = document.querySelector(`[data-bonus="${job.index}"]`);
+  const from = source ? source.getBoundingClientRect() : { left: 40, top: 40, width: 14, height: 14 };
+  flyDot(from, () => {
+    const live = document.querySelector(`[data-seat="${job.seat}"] .coin-tray`);
+    return live ? live.getBoundingClientRect() : from;
+  }, "blue", () => {
+    if (!ceremony) return;
+    const line = ceremony.lines[job.index];
+    if (!line) return;
+    const pile = ceremony.coins.get(line.seat) || [];
+    pile.push({ kind: "blue", id: `t-${job.index}-${job.n}` });
+    ceremony.coins.set(line.seat, pile);
+    line.arrived += 1;
+    if (line.arrived >= line.points) line.gone = true;
+    if (ceremony.lines.every((item) => item.gone)) {
+      ceremony.phase = "bases";
+      ceremony.at = Date.now();
+    }
+    render();
+  });
+}
+
+function flyScoreCoin(job) {
+  const pile = ceremony.coins.get(job.seat) || [];
+  const index = pile.findIndex((coin) => coin.id === job.id);
+  const coin = index >= 0 ? pile[index] : { kind: job.kind };
+  if (index >= 0) pile.splice(index, 1);
+  render();
+  const seat = document.querySelector(`[data-seat="${job.seat}"]`);
+  const fromEl = seat && seat.querySelector(".coin-tray");
+  const from = fromEl ? fromEl.getBoundingClientRect() : { left: 80, top: 80, width: 14, height: 14 };
+  flyDot(from, () => {
+    const points = document.querySelector(`[data-seat="${job.seat}"] .points`);
+    return points ? points.getBoundingClientRect() : from;
+  }, coin.kind, () => {
+    if (!ceremony) return;
+    ceremony.scores.set(job.seat, (ceremony.scores.get(job.seat) || 0) + 1);
+    job.done = true;
+    if ((ceremony.cashJobs || []).every((item) => item.done)) {
+      ceremony.phase = "wait-sort";
+      ceremony.at = Date.now();
+      ceremony.pressed = false;
+    }
+    render();
+  });
+}
+
+function flyDot(from, toRect, kind, onDone) {
+  const ghost = document.createElement("i");
+  ghost.className = `coin ${kind} flying`;
+  ghost.style.transition = "none";
+  ghost.style.left = `${from.left}px`;
+  ghost.style.top = `${from.top}px`;
+  document.body.appendChild(ghost);
+  requestAnimationFrame(() => {
+    ghost.style.transition = "left .3s linear, top .3s linear";
+    const to = toRect();
+    ghost.style.left = `${to.left}px`;
+    ghost.style.top = `${to.top}px`;
+  });
+  setTimeout(() => {
+    if (ghost.isConnected) ghost.remove();
+    onDone();
+  }, 320);
+}
+
+function pressCeremony() {
+  if (!ceremony) return;
+  if (ceremony.phase === "ready") {
+    const show = ceremony;
+    ceremony = null;
+    if (state.finished || state.round_index >= state.round_count) post("/api/leave", {});
+    else post("/api/next-round", {});
+    show.pressed = false;
+    return;
+  }
+  ceremony.pressed = true;
+  if (updateCeremony(Date.now())) render();
+  launchDueFlights();
+}
+
+function ceremonyHtml() {
+  if (!ceremony) return "";
+  const reason = state.round_end_reason === "DECK" ? "山札切れ" : state.round_end_reason === "STALL" ? "膠着の連続" : "";
+  const heading = ceremony.review ? "ゲーム終了" : `第${state.round_index}ラウンド終了${reason ? `（${reason}）` : ""}`;
+  const lines = ceremony.lines.slice(0, ceremony.lineCount).filter((line) => !line.gone).map((line, index) => {
+    const real = ceremony.lines.indexOf(line);
+    return `<p class="ceremony-line">${escapeText(line.text).replace(`+${line.points}`, `<span data-bonus="${real}">+${line.points}</span>`)}</p>`;
+  }).join("");
+  const showOk = ceremony.phase === "titles" || ceremony.phase === "wait-sort" || ceremony.phase === "wait-prev" || ceremony.phase === "ready";
+  const last = state.finished || state.round_index >= state.round_count;
+  const label = ceremony.phase === "ready" && last ? "ゲームを終了" : "OK";
+  return `<div class="ceremony"><p class="ceremony-heading">${heading}</p>${lines}${showOk ? `<p class="submit"><button type="button" class="primary" id="ceremony-ok">${label}</button></p>` : ""}</div>`;
 }
 
 function gateHtml() {
+  if (ceremony) return "";
   const refresh = confirmHtml("全員がパスをしたので、場札をリフレッシュします", state.refresh_gate, true);
   if (refresh) return refresh;
   if (!state.finished || state.end_reason !== "DECK" || !watched) return "";
@@ -1230,6 +1624,7 @@ function perkHtml() {
 }
 
 function maybeTally() {
+  if (ceremony || (state && (state.awaiting_next_round || state.finished))) return;
   if (!state || !state.finished || tally || gathering) return;
   if (state.settling || inFlight.size || parked.size || scoreAnim.size) return;
   if (state.end_reason === "DECK" && !(state.score_gate && state.score_gate.released)) return;

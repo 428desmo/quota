@@ -68,6 +68,29 @@ namespace Quota
         float cpuNotBefore;
         int coinMotion;
         Dictionary<string, Vector3> coinFrom = new Dictionary<string, Vector3>();
+        bool ceremonyRunning;
+        bool ceremonyOk;
+        bool ceremonyDismissed;
+        bool reviewMode;
+        string ceremonyHeading = "";
+        string ceremonyButton;
+        int ceremonyLineCount;
+        int ceremonyRoundIndex;
+        int roundLeaderSeat;
+        bool ceremonyLast;
+        int dotSerial;
+        int ceremonyPending;
+        readonly List<CeremonyLine> titleLines = new List<CeremonyLine>();
+        readonly List<CeremonyDot> ceremonyTray = new List<CeremonyDot>();
+        readonly Dictionary<int, RectTransform> bonusMarks = new Dictionary<int, RectTransform>();
+        List<int> orderOverride;
+        Dictionary<int, int> scoreOverride;
+        Dictionary<int, int> plusOverride;
+        Dictionary<int, int> roundScores;
+        Dictionary<int, int> previousScores;
+        float reviewUntil;
+        List<int> reviewOrder;
+        Dictionary<int, int> reviewScores;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -276,6 +299,16 @@ namespace Quota
 
         void ShowSetup()
         {
+            if (ceremonyRunning)
+            {
+                cpuRun++;
+                ceremonyRunning = false;
+            }
+            reviewMode = false;
+            orderOverride = null;
+            scoreOverride = null;
+            plusOverride = null;
+            CleanupFlyers();
             Clear();
             UseFrame();
             var x = WideScreen() ? (LandWidth - 984f) * 0.5f : 48f;
@@ -302,48 +335,90 @@ namespace Quota
                 SaveRules();
                 ShowSetup();
             });
-            SetupButton(column, "対局開始", () =>
+            SetupButton(column, "対局開始", () => StartMatch(false));
+            SetupButton(column, "CPU模擬戦を観戦", () => StartMatch(true));
+            if (reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0)
+                SetupButton(column, "ゲーム終了の卓を見る", ShowReview);
+        }
+
+        void StartMatch(bool cpuOnly)
+        {
+            cpuRun++;
+            ceremonyRunning = false;
+            ceremonyDismissed = false;
+            reviewMode = false;
+            reviewOrder = null;
+            reviewScores = null;
+            CleanupFlyers();
+            int? parsed = null;
+            if (int.TryParse(seedText, out var number)) parsed = number;
+            var names = new List<string>();
+            var characters = new List<int>();
+            var used = new HashSet<int>();
+            var rng = new System.Random();
+            var firstCpu = cpuOnly ? 0 : 1;
+            if (!cpuOnly) names.Add("あなた");
+            for (var i = firstCpu; i < playerCount; i++)
             {
-                int? parsed = null;
-                if (int.TryParse(seedText, out var number)) parsed = number;
-                var names = new List<string> { "あなた" };
-                var characters = new List<int>();
-                var used = new HashSet<int>();
-                var rng = new System.Random();
-                for (var i = 1; i < playerCount; i++)
-                {
-                    var character = Characters.PickFresh(rng, used);
-                    characters.Add(character);
-                    names.Add(Characters.NameOf(character));
-                }
-                match.Begin(new GameConfig
-                {
-                    NumPlayers = playerCount,
-                    Seed = parsed,
-                    Names = names,
-                    HumanSeats = new List<int> { 0 },
-                    SequenceRule = sequenceRule,
-                    TitleRule = titleRule,
-                    SpecialActionsRule = specialRule,
-                    Rounds = simpleMode ? 1 : playerCount,
-                }, pumpCpus: !Application.isPlaying);
-                Characters.BindInOrder(match.Game, characters);
-                confirm = null;
-                finishCounted = false;
-                offerStandard = false;
-                cpuNotBefore = Application.isPlaying ? Time.time + 1f : 0f;
-                ShowTable();
-                if (Application.isPlaying) StartCoroutine(RunCpus(++cpuRun));
-            });
+                var character = Characters.PickFresh(rng, used);
+                characters.Add(character);
+                names.Add(Characters.NameOf(character));
+            }
+            orderOverride = null;
+            scoreOverride = null;
+            plusOverride = null;
+            ceremonyRunning = false;
+            match.Begin(new GameConfig
+            {
+                NumPlayers = playerCount,
+                Seed = parsed,
+                Names = names,
+                HumanSeats = cpuOnly ? new List<int>() : new List<int> { 0 },
+                SequenceRule = sequenceRule,
+                TitleRule = titleRule,
+                SpecialActionsRule = specialRule,
+                Rounds = simpleMode ? 1 : playerCount,
+            }, pumpCpus: !Application.isPlaying);
+            Characters.BindInOrder(match.Game, characters);
+            confirm = null;
+            finishCounted = false;
+            offerStandard = false;
+            cpuNotBefore = Application.isPlaying ? Time.time + 1f : 0f;
+            ShowTable();
+            if (Application.isPlaying) StartCoroutine(RunCpus(++cpuRun));
+        }
+
+        void ShowReview()
+        {
+            if (match.Game == null || reviewOrder == null || reviewScores == null) return;
+            reviewMode = true;
+            ceremonyRunning = false;
+            ceremonyDismissed = true;
+            ceremonyHeading = "ゲーム終了";
+            ceremonyButton = "ゲームを終了";
+            ceremonyLineCount = 0;
+            titleLines.Clear();
+            orderOverride = new List<int>(reviewOrder);
+            scoreOverride = new Dictionary<int, int>(reviewScores);
+            plusOverride = null;
+            ShowTable();
         }
 
         void ShowTable()
         {
             coinFrom = SnapshotCardCoins();
+            var game = match.Game;
+            var ceremonyBreak = !reviewMode && game != null && (game.AwaitingNextRound || (Application.isPlaying && game.Finished && !ceremonyDismissed));
+            if (ceremonyBreak && Application.isPlaying && !ceremonyRunning)
+            {
+                ceremonyRunning = true;
+                PrepareCeremony(game);
+                StartCoroutine(RunCeremony(++cpuRun));
+            }
             Clear();
             seatFrames.Clear();
             UseFrame();
-            var game = match.Game;
+            game = match.Game;
             var theme = game.Theme();
             var wide = WideScreen();
             var rows = DisplayRows(game);
@@ -352,13 +427,15 @@ namespace Quota
                 if (wide) DrawPlayerWide(game, theme, rows[row], row);
                 else DrawPlayer(game, theme, rows[row], row);
             }
-            if (wide) Portrait.Box(frame, "market-tray", LandMarketX, LandMarketY, LandMarketW, LandMarketH, 7f, 0f, new Color(0f, 0f, 0f, 0.45f), Color.white, false);
-            else Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, new Color(1f, 1f, 1f, 0.5f), Color.white, false);
+            var marketWash = new Color(0f, 0f, 0f, 0.5f);
+            if (wide) Portrait.Box(frame, "market-tray", LandMarketX, LandMarketY, LandMarketW, LandMarketH, 7f, 0f, marketWash, Color.white, false);
+            else Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, marketWash, Color.white, false);
             if (wide) DrawMarketWide(game, theme);
             else DrawMarket(game, theme);
             if (wide) DrawTitleWide(game);
             else DrawTitle(game);
-            if (game.AwaitingNextRound) DrawRoundBreak(game);
+            if (reviewMode || (ceremonyBreak && Application.isPlaying)) DrawCeremonyPanel();
+            else if (ceremonyBreak && game.AwaitingNextRound) DrawRoundBreak(game);
             else if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
             else if (confirm == null && !game.Finished)
             {
@@ -367,18 +444,536 @@ namespace Quota
                 else TextAt(frame, note, 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
             }
             if (!game.Finished) LeaveButton();
-            if (game.Finished)
+            if (game.Finished && !reviewMode && !ceremonyBreak)
             {
                 Result(game);
                 if (offerStandard) DrawStandardOffer();
             }
-            else if (confirm != null) Confirm();
+            else if (confirm != null && !ceremonyBreak && !reviewMode) Confirm();
         }
 
         static string RoundLabel(Game game)
         {
             if (game.RoundCount <= 1) return "揃えて、達成。";
             return $"第{game.RoundIndex}ラウンド / {game.RoundCount}";
+        }
+
+        sealed class CeremonyLine
+        {
+            public int Seat;
+            public string Text;
+            public int Points;
+            public int Arrived;
+            public bool Gone;
+        }
+
+        sealed class CeremonyDot
+        {
+            public int Seat;
+            public CoinKind Kind;
+            public int Serial;
+        }
+
+        struct TitleJob
+        {
+            public int Line;
+            public int Seat;
+        }
+
+        void PrepareCeremony(Game game)
+        {
+            ceremonyOk = false;
+            ceremonyDismissed = false;
+            dotSerial = 0;
+            ceremonyTray.Clear();
+            titleLines.Clear();
+            bonusMarks.Clear();
+            scoreOverride = new Dictionary<int, int>();
+            plusOverride = null;
+            roundScores = new Dictionary<int, int>();
+            previousScores = new Dictionary<int, int>();
+            var count = game.Players.Count;
+            orderOverride = new List<int>();
+            if (game.TurnOrder.Count == count) orderOverride.AddRange(game.TurnOrder);
+            else for (var i = 0; i < count; i++) orderOverride.Add(i);
+            roundLeaderSeat = game.TurnOrder.Count == 0 ? 0 : game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
+            for (var seat = 0; seat < count; seat++)
+            {
+                var player = game.Players[seat];
+                var baseScore = BaseScore(player);
+                var green = GreenCount(player);
+                var purple = game.SequencePoints(player);
+                var blue = game.TitlePoints(player);
+                scoreOverride[seat] = baseScore;
+                roundScores[seat] = baseScore + green + purple + blue;
+                previousScores[seat] = player.Score - baseScore - green;
+                for (var n = 0; n < green; n++) ceremonyTray.Add(new CeremonyDot { Seat = seat, Kind = CoinKind.Green, Serial = ++dotSerial });
+                for (var n = 0; n < purple; n++) ceremonyTray.Add(new CeremonyDot { Seat = seat, Kind = CoinKind.Purple, Serial = ++dotSerial });
+            }
+            foreach (var seat in Rotate(game.TurnOrder, roundLeaderSeat))
+            {
+                foreach (var award in game.TitleAwards(game.Players[seat]))
+                {
+                    if (award.points <= 0) continue;
+                    titleLines.Add(new CeremonyLine
+                    {
+                        Seat = seat,
+                        Text = $"{game.Players[seat].Name} : {award.name}ボーナス +{award.points}",
+                        Points = award.points,
+                    });
+                }
+            }
+            ceremonyLineCount = titleLines.Count > 0 ? 1 : 0;
+            ceremonyRoundIndex = game.RoundIndex;
+            ceremonyLast = game.Finished || game.RoundIndex >= game.RoundCount;
+            var reason = game.RoundEndReason == "DECK" ? "山札切れ" : game.RoundEndReason == "STALL" ? "膠着の連続" : "";
+            ceremonyHeading = $"第{game.RoundIndex}ラウンド終了{(reason.Length > 0 ? $"（{reason}）" : "")}";
+            ceremonyButton = titleLines.Count > 0 ? "OK" : null;
+        }
+
+        IEnumerator RunCeremony(int serial)
+        {
+            yield return null;
+            if (serial != cpuRun || match.Game == null) yield break;
+            if (titleLines.Count > 0)
+            {
+                var rush = false;
+                while (ceremonyLineCount < titleLines.Count)
+                {
+                    var revealed = Time.time;
+                    while (Time.time - revealed < 0.3f && !ceremonyOk)
+                    {
+                        if (serial != cpuRun) yield break;
+                        yield return null;
+                    }
+                    if (serial != cpuRun) yield break;
+                    if (ceremonyOk)
+                    {
+                        ceremonyLineCount = titleLines.Count;
+                        ceremonyOk = false;
+                        rush = true;
+                        RedrawCeremonyPanel();
+                        break;
+                    }
+                    ceremonyLineCount++;
+                    RedrawCeremonyPanel();
+                }
+                if (!rush)
+                {
+                    yield return WaitOr(serial, 2f);
+                    if (serial != cpuRun) yield break;
+                }
+                ceremonyOk = false;
+                ceremonyButton = null;
+                RedrawCeremonyPanel();
+                yield return FlyTitles(serial);
+                if (serial != cpuRun) yield break;
+            }
+            yield return new WaitForSeconds(0.4f);
+            if (serial != cpuRun) yield break;
+            yield return FlyScores(serial);
+            if (serial != cpuRun) yield break;
+            ceremonyButton = "OK";
+            ceremonyOk = false;
+            RedrawCeremonyPanel();
+            yield return WaitOr(serial, 2f);
+            if (serial != cpuRun) yield break;
+            orderOverride = SortBy(scoreOverride);
+            ShowTable();
+            if (ceremonyRoundIndex >= 2)
+            {
+                ceremonyButton = "OK";
+                ceremonyOk = false;
+                RedrawCeremonyPanel();
+                yield return WaitOr(serial, 2f);
+                if (serial != cpuRun) yield break;
+                orderOverride = SortBy(previousScores);
+                scoreOverride = new Dictionary<int, int>(previousScores);
+                plusOverride = null;
+                ShowTable();
+                plusOverride = new Dictionary<int, int>();
+                for (var i = 0; i < orderOverride.Count; i++)
+                {
+                    plusOverride[orderOverride[i]] = roundScores[orderOverride[i]];
+                    RefreshScore(orderOverride[i]);
+                    if (i + 1 >= orderOverride.Count) continue;
+                    yield return new WaitForSeconds(0.2f);
+                    if (serial != cpuRun) yield break;
+                }
+                yield return new WaitForSeconds(1f);
+                if (serial != cpuRun) yield break;
+                for (var i = 0; i < orderOverride.Count; i++)
+                {
+                    var seat = orderOverride[i];
+                    scoreOverride[seat] = previousScores[seat] + roundScores[seat];
+                    RefreshScore(seat);
+                    if (i + 1 >= orderOverride.Count) continue;
+                    yield return new WaitForSeconds(0.2f);
+                    if (serial != cpuRun) yield break;
+                }
+                yield return new WaitForSeconds(1f);
+                if (serial != cpuRun) yield break;
+                orderOverride = SortBy(scoreOverride);
+                plusOverride = null;
+                ShowTable();
+            }
+            if (serial != cpuRun) yield break;
+            ceremonyLast = match.Game.Finished || match.Game.RoundIndex >= match.Game.RoundCount;
+            ceremonyButton = ceremonyLast ? "ゲームを終了" : "OK";
+            if (ceremonyLast) ceremonyHeading = "ゲーム終了";
+            ceremonyOk = false;
+            if (ceremonyLast)
+            {
+                reviewOrder = new List<int>(orderOverride);
+                reviewScores = new Dictionary<int, int>(scoreOverride);
+                reviewUntil = Time.realtimeSinceStartup + 180f;
+            }
+            RedrawCeremonyPanel();
+            while (!ceremonyOk)
+            {
+                if (serial != cpuRun) yield break;
+                yield return null;
+            }
+            if (serial != cpuRun) yield break;
+            FinishCeremony();
+        }
+
+        IEnumerator WaitOr(int serial, float seconds)
+        {
+            ceremonyOk = false;
+            var start = Time.time;
+            while (!ceremonyOk && Time.time - start < seconds)
+            {
+                if (serial != cpuRun) yield break;
+                yield return null;
+            }
+        }
+
+        IEnumerator FlyTitles(int serial)
+        {
+            var jobs = new List<TitleJob>();
+            for (var i = 0; i < titleLines.Count; i++)
+                for (var n = 0; n < titleLines[i].Points; n++)
+                    jobs.Add(new TitleJob { Line = i, Seat = titleLines[i].Seat });
+            if (jobs.Count == 0) yield break;
+            ceremonyPending = jobs.Count;
+            var launched = 0;
+            var started = Time.time;
+            while (ceremonyPending > 0)
+            {
+                if (serial != cpuRun) yield break;
+                while (launched < jobs.Count && Time.time >= started + launched * 0.1f)
+                {
+                    var job = jobs[launched];
+                    launched++;
+                    var from = BonusPoint(job.Line);
+                    var to = TrayPoint(job.Seat);
+                    var lineIndex = job.Line;
+                    var seat = job.Seat;
+                    StartCoroutine(AnimateFly(serial, from, to, Hex("#3c7dff"), () =>
+                    {
+                        var dot = new CeremonyDot { Seat = seat, Kind = CoinKind.Blue, Serial = ++dotSerial };
+                        ceremonyTray.Add(dot);
+                        SpawnDot(dot);
+                        var line = titleLines[lineIndex];
+                        line.Arrived++;
+                        if (line.Arrived >= line.Points && !line.Gone)
+                        {
+                            line.Gone = true;
+                            RedrawCeremonyPanel();
+                        }
+                        ceremonyPending--;
+                    }));
+                }
+                yield return null;
+            }
+        }
+
+        IEnumerator FlyScores(int serial)
+        {
+            var jobs = new List<CeremonyDot>();
+            foreach (var seat in Rotate(orderOverride, roundLeaderSeat))
+                for (var i = 0; i < ceremonyTray.Count; i++)
+                    if (ceremonyTray[i].Seat == seat) jobs.Add(ceremonyTray[i]);
+            if (jobs.Count == 0) yield break;
+            ceremonyPending = jobs.Count;
+            var launched = 0;
+            var started = Time.time;
+            while (ceremonyPending > 0)
+            {
+                if (serial != cpuRun) yield break;
+                while (launched < jobs.Count && Time.time >= started + launched * 0.1f)
+                {
+                    var dot = jobs[launched];
+                    launched++;
+                    var from = TakeDot(dot);
+                    var to = ScorePoint(dot.Seat);
+                    var seat = dot.Seat;
+                    var color = CoinColor(dot.Kind);
+                    StartCoroutine(AnimateFly(serial, from, to, color, () =>
+                    {
+                        if (scoreOverride != null)
+                        {
+                            if (!scoreOverride.ContainsKey(seat)) scoreOverride[seat] = 0;
+                            scoreOverride[seat] += 1;
+                            RefreshScore(seat);
+                        }
+                        ceremonyPending--;
+                    }));
+                }
+                yield return null;
+            }
+        }
+
+        IEnumerator AnimateFly(int serial, Vector3 from, Vector3 to, Color color, System.Action arrived)
+        {
+            var ring = Portrait.Circle(transform, "flyer", 0f, 0f, 18f, Color.black);
+            var disk = Portrait.Circle(transform, "flyer", 0f, 0f, 16f, color);
+            ring.position = from;
+            disk.position = from;
+            var start = Time.time;
+            while (Time.time - start < 0.3f)
+            {
+                if (serial != cpuRun)
+                {
+                    if (ring != null) Destroy(ring.gameObject);
+                    if (disk != null) Destroy(disk.gameObject);
+                    yield break;
+                }
+                var along = (Time.time - start) / 0.3f;
+                var point = Vector3.Lerp(from, to, along);
+                if (ring != null) ring.position = point;
+                if (disk != null) disk.position = point;
+                yield return null;
+            }
+            if (ring != null) Destroy(ring.gameObject);
+            if (disk != null) Destroy(disk.gameObject);
+            if (serial == cpuRun && arrived != null) arrived();
+        }
+
+        void FinishCeremony()
+        {
+            var last = ceremonyLast;
+            ceremonyRunning = false;
+            ceremonyButton = null;
+            plusOverride = null;
+            ceremonyTray.Clear();
+            titleLines.Clear();
+            CleanupFlyers();
+            if (last)
+            {
+                ceremonyDismissed = true;
+                orderOverride = null;
+                scoreOverride = null;
+                ShowSetup();
+                return;
+            }
+            orderOverride = null;
+            scoreOverride = null;
+            match.Game.BeginNextRound();
+            cpuNotBefore = Time.time + 0.6f;
+            StartCoroutine(RunCpus(++cpuRun));
+        }
+
+        void DrawCeremonyPanel()
+        {
+            bonusMarks.Clear();
+            var wide = WideScreen();
+            var panelW = wide ? 420f : 460f;
+            var lineH = 44f;
+            var shown = 0;
+            for (var i = 0; i < titleLines.Count && i < ceremonyLineCount; i++)
+                if (!titleLines[i].Gone) shown++;
+            var height = 28f + 44f + shown * lineH + (string.IsNullOrEmpty(ceremonyButton) ? 16f : 88f);
+            var panel = wide
+                ? Portrait.Box(frame, "ceremony", LandMarketX, 16f, panelW, height, 7f, 1f, Color.white, Color.black, false)
+                : Portrait.Box(frame, "ceremony", 24f, 16f, panelW, height, 7f, 1f, Color.white, Color.black, false);
+            TextAt(panel, ceremonyHeading, 16f, 12f, panelW - 32f, 40f, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var y = 56f;
+            for (var i = 0; i < titleLines.Count && i < ceremonyLineCount; i++)
+            {
+                var line = titleLines[i];
+                if (line.Gone) continue;
+                var label = TextAt(panel, line.Text, 16f, y, panelW - 32f, lineH, 18, Color.black, nameFont, TextAnchor.MiddleLeft);
+                label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                Canvas.ForceUpdateCanvases();
+                var used = Mathf.Min(label.preferredWidth, panelW - 32f);
+                var mark = Portrait.Rect(label.rectTransform, "bonus", Mathf.Max(0f, used - 28f), 8f, 24f, 24f);
+                bonusMarks[i] = mark;
+                y += lineH;
+            }
+            if (string.IsNullOrEmpty(ceremonyButton)) return;
+            var caption = ceremonyButton;
+            var buttonW = caption.Length * 32f + 48f;
+            Pill(panel, caption, 16f, height - 80f, buttonW, 64f, 28, () =>
+            {
+                if (reviewMode)
+                {
+                    reviewMode = false;
+                    ShowSetup();
+                    return;
+                }
+                ceremonyOk = true;
+            });
+        }
+
+        void RedrawCeremonyPanel()
+        {
+            if (frame == null) return;
+            var existing = frame.Find("ceremony");
+            if (existing != null)
+            {
+                existing.name = "retired";
+                Destroy(existing.gameObject);
+            }
+            DrawCeremonyPanel();
+        }
+
+        string PointsLabel(int index)
+        {
+            if (!(ceremonyRunning || reviewMode) || scoreOverride == null || !scoreOverride.TryGetValue(index, out var shown)) return null;
+            var text = shown + "点";
+            if (plusOverride != null && plusOverride.TryGetValue(index, out var plus))
+                text += $"  <color=#c45c26>+{plus}</color>";
+            return text;
+        }
+
+        void RefreshScore(int seat)
+        {
+            if (frame == null) return;
+            var host = frame.Find("seat" + seat + "/score");
+            if (host == null) return;
+            var label = host.GetComponent<Text>();
+            if (label == null) return;
+            label.supportRichText = true;
+            var text = PointsLabel(seat);
+            if (text != null) label.text = text;
+        }
+
+        List<int> SortBy(Dictionary<int, int> scores)
+        {
+            var game = match.Game;
+            var seats = new List<int>();
+            for (var i = 0; i < game.Players.Count; i++) seats.Add(i);
+            var turn = game.TurnOrder;
+            seats.Sort((a, b) =>
+            {
+                var diff = (scores.TryGetValue(b, out var right) ? right : 0).CompareTo(scores.TryGetValue(a, out var left) ? left : 0);
+                if (diff != 0) return diff;
+                return turn.IndexOf(a).CompareTo(turn.IndexOf(b));
+            });
+            return seats;
+        }
+
+        static List<int> Rotate(IReadOnlyList<int> cycle, int seat)
+        {
+            var rows = new List<int>();
+            if (cycle == null) return rows;
+            var start = -1;
+            for (var i = 0; i < cycle.Count; i++) if (cycle[i] == seat) start = i;
+            if (start < 0)
+            {
+                for (var i = 0; i < cycle.Count; i++) rows.Add(cycle[i]);
+                return rows;
+            }
+            for (var i = 0; i < cycle.Count; i++) rows.Add(cycle[(start + i) % cycle.Count]);
+            return rows;
+        }
+
+        Vector3 BonusPoint(int line)
+        {
+            if (bonusMarks.TryGetValue(line, out var mark) && mark != null) return CenterOf(mark);
+            var panel = frame != null ? frame.Find("ceremony") as RectTransform : null;
+            return panel != null ? CenterOf(panel) : Vector3.zero;
+        }
+
+        Vector3 TrayPoint(int seat)
+        {
+            var tray = TrayOf(seat) as RectTransform;
+            return tray != null ? CenterOf(tray) : Vector3.zero;
+        }
+
+        Vector3 ScorePoint(int seat)
+        {
+            var host = frame != null ? frame.Find("seat" + seat + "/score") as RectTransform : null;
+            return host != null ? CenterOf(host) : TrayPoint(seat);
+        }
+
+        static Vector3 CenterOf(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            return (corners[0] + corners[2]) * 0.5f;
+        }
+
+        Transform TrayOf(int seat)
+        {
+            if (frame == null) return null;
+            var seatFrame = frame.Find("seat" + seat);
+            if (seatFrame == null) return null;
+            var chip = seatFrame.Find("chip-tray");
+            return chip != null ? chip : seatFrame.Find("bonus-box");
+        }
+
+        void SpawnDot(CeremonyDot dot)
+        {
+            var tray = TrayOf(dot.Seat);
+            if (tray == null) return;
+            float x, y, width, height, diameter;
+            if (WideScreen()) { x = 8f; y = 28f; width = 160f; height = 82f; diameter = 12f; }
+            else { x = 8f; y = 8f; width = 204f; height = 89f; diameter = 14f; }
+            DrawStoredDot(tray, dot, x, y, width, height, diameter);
+        }
+
+        Vector3 TakeDot(CeremonyDot dot)
+        {
+            ceremonyTray.Remove(dot);
+            var tray = TrayOf(dot.Seat) as RectTransform;
+            var host = tray != null ? tray.Find("cdot-" + dot.Serial) as RectTransform : null;
+            var from = host != null ? CenterOf(host) : (tray != null ? CenterOf(tray) : Vector3.zero);
+            if (host != null) Destroy(host.gameObject);
+            return from;
+        }
+
+        void DrawStoredDot(Transform tray, CeremonyDot dot, float x, float y, float width, float height, float diameter)
+        {
+            var px = x + Centered(dot.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
+            var py = y + Centered(dot.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
+            var holder = Portrait.Rect(tray, "cdot-" + dot.Serial, px, py, diameter, diameter);
+            Portrait.Circle(holder, "ring", -1f, -1f, diameter + 2f, Color.black);
+            Portrait.Circle(holder, "disk", 0f, 0f, diameter, CoinColor(dot.Kind));
+        }
+
+        static Color CoinColor(CoinKind kind)
+        {
+            if (kind == CoinKind.Purple) return Hex("#a04bff");
+            if (kind == CoinKind.Blue) return Hex("#3c7dff");
+            return Hex("#3cce3c");
+        }
+
+        void CleanupFlyers()
+        {
+            for (var i = transform.childCount - 1; i >= 0; i--)
+            {
+                var child = transform.GetChild(i);
+                if (child.name != "flyer") continue;
+                if (Application.isPlaying) Destroy(child.gameObject);
+                else DestroyImmediate(child.gameObject);
+            }
+        }
+
+        static int GreenCount(Player player)
+        {
+            var total = 0;
+            var index = 0;
+            while (index < player.Achieved.Count)
+            {
+                var rank = player.Achieved[index].Rank;
+                if (rank == null) break;
+                total += Cards.Bonus(rank.Value);
+                index += rank.Value;
+            }
+            return total;
         }
 
         void DrawRoundBreak(Game game)
@@ -534,11 +1129,14 @@ namespace Quota
             TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
             var tray = Portrait.Box(seat, "chip-tray", 775f, 240f, 220f, 105f, 7f, 1f, Color.white, Color.black, false);
             PlaceBonus(game, player, quotaCards, tray, 8f, 8f, 204f, 89f, 14f, 1f);
-            var side = $"{game.FinalScore(player)}点";
-            if (game.Config.SpecialActionsRule)
+            var custom = PointsLabel(index);
+            var side = custom ?? $"{game.FinalScore(player)}点";
+            if (custom == null && game.Config.SpecialActionsRule)
                 side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
-            if (index == game.Current && !game.Finished) side = "▶ " + side;
-            TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
+            if (custom == null && index == game.Current && !game.Finished) side = "▶ " + side;
+            var score = TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
+            score.gameObject.name = "score";
+            score.supportRichText = true;
         }
 
         void DrawPlayerWide(Game game, ItemSet theme, int index, int row)
@@ -563,7 +1161,9 @@ namespace Quota
             const float boxH = 148f;
             Portrait.Box(seat, "bonus-box", 28f, boxY, 176f, boxH, 7f, 1f, Color.white, Color.black, false);
             TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
-            TextAt(seat, $"{game.FinalScore(player)}点", 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var wideScore = TextAt(seat, PointsLabel(index) ?? $"{game.FinalScore(player)}点", 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
+            wideScore.gameObject.name = "score";
+            wideScore.supportRichText = true;
 
             Portrait.Box(seat, "record-box", 216f, boxY, 220f, boxH, 7f, 1f, Color.white, Color.black, false);
             TextAt(seat, "実績", 224f, boxY + 4f, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
@@ -604,7 +1204,7 @@ namespace Quota
             {
                 if (coin.InTray)
                 {
-                    bank.Add(coin);
+                    if (!ceremonyRunning && !reviewMode) bank.Add(coin);
                     continue;
                 }
                 if (!parked.TryGetValue(coin.CardId, out var pile))
@@ -642,6 +1242,12 @@ namespace Quota
                     FromX = fromRing.x,
                     Serial = coin.Serial,
                 });
+            }
+            if (ceremonyRunning)
+            {
+                var seat = game.Players.IndexOf(player);
+                for (var i = 0; i < ceremonyTray.Count; i++)
+                    if (ceremonyTray[i].Seat == seat) DrawStoredDot(tray, ceremonyTray[i], x, y, width, height, diameter);
             }
             if (slides.Count == 0) return;
             slides.Sort((a, b) =>
@@ -1028,8 +1634,9 @@ namespace Quota
             while (coinMotion > 0) yield return null;
         }
 
-        static List<int> DisplayRows(Game game)
+        List<int> DisplayRows(Game game)
         {
+            if (orderOverride != null && orderOverride.Count == game.Players.Count) return orderOverride;
             var count = game.Players.Count;
             var cycle = game.TurnOrder.Count == count ? game.TurnOrder : new List<int>();
             if (cycle.Count != count)
@@ -1051,7 +1658,7 @@ namespace Quota
             return rows;
         }
 
-        static int RowOf(Game game, int seat)
+        int RowOf(Game game, int seat)
         {
             var row = DisplayRows(game).IndexOf(seat);
             return row < 0 ? seat : row;

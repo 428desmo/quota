@@ -11,7 +11,7 @@ namespace Quota
 
         public void Begin(GameConfig config, bool pumpCpus = true)
         {
-            if (config.HumanSeats == null || config.HumanSeats.Count == 0)
+            if (config.HumanSeats == null)
                 config.HumanSeats = new List<int> { 0 };
             Game = Game.Start(config);
             if (pumpCpus) PumpCpus();
