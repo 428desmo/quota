@@ -302,6 +302,19 @@ main:has(#leave) { padding-bottom: 44px; }
   z-index: 6; background: #fff; border: 2px solid #222;
   padding: 6px 10px; font-size: 13px; pointer-events: none; white-space: nowrap;
 }
+.ceremony {
+  position: fixed;
+  z-index: 40;
+  top: 8px;
+  left: 8px;
+  width: min(260px, 46vw);
+  background: #fff;
+  border: 2px solid #222;
+  padding: 10px 12px;
+}
+.ceremony-heading { margin: 0 0 6px; font-weight: 700; font-size: 14px; }
+.ceremony-line { margin: 3px 0; font-size: 13px; }
+.round-plus { margin-left: 6px; color: #c45c26; font-weight: 700; }
 .overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.35);
   display: flex; align-items: center; justify-content: center;

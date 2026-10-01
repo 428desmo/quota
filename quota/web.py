@@ -40,7 +40,8 @@ class Table:
         self.observers: list[dict] = []
         self.roster: list[dict] = []
         self.capacity = 3
-        self.turn_timeout = 30.0
+        self.turn_timeout = 120.0
+        self.finished_at: float | None = None
         self.turn_deadline: float | None = None
         self.cover: dict | None = None
         self.cover_n = 0
@@ -61,7 +62,7 @@ class Table:
             raise ValueError("参加できません")
         self.capacity = players
         self.ok_timeout = _seconds(body.get("ok_timeout"), 3, minimum=0)
-        self.turn_timeout = _seconds(body.get("turn_timeout"), 30, minimum=1)
+        self.turn_timeout = _seconds(body.get("turn_timeout"), 120, minimum=1)
         self.left_handed = bool(body.get("left_handed"))
         self.seed = body.get("seed")
         if "simple" in body:
@@ -137,11 +138,66 @@ class Table:
         self.cpu_after = time.monotonic() + 1.0
         assign_seats(self.game)
 
+    def _present(self, client_id: str) -> bool:
+        if any(member["client"] == client_id for member in self.roster):
+            return True
+        return any(obs["client"] == client_id for obs in self.observers)
+
+    def open_exhibition(self, body: dict, client_id: str) -> None:
+        """A table of CPUs. The opener watches, and does not take a seat."""
+        players = int(body.get("players", 4))
+        if players not in (3, 4):
+            raise ValueError("人数は3か4です")
+        if not client_id:
+            raise ValueError("参加できません")
+        simple = bool(body.get("simple", False))
+        self.capacity = players
+        self.ok_timeout = 0
+        self.turn_timeout = 120
+        self.left_handed = False
+        self.last_options = {
+            "players": players,
+            "simple": simple,
+            "sequence": not simple,
+            "title": not simple,
+            "special": not simple,
+            "ok_timeout": 0,
+            "turn_timeout": 120,
+            "left_handed": False,
+        }
+        self.roster = []
+        self.observers = [{
+            "client": client_id,
+            "name": _clean_name(body.get("name"), "あなた"),
+            "joined_at": time.monotonic(),
+        }]
+        self.seat_owner = {}
+        self.display_name = "CPU模擬戦"
+        self.game = Game.start(GameConfig(
+            num_players=players,
+            seed=None if body.get("seed") in (None, "") else int(body.get("seed")),
+            names=[f"CPU{i + 1}" for i in range(players)],
+            human_seats=[],
+            sequence_rule=not simple,
+            title_rule=not simple,
+            special_actions_rule=not simple,
+            rounds=1 if simple else players,
+        ))
+        assign_seats(self.game)
+        self.phase = "playing"
+        self.event = None
+        self.event_n += 1
+        self.cpu_after = time.monotonic() + 0.6
+        self.finished_at = None
+        self.touch()
+
     def next_round(self, client_id: str) -> None:
         game = self.game
         if self.phase != "playing" or game is None or not game.awaiting_next_round:
             raise ValueError("次のラウンドを始められません")
-        if not any(member["client"] == client_id for member in self.roster):
+        if not self._present(client_id):
+            raise ValueError("参加者ではありません")
+        if any(player.is_human for player in game.players) and not any(member["client"] == client_id for member in self.roster):
             raise ValueError("参加者ではありません")
         game.begin_next_round()
         self.event = None
@@ -297,9 +353,6 @@ class Table:
         if self.phase != "playing" or game is None or game.finished or self._settling() or self._refresh_waiting():
             return
         if game.awaiting_next_round:
-            if any(player.is_human for player in game.players):
-                return
-            game.begin_next_round()
             return
         if time.monotonic() < self.cpu_after:
             return
@@ -445,6 +498,8 @@ class Table:
             self.hold_until = time.monotonic() + delay
         if game.finished:
             self.phase = "finished"
+            if self.finished_at is None:
+                self.finished_at = time.monotonic()
             if game.end_reason == "DECK" and self.notice_at is None:
                 self.notice_at = time.monotonic()
             self._touch_gate()
@@ -600,7 +655,7 @@ class Table:
             "leader": leader,
             "players": self.capacity,
             "seated": seated,
-            "status": "募集中" if self.phase == "recruiting" else "対局中",
+            "status": "募集中" if self.phase == "recruiting" else "ゲーム終了" if self.phase == "finished" else "対局中",
             "observers": len(self.observers),
         }
 
@@ -638,6 +693,12 @@ def _card(card, theme) -> dict:
     }
 
 
+def _table_expired(table: Table, now: float) -> bool:
+    if table.phase == "finished" and table.finished_at is not None:
+        return now - table.finished_at >= 180
+    return now - table.idle_at >= 180
+
+
 def _options_cookie() -> str | None:
     options = HALL.last_options
     if not options:
@@ -655,7 +716,7 @@ class Hall:
 
     def sweep(self) -> None:
         now = time.monotonic()
-        dead = [tid for tid, table in self.tables.items() if now - table.idle_at >= 180]
+        dead = [tid for tid, table in self.tables.items() if _table_expired(table, now)]
         for tid in dead:
             self.tables.pop(tid, None)
             for client, loc in list(self.where.items()):
@@ -697,7 +758,10 @@ class Hall:
         self._detach(client)
         table = Table()
         table.table_id = secrets.token_hex(3)
-        table.open(body, client)
+        if body.get("cpu_match"):
+            table.open_exhibition(body, client)
+        else:
+            table.open(body, client)
         self.tables[table.table_id] = table
         self.where[client] = table.table_id
         self.last_options = dict(table.last_options or {})
