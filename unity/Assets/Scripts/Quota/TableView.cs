@@ -79,6 +79,9 @@ namespace Quota
         int ceremonyRoundIndex;
         int roundLeaderSeat;
         bool ceremonyLast;
+        bool ceremonyOverall;
+        bool ceremonyOverallSlot;
+        bool ceremonyWinner;
         int dotSerial;
         int ceremonyPending;
         readonly List<CeremonyLine> titleLines = new List<CeremonyLine>();
@@ -314,6 +317,9 @@ namespace Quota
             dialogOrder = null;
             ceremonyPlaces = null;
             ceremonyEquation = false;
+            ceremonyOverall = false;
+            ceremonyOverallSlot = false;
+            ceremonyWinner = false;
             scoreOverride = null;
             plusOverride = null;
             CleanupFlyers();
@@ -408,6 +414,9 @@ namespace Quota
             ceremonyDismissed = true;
             ceremonyHeading = "ゲーム終了";
             ceremonyButton = "ゲームを終了";
+            ceremonyOverall = false;
+            ceremonyOverallSlot = false;
+            ceremonyWinner = true;
             ceremonyLineCount = 0;
             titleLines.Clear();
             orderOverride = null;
@@ -513,6 +522,9 @@ namespace Quota
             dialogOrder = new List<int>();
             ceremonyPlaces = null;
             ceremonyEquation = false;
+            ceremonyOverall = false;
+            ceremonyOverallSlot = game.RoundIndex >= 2;
+            ceremonyWinner = false;
             if (game.TurnOrder.Count == count) dialogOrder.AddRange(game.TurnOrder);
             else for (var i = 0; i < count; i++) dialogOrder.Add(i);
             roundLeaderSeat = game.TurnOrder.Count == 0 ? 0 : game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
@@ -599,19 +611,30 @@ namespace Quota
             if (serial != cpuRun) yield break;
             dialogOrder = SortBy(scoreOverride);
             AssignPlaces(seat => scoreOverride.TryGetValue(seat, out var score) ? score : 0);
+            ceremonyButton = "OK";
+            ceremonyOk = false;
             RedrawCeremonyPanel();
+            yield return WaitOr(serial, 2f);
+            if (serial != cpuRun) yield break;
             if (ceremonyRoundIndex >= 2)
             {
+                ceremonyOverall = true;
                 ceremonyButton = "OK";
                 ceremonyOk = false;
                 RedrawCeremonyPanel();
-                yield return WaitOr(serial, 2f);
+                yield return WaitOr(serial, 1.5f);
                 if (serial != cpuRun) yield break;
                 dialogOrder = SortBy(previousScores);
                 scoreOverride = new Dictionary<int, int>(previousScores);
                 plusOverride = null;
                 ceremonyEquation = false;
                 AssignPlaces(seat => previousScores.TryGetValue(seat, out var score) ? score : 0);
+                ceremonyButton = "OK";
+                ceremonyOk = false;
+                RedrawCeremonyPanel();
+                yield return WaitOr(serial, 2f);
+                if (serial != cpuRun) yield break;
+                ceremonyButton = null;
                 RedrawCeremonyPanel();
                 plusOverride = new Dictionary<int, int>();
                 for (var i = 0; i < dialogOrder.Count; i++)
@@ -646,9 +669,12 @@ namespace Quota
             ceremonyOk = false;
             if (ceremonyLast)
             {
+                yield return new WaitForSeconds(1f);
+                if (serial != cpuRun) yield break;
                 reviewOrder = new List<int>(dialogOrder ?? new List<int>());
                 reviewScores = new Dictionary<int, int>(scoreOverride ?? new Dictionary<int, int>());
                 reviewUntil = Time.realtimeSinceStartup + 180f;
+                ceremonyWinner = true;
                 ceremonyButton = "ゲームを終了";
             }
             else ceremonyButton = "OK";
@@ -753,8 +779,8 @@ namespace Quota
         {
             var ring = Portrait.Circle(transform, "flyer", 0f, 0f, 18f, Color.black);
             var disk = Portrait.Circle(transform, "flyer", 0f, 0f, 16f, color);
-            ring.position = from;
-            disk.position = from;
+            PlaceCenter(ring, from);
+            if (disk != null) disk.position = ring.position;
             var start = Time.time;
             while (Time.time - start < 0.3f)
             {
@@ -766,8 +792,8 @@ namespace Quota
                 }
                 var along = (Time.time - start) / 0.3f;
                 var point = Vector3.Lerp(from, to, along);
-                if (ring != null) ring.position = point;
-                if (disk != null) disk.position = point;
+                if (ring != null) PlaceCenter(ring, point);
+                if (disk != null && ring != null) disk.position = ring.position;
                 yield return null;
             }
             if (ring != null) Destroy(ring.gameObject);
@@ -808,13 +834,21 @@ namespace Quota
             const float panelW = 560f;
             const float rowH = 48f;
             const float lineH = 36f;
+            const float winnerH = 64f;
             var rows = dialogOrder != null ? dialogOrder.Count : 0;
-            var height = 20f + 44f + titleLines.Count * lineH + rows * rowH + 88f;
+            var overallH = ceremonyOverallSlot ? lineH : 0f;
+            var winH = ceremonyWinner ? winnerH : 0f;
+            var height = 20f + 44f + overallH + titleLines.Count * lineH + rows * rowH + winH + 88f;
             var panelX = ((wide ? LandWidth : ScreenWidth) - panelW) * 0.5f;
             var panelY = wide ? 200f : 360f;
             var panel = Portrait.Box(frame, "ceremony", panelX, panelY, panelW, height, 7f, 1f, Color.white, Color.black, false);
             TextAt(panel, ceremonyHeading, 16f, 12f, panelW - 32f, 40f, 24, Color.black, nameFont, TextAnchor.MiddleLeft);
             var y = 56f;
+            if (ceremonyOverallSlot)
+            {
+                if (ceremonyOverall) TextAt(panel, "総合順位", 16f, y, panelW - 32f, lineH, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
+                y += lineH;
+            }
             for (var i = 0; i < titleLines.Count; i++)
             {
                 var line = titleLines[i];
@@ -841,8 +875,14 @@ namespace Quota
                     var figure = TextAt(row, FigureText(seat), 270f, 0f, panelW - 32f - 286f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleRight);
                     figure.gameObject.name = "figure";
                     figure.supportRichText = true;
+                    figure.horizontalOverflow = HorizontalWrapMode.Overflow;
                     y += rowH;
                 }
+            }
+            if (ceremonyWinner)
+            {
+                var cheer = TextAt(panel, WinnerText(), 16f, y, panelW - 32f, winnerH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
+                cheer.horizontalOverflow = HorizontalWrapMode.Wrap;
             }
             if (!string.IsNullOrEmpty(ceremonyButton))
             {
@@ -872,6 +912,19 @@ namespace Quota
                 if (i > 0 && scoreOf(dialogOrder[i]) != scoreOf(dialogOrder[i - 1])) place = i + 1;
                 ceremonyPlaces[dialogOrder[i]] = place;
             }
+        }
+
+        string WinnerText()
+        {
+            if (!ceremonyWinner || ceremonyPlaces == null || dialogOrder == null || match.Game == null) return "";
+            var names = new List<string>();
+            foreach (var seat in dialogOrder)
+            {
+                if (ceremonyPlaces.TryGetValue(seat, out var place) && place == 1)
+                    names.Add(match.Game.Players[seat].Name);
+            }
+            if (names.Count == 0) return "";
+            return string.Join("さん、", names) + "さん、総合優勝おめでとうございます";
         }
 
         string FigureText(int seat)
@@ -1009,7 +1062,27 @@ namespace Quota
         Vector3 ScorePoint(int seat)
         {
             var host = frame != null ? frame.Find("ceremony/row" + seat + "/figure") as RectTransform : null;
-            return host != null ? CenterOf(host) : TrayPoint(seat);
+            if (host == null) return TrayPoint(seat);
+            var label = host.GetComponent<Text>();
+            if (label == null) return CenterOf(host);
+            Canvas.ForceUpdateCanvases();
+            var corners = new Vector3[4];
+            host.GetWorldCorners(corners);
+            var rightMid = (corners[2] + corners[3]) * 0.5f;
+            var leftMid = (corners[0] + corners[1]) * 0.5f;
+            var width = host.rect.width;
+            var textW = label.preferredWidth;
+            if (width <= 1f || textW <= 1f) return rightMid;
+            var inset = Mathf.Min(textW, width) * 0.5f / width;
+            return Vector3.Lerp(rightMid, leftMid, inset);
+        }
+
+        static void PlaceCenter(RectTransform rect, Vector3 center)
+        {
+            if (rect == null) return;
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            rect.position += center - (corners[0] + corners[2]) * 0.5f;
         }
 
         static Vector3 CenterOf(RectTransform rect)
