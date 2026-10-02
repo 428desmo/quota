@@ -655,8 +655,10 @@ namespace Quota
             else if (confirm == null && !game.Finished)
             {
                 var note = $"{game.Players[game.Current].Name} が考えています";
-                if (wide) TextAt(frame, note, LandMarketX, LandMarketY + LandMarketH + 12f, LandMarketW, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
-                else TextAt(frame, note, 28f, 108f, 700f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleLeft);
+                var thinking = wide
+                    ? TextAt(frame, note, LandMarketX, LandMarketY + LandMarketH + 12f, LandMarketW, 32f, 22, Color.white, nameFont, TextAnchor.MiddleRight)
+                    : TextAt(frame, note, 520f, 84f, 532f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
+                thinking.horizontalOverflow = HorizontalWrapMode.Overflow;
             }
             if (!game.Finished) LeaveButton();
             if (!showCeremony && game.Finished && !ceremonyBreak)
@@ -1405,7 +1407,7 @@ namespace Quota
             var mark = TitleSprite(true);
             if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 12f, 320f, 64f);
             else TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Color.white, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, RoundLabel(game), 28f, 84f, 640f, 32f, 24, Color.white, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, RoundLabel(game), 28f, 84f, 480f, 32f, 24, Color.white, nameFont, TextAnchor.MiddleLeft);
             if (game.DoubleStage == 1) TextAt(frame, "ダブル：1回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
             else if (game.DoubleStage == 2) TextAt(frame, "ダブル：2回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
             else if (game.Plan == "reshuffle") TextAt(frame, "配り直しました。行動を選んでください。", 280f, 28f, 480f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
@@ -2232,7 +2234,7 @@ namespace Quota
             ok.onValueChanged.AddListener(value => draftOk = value);
             var turn = DialogField(panel, "手番タイムアウト（秒）", draftTurn, 440f, 196f, 380f);
             turn.onValueChanged.AddListener(value => draftTurn = value);
-            Pill(panel, "設定", 32f, panelH - 112f, 200f, 72f, 28, ApplySettings);
+            Pill(panel, "決定", 32f, panelH - 112f, 200f, 72f, 28, ApplySettings);
             Pill(panel, "キャンセル", 252f, panelH - 112f, 240f, 72f, 28, () =>
             {
                 setupPage = null;

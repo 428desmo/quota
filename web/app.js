@@ -343,7 +343,7 @@ function settingsHtml() {
       </label>
     </div>
     <p class="ask-buttons">
-      <button type="button" class="primary" id="settings-save">設定</button>
+      <button type="button" class="primary" id="settings-save">決定</button>
       <button type="button" id="settings-cancel">キャンセル</button>
     </p>
   </div></div>`;

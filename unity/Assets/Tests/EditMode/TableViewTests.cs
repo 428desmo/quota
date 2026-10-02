@@ -130,6 +130,7 @@ namespace Quota.Tests
 
             Click("設定");
             Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
+            Assert.IsNotNull(ButtonNamed("決定"));
             Assert.IsNotNull(ButtonNamed("キャンセル"));
             Click("キャンセル");
             Assert.IsNull(FindButton("シンプルモード　オン"));
