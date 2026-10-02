@@ -100,9 +100,16 @@ namespace Quota
             }
         }
 
+        public static bool IsLoaded => goods != null;
+
         public static void Load(string path)
         {
-            var raw = JsonUtility.FromJson<GoodsFile>(File.ReadAllText(path));
+            LoadJson(File.ReadAllText(path));
+        }
+
+        public static void LoadJson(string json)
+        {
+            var raw = JsonUtility.FromJson<GoodsFile>(json);
             if (raw == null || raw.goods == null || raw.goods.Length != 27)
                 throw new InvalidOperationException("trade goods must be numbered 1 through 27");
             if (raw.wild == null || raw.wild.name != "金貨")
@@ -114,6 +121,15 @@ namespace Quota
             }
             goods = raw.goods;
             wild = raw.wild;
+        }
+
+        public static string[] PictureFiles()
+        {
+            EnsureLoaded();
+            var files = new string[goods.Length + 1];
+            for (var i = 0; i < goods.Length; i++) files[i] = goods[i].file;
+            files[goods.Length] = wild.file;
+            return files;
         }
 
         public static ItemSet Theme(int[] indices)
