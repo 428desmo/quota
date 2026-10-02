@@ -435,36 +435,67 @@ namespace Quota
             Clear();
             UseFrame();
             var wide = WideScreen();
-            var x = wide ? (LandWidth - 984f) * 0.5f : 48f;
+            var screenW = wide ? LandWidth : ScreenWidth;
+            var screenH = wide ? LandHeight : ScreenHeight;
+            var x = wide ? 96f : 48f;
             var title = TitleSprite(true);
             var catchLine = TitleSprite(false);
             if (title != null) PlaceSprite(frame, "title-mark", title, x, 24f, 760f, 152f);
             else TextAt(frame, "QUOTA", x, 36f, 700f, 72f, 64, Color.white, nameFont, TextAnchor.MiddleLeft);
             if (catchLine != null) PlaceSprite(frame, "title-catch", catchLine, x, 184f, 560f, 56f);
             else TextAt(frame, "ノルマは、自分で決めろ。", x, 184f, 700f, 40f, 28, Color.white, nameFont, TextAnchor.MiddleLeft);
-            var column = Portrait.Rect(frame, "setup", x, 260f, 984f, 1500f);
+            const float columnTop = 260f;
+            const float innerGap = 16f;
+            var showReview = reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0;
+            var buttonH = SetupButtonHeight(screenH - columnTop - 24f, showReview);
+            var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
+            var column = Portrait.Rect(frame, "setup", x, columnTop, screenW - x, screenH - columnTop);
             var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
-            layout.spacing = 16f;
+            layout.spacing = 0f;
+            layout.childAlignment = TextAnchor.UpperLeft;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
-            layout.childForceExpandWidth = true;
+            layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
-            SetupButton(column, "QuickStartガイド", () => OpenPage("quick"));
-            SetupButton(column, "ルール", () => OpenPage("rules"));
-            SetupButton(column, "勝つためのヒント", () => OpenPage("hint"));
-            SetupButton(column, $"人数  {playerCount}", () =>
+            var guideW = screenW * 0.40f;
+            var rowW = screenW * 0.60f;
+            var actionW = screenW * 0.35f;
+            var section = buttonH * 2f;
+            SetupButton(column, "QuickStartガイド", () => OpenPage("quick"), guideW, buttonH, font);
+            SetupGap(column, innerGap);
+            SetupButton(column, "ルール", () => OpenPage("rules"), guideW, buttonH, font);
+            SetupGap(column, innerGap);
+            SetupButton(column, "勝つためのヒント", () => OpenPage("hint"), guideW, buttonH, font);
+            SetupGap(column, section);
+            var labelW = LabelSlot(font, "プレイヤーの数：", "あなたの名前：");
+            var fieldW = rowW - labelW - 12f;
+            SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, fieldW, font, () =>
             {
                 playerCount = playerCount == 3 ? 4 : 3;
                 ShowSetup();
             });
-            var name = Field(column, "あなたの名前", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName);
+            SetupGap(column, innerGap);
+            var name = SetupNameRow(column, "あなたの名前：", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName, rowW, buttonH, labelW, fieldW, font);
             name.onValueChanged.AddListener(value => playerName = value);
-            SetupButton(column, "設定", OpenSettings);
-            SetupButton(column, "対局開始", () => StartMatch(false));
-            SetupButton(column, "CPU模擬戦を観戦", () => StartMatch(true));
-            if (reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0)
-                SetupButton(column, "ゲーム終了の卓を見る", ShowReview);
+            SetupGap(column, section);
+            SetupButton(column, "設定", OpenSettings, actionW, buttonH, font);
+            SetupGap(column, section);
+            SetupButton(column, "対局開始", () => StartMatch(false), actionW, buttonH * 2f, font * 2);
+            SetupGap(column, innerGap);
+            SetupButton(column, "CPU模擬戦を観戦", () => StartMatch(true), actionW, buttonH, font);
+            if (showReview)
+            {
+                SetupGap(column, innerGap);
+                SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
+            }
             if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
+        }
+
+        static float SetupButtonHeight(float available, bool review)
+        {
+            var units = 15f + (review ? 1f : 0f);
+            var inners = (4 + (review ? 1 : 0)) * 16f;
+            return Mathf.Clamp((available - inners) / units, 40f, 72f);
         }
 
         void OpenPage(string page)
@@ -2299,7 +2330,7 @@ namespace Quota
             image.color = Color.white;
         }
 
-        void SetupButton(RectTransform parent, string caption, UnityAction action)
+        void SetupButton(RectTransform parent, string caption, UnityAction action, float width, float height, int fontSize)
         {
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
@@ -2307,18 +2338,17 @@ namespace Quota
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
             image.color = Color.white;
-            var layout = go.GetComponent<LayoutElement>();
-            layout.preferredHeight = 72f;
-            layout.minHeight = 72f;
-            layout.preferredWidth = 700f;
+            SizeElement(go.GetComponent<LayoutElement>(), width, height);
             var label = new GameObject("caption", typeof(RectTransform), typeof(Text));
             label.transform.SetParent(go.transform, false);
             Stretch(label.GetComponent<RectTransform>(), 16f, 8f);
             var text = label.GetComponent<Text>();
             text.font = nameFont;
-            text.fontSize = 32;
+            text.fontSize = fontSize;
             text.color = Color.black;
             text.alignment = TextAnchor.MiddleCenter;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
             text.text = caption;
             text.raycastTarget = false;
             var button = go.GetComponent<Button>();
@@ -2326,43 +2356,112 @@ namespace Quota
             button.onClick.AddListener(action);
         }
 
-        InputField Field(RectTransform parent, string caption, string value)
+        void SetupChoiceRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize, UnityAction action)
         {
-            var block = new GameObject(caption, typeof(RectTransform), typeof(LayoutElement), typeof(VerticalLayoutGroup));
-            block.transform.SetParent(parent, false);
-            block.GetComponent<LayoutElement>().preferredHeight = 96f;
-            var layout = block.GetComponent<VerticalLayoutGroup>();
-            layout.spacing = 6f;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = true;
-            layout.childForceExpandHeight = false;
-            var note = new GameObject("label", typeof(RectTransform), typeof(Text), typeof(LayoutElement));
-            note.transform.SetParent(block.transform, false);
-            note.GetComponent<LayoutElement>().preferredHeight = 28f;
-            var noteText = note.GetComponent<Text>();
-            noteText.font = nameFont;
-            noteText.fontSize = 22;
-            noteText.color = Color.white;
-            noteText.alignment = TextAnchor.MiddleLeft;
-            noteText.text = caption;
+            var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
+            SetupButton(row, value, action, fieldW, height, fontSize);
+        }
+
+        InputField SetupNameRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize)
+        {
+            var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
             var go = new GameObject("field", typeof(RectTransform), typeof(Image), typeof(InputField), typeof(LayoutElement));
-            go.transform.SetParent(block.transform, false);
-            go.GetComponent<Image>().sprite = Portrait.White;
-            go.GetComponent<Image>().color = Color.white;
-            go.GetComponent<LayoutElement>().preferredHeight = 56f;
+            go.transform.SetParent(row, false);
+            var image = go.GetComponent<Image>();
+            image.sprite = Portrait.SlicedRound;
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+            image.raycastTarget = true;
+            SizeElement(go.GetComponent<LayoutElement>(), fieldW, height);
             var textGo = new GameObject("text", typeof(RectTransform), typeof(Text));
             textGo.transform.SetParent(go.transform, false);
             Stretch(textGo.GetComponent<RectTransform>(), 12f, 8f);
             var text = textGo.GetComponent<Text>();
             text.font = nameFont;
-            text.fontSize = 28;
+            text.fontSize = fontSize;
             text.color = Color.black;
+            text.alignment = TextAnchor.MiddleLeft;
             text.supportRichText = false;
             var field = go.GetComponent<InputField>();
             field.textComponent = text;
             field.text = value;
             return field;
+        }
+
+        RectTransform FormRow(RectTransform parent, string caption, float rowW, float height, float labelW, int fontSize)
+        {
+            var go = new GameObject(caption, typeof(RectTransform), typeof(LayoutElement), typeof(HorizontalLayoutGroup));
+            go.transform.SetParent(parent, false);
+            SizeElement(go.GetComponent<LayoutElement>(), rowW, height);
+            var layout = go.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 12f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = true;
+            var label = new GameObject("label", typeof(RectTransform), typeof(Text), typeof(LayoutElement));
+            label.transform.SetParent(go.transform, false);
+            SizeElement(label.GetComponent<LayoutElement>(), labelW, height);
+            var text = label.GetComponent<Text>();
+            text.font = nameFont;
+            text.fontSize = fontSize;
+            text.color = Color.white;
+            text.alignment = TextAnchor.MiddleLeft;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.text = caption;
+            text.raycastTarget = false;
+            return go.GetComponent<RectTransform>();
+        }
+
+        float LabelSlot(int fontSize, params string[] captions)
+        {
+            var width = 0f;
+            foreach (var caption in captions) width = Mathf.Max(width, MeasuredTextWidth(caption, fontSize));
+            return width + 8f;
+        }
+
+        float MeasuredTextWidth(string value, int fontSize)
+        {
+            if (nameFont == null || string.IsNullOrEmpty(value)) return fontSize * 8f;
+            var settings = new TextGenerationSettings
+            {
+                font = nameFont,
+                color = Color.white,
+                fontSize = fontSize,
+                lineSpacing = 1f,
+                richText = false,
+                scaleFactor = 1f,
+                fontStyle = FontStyle.Normal,
+                textAnchor = TextAnchor.MiddleLeft,
+                alignByGeometry = false,
+                resizeTextForBestFit = false,
+                updateBounds = false,
+                horizontalOverflow = HorizontalWrapMode.Overflow,
+                verticalOverflow = VerticalWrapMode.Overflow,
+                generationExtents = new Vector2(4000f, fontSize * 2f),
+                pivot = new Vector2(0f, 0.5f),
+            };
+            var width = new TextGenerator().GetPreferredWidth(value, settings);
+            return width > 1f ? width : fontSize * value.Length;
+        }
+
+        static void SetupGap(RectTransform parent, float height)
+        {
+            var go = new GameObject("gap", typeof(RectTransform), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            SizeElement(go.GetComponent<LayoutElement>(), 8f, height);
+        }
+
+        static void SizeElement(LayoutElement element, float width, float height)
+        {
+            element.preferredWidth = width;
+            element.minWidth = width;
+            element.preferredHeight = height;
+            element.minHeight = height;
+            element.flexibleWidth = 0f;
+            element.flexibleHeight = 0f;
         }
 
         static KeyValuePair<string, UnityAction> Item(string caption, UnityAction action)
