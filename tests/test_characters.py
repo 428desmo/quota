@@ -6,6 +6,7 @@ from quota.characters import (
     CONSISTENT_CHANCE,
     NOUNS,
     STRATEGY_COUNT,
+    TITLE_STANCE_COUNT,
     TRIGGER_COUNT,
     Mind,
     assign_seats,
@@ -15,12 +16,12 @@ from quota.characters import (
     encode,
     pick_character,
 )
-from quota.engine import Abandon, Game, GameConfig, TakeQuota
+from quota.engine import Abandon, Bundle, Collect, Game, GameConfig, Pass, TakeQuota
 
 
 def test_every_character_has_its_own_name():
     names = [character_name(character_id) for character_id in range(character_count())]
-    assert len(names) == STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT
+    assert len(names) == STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT * TITLE_STANCE_COUNT
     assert len(set(names)) == len(names)
     pool = {adjective + noun for adjective in ADJECTIVES for noun in NOUNS}
     assert set(names) <= pool
@@ -38,7 +39,7 @@ def test_consistent_characters_are_chosen_more_often():
     picks = [pick_character(rng) for _ in range(4000)]
     consistent = 0
     for character_id in picks:
-        before, _trigger, after = decode(character_id)
+        before, _trigger, after, _stance = decode(character_id)
         consistent += before == after
     rate = consistent / len(picks)
     assert abs(rate - CONSISTENT_CHANCE) < 0.03
@@ -82,6 +83,78 @@ def test_dead_quota_strategy_abandons_an_impossible_set():
     game.market = [card for card in game.deck if card.suit == "H"][:7]
     mind = Mind(encode(1, 0, 1))
     assert isinstance(mind.choose(game), Abandon)
+
+
+def _market_pair(game, suit, rank, other_suit, other_rank):
+    wanted = next(card for card in game.deck if card.suit == suit and card.rank == rank)
+    other = next(card for card in game.deck if card.suit == other_suit and card.rank == other_rank)
+    game.market = [other, wanted, None, None, None, None, None]
+    return wanted, other
+
+
+def test_title_hunger_keeps_the_single_suit_and_skips_wilds():
+    game = Game.start(GameConfig(num_players=3, seed=7, human_seats=[], title_rule=True))
+    game.current = 0
+    player = game.players[0]
+    player.quota = None
+    player.collection = []
+    player.bundles = [Bundle("S", False)]
+    wanted, other = _market_pair(game, "S", 6, "H", 1)
+    plain = Mind(encode(8, 0, 8, 0))
+    hungry = Mind(encode(8, 0, 8, 2))
+    plain_take = plain.choose(game)
+    hungry_take = hungry.choose(game)
+    assert isinstance(plain_take, TakeQuota)
+    assert isinstance(hungry_take, TakeQuota)
+    assert plain_take.card_id == other.id
+    assert hungry_take.card_id == wanted.id
+
+    quota = next(card for card in game.deck if card.suit == "S" and card.rank == 3)
+    suited = next(card for card in game.deck if card.suit == "S" and card is not quota)
+    joker = next(card for card in game.deck if card.suit == "JOKER")
+    player.quota = quota
+    player.bundles = [Bundle("S", False)]
+    game.market = [joker, suited, None, None, None, None, None]
+    kept = hungry.choose(game)
+    spoiled = plain.choose(game)
+    assert isinstance(kept, Collect)
+    assert kept.card_ids == (suited.id,)
+    assert isinstance(spoiled, Collect)
+    assert joker.id in spoiled.card_ids
+
+
+def test_title_comeback_only_matters_while_the_points_can_catch_the_leader():
+    game = Game.start(GameConfig(num_players=3, seed=8, human_seats=[], title_rule=True))
+    game.current = 0
+    player = game.players[0]
+    player.quota = None
+    player.collection = []
+    player.bundles = [Bundle("S", False)]
+    wanted, other = _market_pair(game, "S", 6, "H", 1)
+    mind = Mind(encode(8, 0, 8, 1))
+    game.players[1].score = 30
+    far = mind.choose(game)
+    assert isinstance(far, TakeQuota)
+    assert far.card_id == other.id
+    game.players[1].score = 10
+    close = mind.choose(game)
+    assert isinstance(close, TakeQuota)
+    assert close.card_id == wanted.id
+
+
+def test_titles_off_ignores_the_stance():
+    game = Game.start(GameConfig(num_players=3, seed=9, human_seats=[], title_rule=False))
+    game.current = 0
+    player = game.players[0]
+    player.quota = None
+    player.collection = []
+    player.bundles = [Bundle("S", False)]
+    _wanted, other = _market_pair(game, "S", 6, "H", 1)
+    hungry = Mind(encode(8, 0, 8, 2))
+    action = hungry.choose(game)
+    assert isinstance(action, TakeQuota)
+    assert action.card_id == other.id
+    assert not isinstance(action, Pass)
 
 
 def test_assigned_cpus_finish_a_game_under_their_names():

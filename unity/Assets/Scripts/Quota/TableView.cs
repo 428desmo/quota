@@ -1612,6 +1612,12 @@ namespace Quota
             }
         }
 
+        Color NameplateColor(Game game, int index)
+        {
+            var playing = index == game.Current && !game.Finished && !game.AwaitingNextRound && !reviewMode;
+            return playing ? Hex("#fff3d6") : Color.white;
+        }
+
         static int NameFontSize(string name, float width, int preferred)
         {
             if (string.IsNullOrEmpty(name)) return preferred;
@@ -1627,7 +1633,7 @@ namespace Quota
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
-            Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, Color.white, Color.black, true);
+            Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, NameplateColor(game, index), Color.black, true);
             var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, NameFontSize(player.Name, 276f, 36), Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             var quotaTop = 75f;
@@ -1656,7 +1662,6 @@ namespace Quota
             var side = SeatPoints(game, index, player);
             if (!(ceremonyRunning || reviewMode) && game.Config.SpecialActionsRule)
                 side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
-            if (!(ceremonyRunning || reviewMode) && index == game.Current && !game.Finished) side = "▶ " + side;
             var score = TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
             score.gameObject.name = "score";
             score.supportRichText = true;
@@ -1669,9 +1674,8 @@ namespace Quota
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, LandLeft, LandSeatHeight);
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
-            var current = index == game.Current && !game.Finished;
             Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
-            Portrait.Box(seat, "nameplate", 16f, 6f, 270f, 46f, 4.5f, 1f, current ? Hex("#ffe56a") : Color.white, Color.black, false);
+            Portrait.Box(seat, "nameplate", 16f, 6f, 270f, 46f, 4.5f, 1f, NameplateColor(game, index), Color.black, false);
             var name = TextAt(seat, player.Name, 28f, 6f, 246f, 46f, NameFontSize(player.Name, 246f, 30), Color.black, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             if (game.Config.SpecialActionsRule)

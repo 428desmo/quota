@@ -280,7 +280,15 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .card.gap { visibility: hidden; }
 .seat { position: relative; border: 0; padding: 8px 4px; margin: 0; background: #fff; }
 .seat.alt { background: #efeae0; }
-.seat.turn { background: #fff3d6; }
+.nameplate {
+  display: inline-block;
+  padding: 1px 8px 2px;
+  border: 2px solid #222;
+  border-radius: 8px;
+  background: #fff;
+  line-height: 1.3;
+}
+.seat.turn .nameplate { background: #fff3d6; }
 .band { min-width: 0; }
 .vlabel { font-size: 13px; color: #444; margin: 2px 0; }
 .market-label { font-size: 13px; color: #444; margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; }

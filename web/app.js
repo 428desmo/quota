@@ -622,7 +622,7 @@ function render() {
   const seats = viewOrder().map((index, row) => {
     const player = state.players[index];
     const focus = state.settling ? state.settling_seat : state.current;
-    const turn = index === focus && !state.finished ? " turn" : "";
+    const turn = index === focus && !state.finished && !state.awaiting_next_round ? " turn" : "";
     const parkedHere = player.achieved.filter((card) => parked.has(String(card.id)));
     const recorded = player.achieved.filter((card) => !parked.has(String(card.id)));
     const orderCards = [];
@@ -653,7 +653,7 @@ function render() {
       : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
       ${toast}
-      <div class="bar"><span class="who"><strong>${escapeText(player.name)}</strong>${youTag}${clock}${uses}</span>
+      <div class="bar"><span class="who"><span class="nameplate"><strong>${escapeText(player.name)}</strong></span>${youTag}${clock}${uses}</span>
         <span class="score">${score.plus}<span class="points">${score.points}</span>点${roundPlus}</span></div>
       <div class="band">
         <div class="vlabel">ノルマ</div>

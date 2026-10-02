@@ -16,10 +16,10 @@ namespace Quota
 
         public GameAction Choose(Game game)
         {
-            Characters.Decode(CharacterId, out var before, out var trigger, out var after);
+            Characters.Decode(CharacterId, out var before, out var trigger, out var after, out var stance);
             if (before != after && !Switched && Characters.Trigger(trigger, game, this)) Switched = true;
             var strategy = Switched ? after : before;
-            var action = strategy == 9 ? Cpu.ChooseStock(game) : Characters.ChooseStyled(game, strategy);
+            var action = Characters.ChooseFor(game, strategy, stance);
             if (action is Abandon) Abandoned = true;
             return action;
         }
@@ -29,6 +29,7 @@ namespace Quota
     {
         public const int StrategyCount = 10;
         public const int TriggerCount = 6;
+        public const int TitleStanceCount = 3;
         public const double ConsistentChance = 2.0 / 3.0;
 
         static readonly string[] Adjectives =
@@ -36,6 +37,8 @@ namespace Quota
             "放浪する", "ご機嫌な", "心配性の", "まぶしい", "午後の", "逆さまの", "古びた", "遠回りな", "ひなたの", "夜更かしの",
             "まるい", "斜めの", "潮風の", "まばゆい", "陽気な", "ひんやりした", "とろける", "ささやく", "まどろむ", "きらめく",
             "風向きの", "忘れ物の", "とけない", "うたたねする", "こっそりした", "そわそわした", "のんびりした", "くすぐったい", "まばたきする", "星を見る",
+            "朝焼けの", "雨上がりの", "ひょっこりの", "よれよれの", "ほっこりの", "さらさらの", "ぽかぽかの", "ねむたげな", "ひらひらの", "ゆらゆらの",
+            "ほのぼのした", "ざわざわした", "てかてかの", "ふわふわの", "きょとんとした",
         };
 
         static readonly string[] Nouns =
@@ -43,6 +46,8 @@ namespace Quota
             "ロボット", "冷蔵庫", "秋刀魚", "急須", "気球", "鉛筆", "灯台", "饅頭", "鍵盤", "帆船",
             "温度計", "風鈴", "地球儀", "金魚", "ラジオ", "梯子", "石鹸", "蒲鉾", "湯のみ", "靴べら",
             "郵便箱", "蝶番", "時計塔", "雲",
+            "団扇", "提灯", "箒", "算盤", "徳利", "煙突", "車輪", "看板", "植木鉢",
+            "やかん", "下駄", "火鉢", "行灯", "扇子", "硯", "竹籠", "手鏡", "布団",
         };
 
         const int NameStep = 409;
@@ -61,17 +66,20 @@ namespace Quota
 
         static readonly Dictionary<Game, TakeNote> Takes = new Dictionary<Game, TakeNote>();
 
-        public static int Count => StrategyCount * TriggerCount * StrategyCount;
+        public static int Count => StrategyCount * TriggerCount * StrategyCount * TitleStanceCount;
 
-        public static int Encode(int before, int trigger, int after)
+        public static int Encode(int before, int trigger, int after, int stance = 0)
         {
-            return (before * TriggerCount + trigger) * StrategyCount + after;
+            var basis = (before * TriggerCount + trigger) * StrategyCount + after;
+            return basis * TitleStanceCount + stance;
         }
 
-        public static void Decode(int characterId, out int before, out int trigger, out int after)
+        public static void Decode(int characterId, out int before, out int trigger, out int after, out int stance)
         {
-            after = characterId % StrategyCount;
-            var rest = characterId / StrategyCount;
+            stance = characterId % TitleStanceCount;
+            var rest = characterId / TitleStanceCount;
+            after = rest % StrategyCount;
+            rest /= StrategyCount;
             trigger = rest % TriggerCount;
             before = rest / TriggerCount;
         }
@@ -86,15 +94,16 @@ namespace Quota
 
         public static int Pick(Random rng)
         {
+            var stance = rng.Next(TitleStanceCount);
             if (rng.NextDouble() < ConsistentChance)
             {
                 var strategy = rng.Next(StrategyCount);
-                return Encode(strategy, rng.Next(TriggerCount), strategy);
+                return Encode(strategy, rng.Next(TriggerCount), strategy, stance);
             }
             var before = rng.Next(StrategyCount);
             var after = rng.Next(StrategyCount - 1);
             if (after >= before) after += 1;
-            return Encode(before, rng.Next(TriggerCount), after);
+            return Encode(before, rng.Next(TriggerCount), after, stance);
         }
 
         public static int PickFresh(Random rng, HashSet<int> used)
@@ -175,6 +184,18 @@ namespace Quota
                 note.LastSeat = seat;
                 note.LastSuit = note.Suit;
             }
+        }
+
+        public static GameAction ChooseFor(Game game, int strategy, int stance)
+        {
+            if (TitleChase(game, stance))
+            {
+                var titleAction = TitleOverride(game, strategy);
+                if (titleAction != null) return titleAction;
+            }
+            var action = strategy == 9 ? Cpu.ChooseStock(game) : ChooseStyled(game, strategy);
+            if (TitleChase(game, stance) && action is Collect) return WithoutWilds(game, (Collect)action);
+            return action;
         }
 
         public static GameAction ChooseStyled(Game game, int strategy)
@@ -292,6 +313,107 @@ namespace Quota
             if (strategy == 6) return BigClash(game);
             if (strategy == 7) return SmallEscape(game);
             return false;
+        }
+
+        static bool TitleChase(Game game, int stance)
+        {
+            if (stance == 0 || !game.Config.TitleRule) return false;
+            if (stance == 2) return true;
+            var mine = game.FinalScore(game.Players[game.Current]);
+            var best = int.MinValue;
+            for (var i = 0; i < game.Players.Count; i++)
+            {
+                if (i == game.Current) continue;
+                var score = game.FinalScore(game.Players[i]);
+                if (score > best) best = score;
+            }
+            var gap = best - mine;
+            return gap > 0 && TitlePotential(game, game.Players[game.Current]) >= gap;
+        }
+
+        static int TitlePotential(Game game, Player player)
+        {
+            var kinds = new HashSet<string>();
+            var wild = false;
+            foreach (var bundle in player.Bundles)
+            {
+                kinds.Add(bundle.Kind);
+                if (bundle.HasWild) wild = true;
+            }
+            var earned = player.Bundles.Count >= game.Config.TitleMinAchieves;
+            var points = 0;
+            if (!(earned && kinds.Count == 1) && kinds.Count <= 1) points += game.Config.TitleMonoBonus;
+            if (!(earned && !wild) && !wild) points += game.Config.TitlePuristBonus;
+            return points;
+        }
+
+        static string MonoKind(Player player)
+        {
+            string kind = null;
+            foreach (var bundle in player.Bundles)
+            {
+                if (kind == null) kind = bundle.Kind;
+                else if (kind != bundle.Kind) return null;
+            }
+            if (player.Bundles.Count == 0) return null;
+            return kind;
+        }
+
+        static GameAction TitleOverride(Game game, int strategy)
+        {
+            var player = game.Players[game.Current];
+            var kind = MonoKind(player);
+            if (kind == null) return null;
+            var same = new List<Card>();
+            foreach (var card in game.Market)
+                if (card != null && card.Rank != null && card.Suit.ToString() == kind) same.Add(card);
+            if (player.Quota != null)
+            {
+                if (player.Quota.Suit.ToString() == kind || player.Collection.Count > 0 || game.TurnGain || game.Plan != "normal" || game.DoubleStage != 0)
+                    return null;
+                return same.Count > 0 ? (GameAction)new Abandon() : null;
+            }
+            if (same.Count == 0) return null;
+            var picked = strategy == 9 ? StockPick(same) : PickCard(strategy, same);
+            return new TakeQuota(picked.Id);
+        }
+
+        static Card StockPick(List<Card> cards)
+        {
+            var best = cards[0];
+            foreach (var card in cards)
+            {
+                if (StockKey(card).CompareTo(StockKey(best)) > 0) best = card;
+            }
+            if (best.Rank >= 11)
+                foreach (var card in cards)
+                    if (card.Rank == 1) return card;
+            return best;
+        }
+
+        static (int ace, int sweet, int rank) StockKey(Card card)
+        {
+            var ace = card.Rank == 1 ? Cards.ScoreFor(card.Rank.Value) : 0;
+            return (ace, -Math.Abs(card.Rank.Value - 6), -card.Rank.Value);
+        }
+
+        static GameAction WithoutWilds(Game game, Collect action)
+        {
+            var player = game.Players[game.Current];
+            foreach (var bundle in player.Bundles)
+                if (bundle.HasWild) return action;
+            var kept = new List<int>();
+            foreach (var cardId in action.CardIds)
+            {
+                foreach (var card in game.Market)
+                {
+                    if (card == null || card.Id != cardId) continue;
+                    if (card.Suit != Suit.Joker) kept.Add(cardId);
+                    break;
+                }
+            }
+            if (kept.Count > 0) return new Collect(kept);
+            return new Pass();
         }
 
         public static bool Trigger(int trigger, Game game, CpuMind mind)
