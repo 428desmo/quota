@@ -84,6 +84,43 @@ namespace Quota.Tests
             foreach (var field in host.GetComponentsInChildren<InputField>())
                 if (field.text == "あなた") name = field;
             Assert.IsNotNull(name);
+            Rebuild(host);
+
+            var guide = ButtonNamed("QuickStartガイド").GetComponent<RectTransform>();
+            var rules = ButtonNamed("ルール").GetComponent<RectTransform>();
+            var hint = ButtonNamed("勝つためのヒント").GetComponent<RectTransform>();
+            var settings = ButtonNamed("設定").GetComponent<RectTransform>();
+            var start = ButtonNamed("対局開始").GetComponent<RectTransform>();
+            var watch = ButtonNamed("CPU模擬戦を観戦").GetComponent<RectTransform>();
+            Assert.AreEqual(1080f * 0.40f, guide.rect.width, 2f);
+            Assert.AreEqual(guide.rect.width, rules.rect.width, 1f);
+            Assert.AreEqual(guide.rect.width, hint.rect.width, 1f);
+            Assert.AreEqual(1080f * 0.35f, settings.rect.width, 2f);
+            Assert.AreEqual(settings.rect.width, start.rect.width, 1f);
+            Assert.AreEqual(settings.rect.width, watch.rect.width, 1f);
+            Assert.AreEqual(guide.rect.height * 2f, start.rect.height, 2f);
+            Assert.AreEqual(guide.GetComponentInChildren<Text>().fontSize * 2, start.GetComponentInChildren<Text>().fontSize);
+
+            var countLabel = FindText("プレイヤーの数：");
+            var nameLabel = FindText("あなたの名前：");
+            Assert.IsNotNull(countLabel);
+            Assert.IsNotNull(nameLabel);
+            var countRow = countLabel.rectTransform.parent as RectTransform;
+            var nameRow = nameLabel.rectTransform.parent as RectTransform;
+            var countButton = ButtonNamed("3人").GetComponent<RectTransform>();
+            var nameBox = name.GetComponent<RectTransform>();
+            Assert.AreEqual(1080f * 0.60f, countRow.rect.width, 2f);
+            Assert.AreEqual(countRow.rect.width, nameRow.rect.width, 1f);
+            Assert.AreEqual(WorldLeft(countLabel.rectTransform), WorldLeft(nameLabel.rectTransform), 1f);
+            Assert.AreEqual(WorldLeft(countButton), WorldLeft(nameBox), 1f);
+            Assert.AreEqual(countButton.rect.width, nameBox.rect.width, 1f);
+            Assert.AreEqual(WorldMidY(countLabel.rectTransform), WorldMidY(countButton), 2f);
+            Assert.AreEqual(WorldMidY(nameLabel.rectTransform), WorldMidY(nameBox), 2f);
+            var section = guide.rect.height * 2f;
+            var scaleY = Mathf.Abs(WorldTop(guide) - WorldBottom(guide)) / guide.rect.height;
+            Assert.AreEqual(section, (WorldBottom(hint) - WorldTop(countRow)) / scaleY, 3f);
+            Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(settings)) / scaleY, 3f);
+            Assert.AreEqual(section, (WorldBottom(settings) - WorldTop(start)) / scaleY, 3f);
 
             Click("設定");
             Assert.IsNotNull(ButtonNamed("新プロモード　オフ"));
@@ -629,6 +666,32 @@ namespace Quota.Tests
             var frame = viewHost.transform.Find("Root/Frame") as RectTransform;
             if (frame != null) LayoutRebuilder.ForceRebuildLayoutImmediate(frame);
             Canvas.ForceUpdateCanvases();
+        }
+
+        static float WorldTop(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            return Mathf.Max(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+        }
+
+        static float WorldBottom(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            return Mathf.Min(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+        }
+
+        static float WorldLeft(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            return Mathf.Min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+        }
+
+        static float WorldMidY(RectTransform rect)
+        {
+            return (WorldTop(rect) + WorldBottom(rect)) * 0.5f;
         }
     }
 }
