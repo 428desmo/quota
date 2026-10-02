@@ -600,16 +600,20 @@ namespace Quota
         void ShowReview()
         {
             if (match.Game == null || reviewOrder == null || reviewScores == null) return;
+            var game = match.Game;
+            var lastRound = game.RoundIndex >= 2;
             reviewMode = true;
             ceremonyScoreReady = true;
             ceremonyRunning = false;
             ceremonyDismissed = true;
-            ceremonyHeading = "ゲーム終了";
-            ceremonyReason = "";
-            ceremonyReasonShown = false;
+            ceremonyExpand = 1f;
+            ceremonyHeading = $"第{game.RoundIndex}ラウンド終了";
+            ceremonyReason = game.RoundEndReason == "DECK" ? "山札切れでラウンド終了。" : game.RoundEndReason == "STALL" ? "膠着の連続でラウンド終了。" : "";
+            ceremonyReasonShown = ceremonyReason.Length > 0;
             ceremonyButton = "抜ける";
-            ceremonyOverall = false;
-            ceremonyOverallSlot = false;
+            ceremonyOverall = lastRound;
+            ceremonyOverallSlot = lastRound;
+            ceremonyRankTitle = lastRound ? "最終順位" : null;
             ceremonyBlank = false;
             ceremonyWinner = true;
             ceremonyLineCount = 0;
@@ -618,8 +622,9 @@ namespace Quota
             dialogOrder = new List<int>(reviewOrder);
             scoreOverride = new Dictionary<int, int>(reviewScores);
             plusOverride = null;
-            ceremonyEquation = false;
+            ceremonyEquation = lastRound;
             AssignPlaces(seat => reviewScores.TryGetValue(seat, out var score) ? score : 0);
+            CaptureRankSlots();
             ShowTable();
         }
 
@@ -1102,15 +1107,10 @@ namespace Quota
         void DrawCeremonyPanel()
         {
             bonusMarks.Clear();
-            if (reviewMode)
-            {
-                DrawReviewPanel();
-                LayoutCeremonyDots();
-                return;
-            }
+            if (reviewMode) ceremonyExpand = 1f;
             var box = CeremonyFrame(ceremonyExpand);
             var panel = Portrait.Box(frame, "ceremony", box.x, box.y, box.width, box.height, 7f, 1f, Color.white, Color.black, false);
-            if (ceremonyExpand < 1f) DrawCompactCeremony(panel, box.width, box.height);
+            if (!reviewMode && ceremonyExpand < 1f) DrawCompactCeremony(panel, box.width, box.height);
             else DrawScoreCeremony(panel, box.width, box.height);
             LayoutCeremonyDots();
         }
@@ -1188,60 +1188,11 @@ namespace Quota
             var buttonW = caption.Length * 32f + 48f;
             Pill(panel, caption, (panelW - buttonW) * 0.5f, panelH - 80f, buttonW, 64f, 28, () =>
             {
-                ceremonyOk = true;
-            });
-        }
-
-        void DrawReviewPanel()
-        {
-            var wide = WideScreen();
-            var panelW = wide ? 520f : 460f;
-            const float rowH = 48f;
-            const float lineH = 36f;
-            const float winnerH = 64f;
-            var rows = dialogOrder != null ? dialogOrder.Count : 0;
-            var overallH = ceremonyOverallSlot ? lineH : 0f;
-            var winH = ceremonyWinner ? winnerH : 0f;
-            var height = 20f + 44f + overallH + rows * rowH + winH + 88f;
-            var panelX = ((wide ? LandWidth : ScreenWidth) - panelW) * 0.5f;
-            var panelY = wide ? 200f : 360f;
-            var panel = Portrait.Box(frame, "ceremony", panelX, panelY, panelW, height, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, ceremonyHeading, 16f, 12f, panelW - 32f, 40f, 24, Color.black, nameFont, TextAnchor.MiddleLeft);
-            var y = 56f;
-            if (ceremonyOverallSlot)
-            {
-                if (!string.IsNullOrEmpty(ceremonyRankTitle)) TextAt(panel, ceremonyRankTitle, 16f, y, panelW - 32f, lineH, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
-                y += lineH;
-            }
-            if (dialogOrder != null && match.Game != null)
-            {
-                const float figureX = 216f;
-                for (var r = 0; r < dialogOrder.Count; r++)
+                if (!reviewMode)
                 {
-                    var seat = dialogOrder[r];
-                    if (!ceremonyBlank)
-                    {
-                        var row = Portrait.Rect(panel, "row" + seat, 16f, y, panelW - 32f, rowH);
-                        var rank = ceremonyPlaces != null && ceremonyPlaces.TryGetValue(seat, out var place) ? $"{place}位" : "";
-                        TextAt(row, rank, 0f, 0f, 64f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
-                        TextAt(row, match.Game.Players[seat].Name, 68f, 0f, 140f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
-                        var figure = TextAt(row, FigureText(seat), figureX, 0f, panelW - 32f - figureX, rowH, 20, Color.black, nameFont, TextAnchor.MiddleRight);
-                        figure.gameObject.name = "figure";
-                        figure.supportRichText = true;
-                    }
-                    y += rowH;
+                    ceremonyOk = true;
+                    return;
                 }
-            }
-            if (ceremonyWinner)
-            {
-                var cheer = TextAt(panel, WinnerText(), 16f, y, panelW - 32f, winnerH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
-                cheer.horizontalOverflow = HorizontalWrapMode.Wrap;
-            }
-            if (string.IsNullOrEmpty(ceremonyButton)) return;
-            var caption = ceremonyButton;
-            var buttonW = caption.Length * 32f + 48f;
-            Pill(panel, caption, 16f, height - 80f, buttonW, 64f, 28, () =>
-            {
                 reviewMode = false;
                 ShowSetup();
             });

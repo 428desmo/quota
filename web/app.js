@@ -1001,8 +1001,15 @@ function startCeremony(key) {
 }
 
 function finalCeremony(key) {
+  const parts = state.players.map((player) => roundParts(player));
   const seats = state.players.map((_, index) => index);
   seats.sort((a, b) => (state.players[b].score || 0) - (state.players[a].score || 0));
+  const reason = state.round_end_reason === "DECK"
+    ? "山札切れでラウンド終了。"
+    : state.round_end_reason === "STALL"
+      ? "膠着の連続でラウンド終了。"
+      : "";
+  const lastRound = state.round_index >= 2;
   const board = {
     key,
     phase: "ready",
@@ -1012,13 +1019,13 @@ function finalCeremony(key) {
     lines: [],
     lineCount: 0,
     dialog: true,
-    reason: "",
-    reasonShown: false,
-    rankTitle: "",
+    reason,
+    reasonShown: reason.length > 0,
+    rankTitle: lastRound ? "最終順位" : "",
     scores: new Map(state.players.map((player, index) => [index, player.score || 0])),
     coins: new Map(state.players.map((_, index) => [index, []])),
-    roundScore: new Map(),
-    previous: new Map(),
+    roundScore: new Map(parts.map((part, index) => [index, part.round])),
+    previous: new Map(parts.map((part, index) => [index, part.previous])),
     order: seats,
     flyLaunched: 0,
     cashLaunched: 0,
@@ -1027,11 +1034,12 @@ function finalCeremony(key) {
     plusCleared: true,
     rewriteCount: 0,
     places: null,
-    overall: false,
+    overall: lastRound,
     winnerShown: true,
     review: true,
   };
   assignPlaces(board, (seat) => board.scores.get(seat) || 0);
+  captureRankSlots(board);
   return board;
 }
 
@@ -1373,7 +1381,7 @@ function ceremonyFigure(seat, row) {
     if (row >= (show.rewriteCount || 0)) return `${mark(`${prev}点`)}<span class="round-plus">+${round}</span>`;
     return mark(`${prev}+${round}=${prev + round}`);
   }
-  if (show.phase === "ready" && !show.review && state.round_index >= 2) return mark(`${prev}+${round}=${score}`);
+  if (show.phase === "ready" && state.round_index >= 2) return mark(`${prev}+${round}=${score}`);
   return mark(`${score}点`);
 }
 
@@ -1391,13 +1399,13 @@ function winnerLine() {
 
 function ceremonyHtml() {
   if (!ceremony || (!ceremony.review && !ceremony.dialog)) return "";
-  const heading = ceremony.review ? "ゲーム終了" : `第${state.round_index}ラウンド終了`;
+  const heading = `第${state.round_index}ラウンド終了`;
   const compact = !ceremony.review && (ceremony.phase === "reason" || ceremony.phase === "titles" || ceremony.phase === "expand");
-  const reason = !ceremony.review && ceremony.reasonShown && ceremony.reason
+  const reason = ceremony.reasonShown && ceremony.reason
     ? `<p class="ceremony-reason">${escapeText(ceremony.reason)}</p>`
     : "";
   if (compact) return `<div class="ceremony compact"><p class="ceremony-heading">${heading}</p>${reason}</div>`;
-  const overall = !ceremony.review && state.round_index >= 2
+  const overall = state.round_index >= 2
     ? `<p class="ceremony-overall">${ceremony.rankTitle || ""}</p>`
     : "";
   const blank = ceremony.phase === "clear";
@@ -1420,13 +1428,12 @@ function ceremonyHtml() {
     : `<button type="button" class="primary" tabindex="-1">${label}</button>`;
   const winner = winnerLine();
   const cheer = winner ? `<p class="ceremony-winner">${escapeText(winner)}</p>` : "";
-  const klass = ceremony.review ? "ceremony" : "ceremony large";
-  return `<div class="${klass}"><p class="ceremony-heading">${heading}</p>${reason}${overall}<div class="ceremony-board">${rows}</div>${cheer}<p class="submit ceremony-action${showOk ? "" : " pending"}">${button}</p></div>`;
+  return `<div class="ceremony large"><p class="ceremony-heading">${heading}</p>${reason}${overall}<div class="ceremony-board">${rows}</div>${cheer}<p class="submit ceremony-action${showOk ? "" : " pending"}">${button}</p></div>`;
 }
 
 function placeCeremony() {
   const box = document.querySelector(".ceremony");
-  if (!box || !ceremony || ceremony.review) return;
+  if (!box || !ceremony) return;
   const market = document.querySelector(".market-panel");
   if (!market) return;
   const marketBox = market.getBoundingClientRect();
@@ -1445,6 +1452,11 @@ function placeCeremony() {
     node.style.width = `${width}px`;
     node.style.height = `${height}px`;
   };
+  if (ceremony.review) {
+    box.style.transition = "none";
+    apply(box, expandedLeft, expandedTop, expandedW, expandedH);
+    return;
+  }
   if (ceremony.phase === "expand" && !ceremony.expandArmed) {
     ceremony.expandArmed = true;
     box.style.transition = "none";
