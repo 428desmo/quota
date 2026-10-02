@@ -85,6 +85,11 @@ namespace Quota
         bool ceremonyOverallSlot;
         bool ceremonyBlank;
         bool ceremonyWinner;
+        bool ceremonyDialog;
+        int titleCalloutSeat = -1;
+        List<string> titleCalloutLines;
+        readonly Dictionary<int, RectTransform> titleCalloutMarks = new Dictionary<int, RectTransform>();
+        string ceremonyRankTitle;
         int dotSerial;
         int ceremonyPending;
         readonly List<CeremonyLine> titleLines = new List<CeremonyLine>();
@@ -383,6 +388,7 @@ namespace Quota
 
         void ShowSetup()
         {
+            busy = false;
             if (ceremonyRunning)
             {
                 cpuRun++;
@@ -398,6 +404,10 @@ namespace Quota
             ceremonyOverallSlot = false;
             ceremonyBlank = false;
             ceremonyWinner = false;
+            ceremonyDialog = false;
+            ceremonyRankTitle = null;
+            titleCalloutSeat = -1;
+            titleCalloutLines = null;
             scoreOverride = null;
             plusOverride = null;
             CleanupFlyers();
@@ -538,9 +548,11 @@ namespace Quota
             else DrawMarket(game, theme);
             if (wide) DrawTitleWide(game);
             else DrawTitle(game);
-            var showCeremony = reviewMode || (ceremonyBreak && Application.isPlaying);
+            if (ceremonyRunning) LayoutCeremonyDots();
+            if (titleCalloutSeat >= 0) DrawTitleCallout();
+            var showCeremony = reviewMode || ceremonyDialog;
             if (showCeremony) DrawCeremonyPanel();
-            else if (ceremonyBreak && game.AwaitingNextRound) DrawRoundBreak(game);
+            else if (ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
             else if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
             else if (confirm == null && !game.Finished)
             {
@@ -606,6 +618,10 @@ namespace Quota
             ceremonyOverallSlot = game.RoundIndex >= 2;
             ceremonyBlank = false;
             ceremonyWinner = false;
+            ceremonyDialog = false;
+            ceremonyRankTitle = null;
+            titleCalloutSeat = -1;
+            titleCalloutLines = null;
             if (game.TurnOrder.Count == count) dialogOrder.AddRange(game.TurnOrder);
             else for (var i = 0; i < count; i++) dialogOrder.Add(i);
             roundLeaderSeat = game.TurnOrder.Count == 0 ? 0 : game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
@@ -640,47 +656,22 @@ namespace Quota
             ceremonyLast = game.Finished || game.RoundIndex >= game.RoundCount;
             var reason = game.RoundEndReason == "DECK" ? "山札切れ" : game.RoundEndReason == "STALL" ? "膠着の連続" : "";
             ceremonyHeading = $"第{game.RoundIndex}ラウンド終了{(reason.Length > 0 ? $"（{reason}）" : "")}";
-            ceremonyButton = titleLines.Count > 0 ? "OK" : null;
+            ceremonyButton = null;
         }
 
         IEnumerator RunCeremony(int serial)
         {
             yield return null;
             if (serial != cpuRun || match.Game == null) yield break;
-            if (titleLines.Count > 0)
-            {
-                var rush = false;
-                while (ceremonyLineCount < titleLines.Count)
-                {
-                    var revealed = Time.time;
-                    while (Time.time - revealed < 0.3f && !ceremonyOk)
-                    {
-                        if (serial != cpuRun) yield break;
-                        yield return null;
-                    }
-                    if (serial != cpuRun) yield break;
-                    if (ceremonyOk)
-                    {
-                        ceremonyLineCount = titleLines.Count;
-                        ceremonyOk = false;
-                        rush = true;
-                        RedrawCeremonyPanel();
-                        break;
-                    }
-                    ceremonyLineCount++;
-                    RedrawCeremonyPanel();
-                }
-                if (!rush)
-                {
-                    yield return WaitOr(serial, 2f);
-                    if (serial != cpuRun) yield break;
-                }
-                ceremonyOk = false;
-                ceremonyButton = null;
-                RedrawCeremonyPanel();
-                yield return FlyTitles(serial);
-                if (serial != cpuRun) yield break;
-            }
+            yield return PlayTitleCallouts(serial);
+            if (serial != cpuRun || match.Game == null) yield break;
+            titleCalloutSeat = -1;
+            titleCalloutLines = null;
+            yield return new WaitForSeconds(1f);
+            if (serial != cpuRun || match.Game == null) yield break;
+            ceremonyDialog = true;
+            ceremonyButton = null;
+            ShowTable();
             yield return new WaitForSeconds(0.4f);
             if (serial != cpuRun) yield break;
             yield return FlyScores(serial);
@@ -707,9 +698,10 @@ namespace Quota
                 if (serial != cpuRun) yield break;
                 ceremonyBlank = false;
                 ceremonyOverall = true;
+                ceremonyRankTitle = "暫定順位";
                 scoreOverride = new Dictionary<int, int>(previousScores);
-                ceremonyPlaces = null;
                 plusOverride = null;
+                AssignPlacesByScore(seat => previousScores.TryGetValue(seat, out var previous) ? previous : 0);
                 ceremonyEquation = false;
                 ceremonyButton = "OK";
                 ceremonyOk = false;
@@ -744,6 +736,8 @@ namespace Quota
                 dialogOrder = SortBy(scoreOverride);
                 plusOverride = null;
                 AssignPlaces(seat => scoreOverride.TryGetValue(seat, out var score) ? score : 0);
+                ceremonyLast = match.Game.Finished || match.Game.RoundIndex >= match.Game.RoundCount;
+                ceremonyRankTitle = ceremonyLast ? "最終順位" : "暫定順位";
                 RedrawCeremonyPanel();
             }
             if (serial != cpuRun) yield break;
@@ -778,6 +772,101 @@ namespace Quota
             {
                 if (serial != cpuRun) yield break;
                 yield return null;
+            }
+        }
+
+        IEnumerator PlayTitleCallouts(int serial)
+        {
+            if (match.Game == null || titleLines.Count == 0) yield break;
+            foreach (var seat in Rotate(match.Game.TurnOrder, roundLeaderSeat))
+            {
+                var lines = new List<CeremonyLine>();
+                foreach (var line in titleLines)
+                    if (line.Seat == seat) lines.Add(line);
+                if (lines.Count == 0) continue;
+                titleCalloutSeat = seat;
+                titleCalloutLines = new List<string>();
+                foreach (var line in lines) titleCalloutLines.Add(line.Text);
+                ShowTable();
+                if (serial != cpuRun || match.Game == null) yield break;
+                yield return new WaitForSeconds(0.7f);
+                if (serial != cpuRun || match.Game == null) yield break;
+                yield return FlyCallout(serial, seat, lines);
+                if (serial != cpuRun || match.Game == null) yield break;
+                titleCalloutSeat = -1;
+                titleCalloutLines = null;
+                ShowTable();
+                yield return new WaitForSeconds(0.25f);
+                if (serial != cpuRun || match.Game == null) yield break;
+            }
+        }
+
+        IEnumerator FlyCallout(int serial, int seat, List<CeremonyLine> lines)
+        {
+            var jobs = new List<int>();
+            for (var i = 0; i < lines.Count; i++)
+                for (var n = 0; n < lines[i].Points; n++) jobs.Add(i);
+            if (jobs.Count == 0) yield break;
+            ceremonyPending = jobs.Count;
+            var launched = 0;
+            var started = Time.time;
+            while (ceremonyPending > 0)
+            {
+                if (serial != cpuRun) yield break;
+                while (launched < jobs.Count && Time.time >= started + launched * 0.1f)
+                {
+                    var lineIndex = jobs[launched];
+                    launched++;
+                    var from = CalloutPoint(lineIndex);
+                    var to = TrayPoint(seat);
+                    StartCoroutine(AnimateFly(serial, from, to, Hex("#3c7dff"), () =>
+                    {
+                        ceremonyTray.Add(new CeremonyDot { Seat = seat, Kind = CoinKind.Blue, Serial = ++dotSerial });
+                        SpawnDot(ceremonyTray[ceremonyTray.Count - 1]);
+                        ceremonyPending--;
+                    }));
+                }
+                yield return null;
+            }
+        }
+
+        Vector3 CalloutPoint(int lineIndex)
+        {
+            RectTransform mark;
+            if (titleCalloutMarks.TryGetValue(lineIndex, out mark) && mark != null) return CenterOf(mark);
+            return titleCalloutSeat >= 0 ? TrayPoint(titleCalloutSeat) : Vector3.zero;
+        }
+
+        void DrawTitleCallout()
+        {
+            titleCalloutMarks.Clear();
+            var seat = frame != null ? frame.Find("seat" + titleCalloutSeat) as RectTransform : null;
+            if (seat == null || titleCalloutLines == null || titleCalloutLines.Count == 0) return;
+            var wide = WideScreen();
+            var width = wide ? 560f : 680f;
+            var height = 16f + titleCalloutLines.Count * 32f;
+            var x = wide ? 280f : 160f;
+            var y = wide ? 78f : 78f;
+            var panel = Portrait.Box(seat, "title-callout", x, y, width, height, 7f, 1f, Hex("#fff8e6"), Color.black, false);
+            for (var i = 0; i < titleCalloutLines.Count; i++)
+            {
+                var label = TextAt(panel, titleCalloutLines[i], 12f, 8f + i * 32f, width - 48f, 32f, 18, Color.black, nameFont, TextAnchor.MiddleLeft);
+                label.horizontalOverflow = HorizontalWrapMode.Overflow;
+                titleCalloutMarks[i] = Portrait.Rect(panel, "mark" + i, width - 36f, 12f + i * 32f, 20f, 20f);
+            }
+        }
+
+        void AssignPlacesByScore(System.Func<int, int> scoreOf)
+        {
+            ceremonyPlaces = new Dictionary<int, int>();
+            if (dialogOrder == null) return;
+            var seats = new List<int>(dialogOrder);
+            seats.Sort((a, b) => scoreOf(b).CompareTo(scoreOf(a)));
+            var place = 1;
+            for (var i = 0; i < seats.Count; i++)
+            {
+                if (i > 0 && scoreOf(seats[i]) != scoreOf(seats[i - 1])) place = i + 1;
+                ceremonyPlaces[seats[i]] = place;
             }
         }
 
@@ -920,7 +1009,7 @@ namespace Quota
             var rows = dialogOrder != null ? dialogOrder.Count : 0;
             var overallH = ceremonyOverallSlot ? lineH : 0f;
             var winH = ceremonyWinner ? winnerH : 0f;
-            var height = 20f + 44f + overallH + titleLines.Count * lineH + rows * rowH + winH + 88f;
+            var height = 20f + 44f + overallH + rows * rowH + winH + 88f;
             var panelX = ((wide ? LandWidth : ScreenWidth) - panelW) * 0.5f;
             var panelY = wide ? 200f : 360f;
             var panel = Portrait.Box(frame, "ceremony", panelX, panelY, panelW, height, 7f, 1f, Color.white, Color.black, false);
@@ -928,21 +1017,7 @@ namespace Quota
             var y = 56f;
             if (ceremonyOverallSlot)
             {
-                if (ceremonyOverall) TextAt(panel, "総合順位", 16f, y, panelW - 32f, lineH, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
-                y += lineH;
-            }
-            for (var i = 0; i < titleLines.Count; i++)
-            {
-                var line = titleLines[i];
-                if (i < ceremonyLineCount && !line.Gone)
-                {
-                    var label = TextAt(panel, line.Text, 16f, y, panelW - 32f, lineH, 18, Color.black, nameFont, TextAnchor.MiddleLeft);
-                    label.horizontalOverflow = HorizontalWrapMode.Wrap;
-                    Canvas.ForceUpdateCanvases();
-                    var used = Mathf.Min(label.preferredWidth, panelW - 32f);
-                    var mark = Portrait.Rect(label.rectTransform, "bonus", Mathf.Max(0f, used - 28f), 8f, 24f, 24f);
-                    bonusMarks[i] = mark;
-                }
+                if (!string.IsNullOrEmpty(ceremonyRankTitle)) TextAt(panel, ceremonyRankTitle, 16f, y, panelW - 32f, lineH, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
                 y += lineH;
             }
             if (dialogOrder != null && match.Game != null)
@@ -1759,11 +1834,7 @@ namespace Quota
             {
                 message = "本当にゲームから抜けますか？";
                 yes = "抜ける";
-                run = () =>
-                {
-                    confirm = null;
-                    ShowSetup();
-                };
+                run = LeaveMatch;
             }
             else if (confirm == "next")
             {
@@ -1779,11 +1850,14 @@ namespace Quota
             }
             var game = match.Game;
             var seatIndex = confirm == "leave" ? HumanSeat(game) : game.Current;
+            var hasHuman = false;
+            for (var i = 0; i < game.Players.Count; i++)
+                if (game.Players[i].IsHuman) hasHuman = true;
             const float panelWidth = 700f;
             const float panelHeight = 280f;
             RectTransform panel;
-            if (WideScreen())
-                panel = Portrait.Box(frame, "confirm", (LandWidth - panelWidth) * 0.5f, (LandHeight - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
+            if (WideScreen() || (confirm == "leave" && !hasHuman))
+                panel = Portrait.Box(frame, "confirm", ((WideScreen() ? LandWidth : ScreenWidth) - panelWidth) * 0.5f, ((WideScreen() ? LandHeight : ScreenHeight) - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
             else
             {
                 var seat = seatFrames[seatIndex];
@@ -1875,6 +1949,20 @@ namespace Quota
             Pill(panel, button, 32f, resultH - 100f, width, 72f, 32, ShowSetup);
         }
 
+        void LeaveMatch()
+        {
+            confirm = null;
+            busy = false;
+            cpuRun++;
+            ceremonyRunning = false;
+            ceremonyDialog = false;
+            titleCalloutSeat = -1;
+            titleCalloutLines = null;
+            match.Clear();
+            CleanupFlyers();
+            ShowSetup();
+        }
+
         void Play(GameAction action)
         {
             if (busy || !match.IsHumanTurn || !match.Game.IsLegal(action)) return;
@@ -1889,25 +1977,40 @@ namespace Quota
 
         IEnumerator RunCpus(int ticket)
         {
+            if (ticket != cpuRun || match.Game == null) yield break;
             busy = true;
             ShowTable();
             yield return WaitForCoins();
+            yield return WaitConfirm(ticket);
+            if (ticket != cpuRun || match.Game == null) yield break;
             var wait = cpuNotBefore - Time.time;
             if (wait > 0f && match.Game != null && !match.IsHumanTurn && !match.Game.Finished)
                 yield return new WaitForSeconds(wait);
             if (ticket != cpuRun || match.Game == null) yield break;
-            if (!match.Game.Finished && !match.IsHumanTurn)
+            yield return WaitConfirm(ticket);
+            if (ticket != cpuRun || match.Game == null) yield break;
+            while (match.Game != null && !match.Game.Finished && !match.IsHumanTurn)
             {
-                while (match.StepOneCpu())
-                {
-                    ShowTable();
-                    yield return WaitForCoins();
-                    yield return new WaitForSeconds(0.35f);
-                    if (ticket != cpuRun) yield break;
-                }
+                yield return WaitConfirm(ticket);
+                if (ticket != cpuRun || match.Game == null) yield break;
+                if (match.Game.Finished || match.IsHumanTurn) break;
+                if (!match.StepOneCpu()) break;
+                ShowTable();
+                yield return WaitForCoins();
+                yield return new WaitForSeconds(0.35f);
+                if (ticket != cpuRun || match.Game == null) yield break;
             }
             busy = false;
-            if (ticket == cpuRun) ShowTable();
+            if (ticket == cpuRun && confirm == null && match.Game != null) ShowTable();
+        }
+
+        IEnumerator WaitConfirm(int ticket)
+        {
+            while (confirm != null)
+            {
+                if (ticket != cpuRun || match.Game == null) yield break;
+                yield return null;
+            }
         }
 
         IEnumerator WaitForCoins()

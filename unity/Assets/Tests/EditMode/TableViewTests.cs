@@ -345,6 +345,57 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void LeaveReturnsToSetupAndStopsTheCpuLoop()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            Assert.IsTrue(match.Game.Players[0].IsHuman);
+            var ticket = (int)typeof(TableView).GetField("cpuRun", flags).GetValue(view);
+            Click("ゲームから抜ける");
+            AssertConfirmInside("seat0");
+            Click("抜ける");
+            Assert.IsNull(match.Game);
+            Assert.IsNull(FindText("本当にゲームから抜けますか？"));
+            Assert.IsNotNull(ButtonNamed("対局開始"));
+            var run = (IEnumerator)typeof(TableView).GetMethod("RunCpus", flags).Invoke(view, new object[] { ticket });
+            Drive(run);
+            Assert.IsNull(match.Game);
+            Assert.IsNotNull(ButtonNamed("対局開始"));
+        }
+
+        [Test]
+        public void CpuOnlyLeaveDialogStaysOnTheTableUntilThePlayerLeaves()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            match.Begin(new GameConfig
+            {
+                NumPlayers = 3,
+                Seed = 1,
+                Names = new List<string> { "北", "東", "南" },
+                HumanSeats = new List<int>(),
+                Rounds = 1,
+            }, pumpCpus: false);
+            Set("confirm", "leave");
+            Show(view);
+            Assert.IsNotNull(host.transform.Find("Root/Frame/confirm"));
+            Assert.IsNull(host.transform.Find("Root/Frame/seat0/confirm"));
+            match.Game.Current = (match.Game.Current + 1) % match.Game.Players.Count;
+            Show(view);
+            Assert.IsNotNull(host.transform.Find("Root/Frame/confirm"));
+            Assert.IsNull(host.transform.Find("Root/Frame/seat" + match.Game.Current + "/confirm"));
+            Click("抜ける");
+            Assert.IsNull(match.Game);
+            Assert.IsNotNull(ButtonNamed("対局開始"));
+        }
+
+        [Test]
         public void PartialCollectKeepsTheTurnAndShowsNext()
         {
             host = Open();

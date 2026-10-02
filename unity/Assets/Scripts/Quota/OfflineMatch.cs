@@ -17,6 +17,11 @@ namespace Quota
             if (pumpCpus) PumpCpus();
         }
 
+        public void Clear()
+        {
+            Game = null;
+        }
+
         public void Act(GameAction action)
         {
             var seat = Game.Current;
