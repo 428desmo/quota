@@ -550,6 +550,8 @@ namespace Quota
             else DrawTitle(game);
             if (ceremonyRunning) LayoutCeremonyDots();
             if (titleCalloutSeat >= 0) DrawTitleCallout();
+            if (!reviewMode && !game.AwaitingNextRound && !(Application.isPlaying && game.Finished && !ceremonyDismissed))
+                ceremonyDialog = false;
             var showCeremony = reviewMode || ceremonyDialog;
             if (showCeremony) DrawCeremonyPanel();
             else if (ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
@@ -976,6 +978,10 @@ namespace Quota
         {
             var last = ceremonyLast;
             ceremonyRunning = false;
+            ceremonyDialog = false;
+            ceremonyRankTitle = null;
+            titleCalloutSeat = -1;
+            titleCalloutLines = null;
             ceremonyButton = null;
             plusOverride = null;
             ceremonyTray.Clear();
