@@ -122,11 +122,17 @@ namespace Quota.Tests
             Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(settings)) / scaleY, 3f);
             Assert.AreEqual(section, (WorldBottom(settings) - WorldTop(start)) / scaleY, 3f);
 
+            Assert.AreEqual(WorldMidX(frame), WorldMidX(guide), 2f);
+            Assert.AreEqual(WorldMidX(frame), WorldMidX(settings), 2f);
+            Assert.AreEqual(WorldMidX(frame), WorldMidX(start), 2f);
+            Assert.AreEqual(WorldMidX(frame), WorldMidX(countRow), 2f);
+            Assert.AreEqual(WorldMidX(frame), WorldMidX(nameRow), 2f);
+
             Click("設定");
-            Assert.IsNotNull(ButtonNamed("新プロモード　オフ"));
+            Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
             Assert.IsNotNull(ButtonNamed("キャンセル"));
             Click("キャンセル");
-            Assert.IsNull(FindButton("新プロモード　オフ"));
+            Assert.IsNull(FindButton("シンプルモード　オン"));
 
             Click("QuickStartガイド");
             Assert.IsNotNull(FindText("QuickStartガイド"));
@@ -134,8 +140,18 @@ namespace Quota.Tests
             foreach (var label in host.GetComponentsInChildren<Text>())
                 if (label.text.StartsWith("場札から商品のカードを1枚選んで")) intro = label;
             Assert.IsNotNull(intro);
+            Assert.AreEqual(36, intro.fontSize);
+            var quickScroll = host.GetComponentInChildren<ScrollRect>();
+            Assert.IsNotNull(quickScroll);
             Click("OK");
             Assert.IsNull(host.transform.Find("Root/Frame/setup-dialog"));
+
+            Click("ルール");
+            Rebuild(host);
+            var rulesScroll = host.GetComponentInChildren<ScrollRect>();
+            Assert.IsNotNull(rulesScroll);
+            Assert.Greater(rulesScroll.content.rect.height, rulesScroll.viewport.rect.height);
+            Click("OK");
         }
 
         [Test]
@@ -687,6 +703,15 @@ namespace Quota.Tests
             var corners = new Vector3[4];
             rect.GetWorldCorners(corners);
             return Mathf.Min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+        }
+
+        static float WorldMidX(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            var left = Mathf.Min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+            var right = Mathf.Max(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+            return (left + right) * 0.5f;
         }
 
         static float WorldMidY(RectTransform rect)

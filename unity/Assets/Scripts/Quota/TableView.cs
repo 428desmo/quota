@@ -68,7 +68,7 @@ namespace Quota
         string setupPage;
         string draftOk = "5";
         string draftTurn = "120";
-        bool draftPro;
+        bool draftSimple;
         float okTimeout = 5f;
         float turnTimeout = 120f;
         Sprite titleMark;
@@ -449,10 +449,10 @@ namespace Quota
             var showReview = reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0;
             var buttonH = SetupButtonHeight(screenH - columnTop - 24f, showReview);
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
-            var column = Portrait.Rect(frame, "setup", x, columnTop, screenW - x, screenH - columnTop);
+            var column = Portrait.Rect(frame, "setup", 0f, columnTop, screenW, screenH - columnTop);
             var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.spacing = 0f;
-            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
@@ -506,7 +506,7 @@ namespace Quota
 
         void OpenSettings()
         {
-            draftPro = !simpleMode;
+            draftSimple = simpleMode;
             draftOk = okTimeout.ToString("0.##");
             draftTurn = turnTimeout.ToString("0.##");
             setupPage = "settings";
@@ -515,7 +515,7 @@ namespace Quota
 
         void ApplySettings()
         {
-            simpleMode = !draftPro;
+            simpleMode = draftSimple;
             ApplyMode();
             okTimeout = ParseSeconds(draftOk, 5f, 0f);
             turnTimeout = ParseSeconds(draftTurn, 120f, 1f);
@@ -2223,9 +2223,9 @@ namespace Quota
             const float panelH = 560f;
             var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Color.white, Color.black, false);
             TextAt(panel, "設定", 32f, 24f, panelW - 64f, 48f, 32, Color.black, nameFont, TextAnchor.MiddleLeft);
-            Pill(panel, draftPro ? "新プロモード　オン" : "新プロモード　オフ", 32f, 96f, panelW - 64f, 72f, 28, () =>
+            Pill(panel, draftSimple ? "シンプルモード　オン" : "シンプルモード　オフ", 32f, 96f, panelW - 64f, 72f, 28, () =>
             {
-                draftPro = !draftPro;
+                draftSimple = !draftSimple;
                 ShowSetup();
             });
             var ok = DialogField(panel, "OKタイムアウト（秒）", draftOk, 32f, 196f, 380f);
@@ -2245,17 +2245,22 @@ namespace Quota
             var panelW = Mathf.Min(980f, screenW - 48f);
             var panelH = Mathf.Min(screenH - 80f, screenW > screenH ? 820f : 1400f);
             var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, GuideCopy.Title(setupPage), 32f, 20f, panelW - 64f, 48f, 32, Color.black, nameFont, TextAnchor.MiddleLeft);
+            TextAt(panel, GuideCopy.Title(setupPage), 32f, 16f, panelW - 64f, 56f, 40, Color.black, nameFont, TextAnchor.MiddleLeft);
             var viewW = panelW - 64f;
-            var viewH = panelH - 180f;
-            var viewport = Portrait.Rect(panel, "guide-view", 32f, 80f, viewW, viewH);
+            const float viewTop = 84f;
+            var viewH = panelH - viewTop - 100f;
+            var viewport = Portrait.Rect(panel, "guide-view", 32f, viewTop, viewW, viewH);
             viewport.gameObject.AddComponent<RectMask2D>();
+            var hit = viewport.gameObject.AddComponent<Image>();
+            hit.color = new Color(1f, 1f, 1f, 0.01f);
+            hit.raycastTarget = true;
             var content = Portrait.Rect(viewport, "guide-body", 0f, 0f, viewW, viewH);
-            var text = TextAt(content, GuideCopy.Body(setupPage), 0f, 0f, viewW, viewH, 24, Color.black, nameFont, TextAnchor.UpperLeft);
+            var text = TextAt(content, GuideCopy.Body(setupPage), 0f, 0f, viewW, viewH, 36, Color.black, nameFont, TextAnchor.UpperLeft);
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.raycastTarget = true;
             Canvas.ForceUpdateCanvases();
-            var bodyH = Mathf.Max(viewH, text.preferredHeight + 16f);
+            var bodyH = Mathf.Max(viewH, text.preferredHeight + 24f);
             content.sizeDelta = new Vector2(viewW, bodyH);
             text.rectTransform.sizeDelta = new Vector2(viewW, bodyH);
             var scroll = viewport.gameObject.AddComponent<ScrollRect>();
@@ -2264,6 +2269,7 @@ namespace Quota
             scroll.horizontal = false;
             scroll.vertical = true;
             scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 48f;
             Pill(panel, "OK", 32f, panelH - 84f, 160f, 64f, 28, () =>
             {
                 setupPage = null;

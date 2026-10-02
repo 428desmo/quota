@@ -296,10 +296,10 @@ function startOptions(players, leftHanded) {
 
 function applySettings() {
   if (!settingsDraft) return;
-  const pro = app.querySelector("#pro-mode");
+  const simpleBox = app.querySelector("#simple-mode");
   const okInput = app.querySelector("#ok-timeout");
   const turnInput = app.querySelector("#turn-timeout");
-  const proOn = pro ? pro.checked : settingsDraft.pro;
+  const simple = simpleBox ? simpleBox.checked : settingsDraft.simple;
   const ok = Number(okInput ? okInput.value : settingsDraft.ok);
   const turn = Number(turnInput ? turnInput.value : settingsDraft.turn);
   if (!Number.isFinite(ok) || ok < 0 || !Number.isFinite(turn) || turn < 1) return;
@@ -307,7 +307,6 @@ function applySettings() {
   const data = form ? new FormData(form) : null;
   const players = data ? Number(data.get("players")) : Number((savedOptions() || {}).players || 3);
   const leftHanded = data ? data.get("left_handed") === "on" : !!(savedOptions() || {}).left_handed;
-  const simple = !proOn;
   const options = {
     players,
     simple,
@@ -331,9 +330,9 @@ function settingsHtml() {
   return `<div class="rollover settings"><div class="panel">
     <h2>設定</h2>
     <label class="check">
-      <input id="pro-mode" type="checkbox" ${settingsDraft.pro ? "checked" : ""}>
-      新プロモード
-      <span id="pro-state">${settingsDraft.pro ? "オン" : "オフ"}</span>
+      <input id="simple-mode" type="checkbox" ${settingsDraft.simple ? "checked" : ""}>
+      シンプルモード
+      <span id="simple-state">${settingsDraft.simple ? "オン" : "オフ"}</span>
     </label>
     <div class="row">
       <label>OKタイムアウト（秒）
@@ -530,7 +529,7 @@ function render() {
     if (openSettings) openSettings.onclick = () => {
       const savedOptionsNow = savedOptions() || {};
       settingsDraft = {
-        pro: !simpleOn(savedOptionsNow),
+        simple: simpleOn(savedOptionsNow),
         ok: savedOkTimeout(savedOptionsNow),
         turn: Number(savedOptionsNow.turn_timeout ?? 120),
       };
@@ -546,12 +545,12 @@ function render() {
       settingsDraft = null;
       render();
     };
-    const proMode = app.querySelector("#pro-mode");
-    if (proMode) proMode.onchange = () => {
+    const simpleMode = app.querySelector("#simple-mode");
+    if (simpleMode) simpleMode.onchange = () => {
       if (!settingsDraft) return;
-      settingsDraft.pro = proMode.checked;
-      const mark = app.querySelector("#pro-state");
-      if (mark) mark.textContent = proMode.checked ? "オン" : "オフ";
+      settingsDraft.simple = simpleMode.checked;
+      const mark = app.querySelector("#simple-state");
+      if (mark) mark.textContent = simpleMode.checked ? "オン" : "オフ";
     };
     const form = app.querySelector("#start");
     form.onsubmit = async (event) => {
