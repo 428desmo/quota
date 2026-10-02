@@ -329,6 +329,7 @@ main:has(#leave) { padding-bottom: 44px; }
   border: 1px solid #ddd;
   background: #fafafa;
 }
+.ceremony-row.is-blank { border-color: transparent; background: transparent; }
 .ceremony-rank { width: 2.8em; flex: none; font-weight: 700; }
 .ceremony-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ceremony-figure { flex: none; margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }

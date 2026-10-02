@@ -31,7 +31,7 @@ class Table:
         self.seat_acked: set[int] = set()
         self.notice_at: float | None = None
         self.gate_released = False
-        self.ok_timeout = 3.0
+        self.ok_timeout = 5.0
         self.left_handed = False
         self.refresh_hold: list | None = None
         self.refresh_acked: set[int] = set()
@@ -61,7 +61,7 @@ class Table:
         if not client_id:
             raise ValueError("参加できません")
         self.capacity = players
-        self.ok_timeout = _seconds(body.get("ok_timeout"), 3, minimum=0)
+        self.ok_timeout = _seconds(body.get("ok_timeout"), 5, minimum=0)
         self.turn_timeout = _seconds(body.get("turn_timeout"), 120, minimum=1)
         self.left_handed = bool(body.get("left_handed"))
         self.seed = body.get("seed")
@@ -80,6 +80,7 @@ class Table:
             "title": title,
             "special": special,
             "ok_timeout": self.ok_timeout,
+            "ok_timeout_set": True,
             "turn_timeout": self.turn_timeout,
             "left_handed": self.left_handed,
         }
@@ -758,13 +759,24 @@ class Hall:
         self._detach(client)
         table = Table()
         table.table_id = secrets.token_hex(3)
+        previous = dict(self.last_options or {})
         if body.get("cpu_match"):
             table.open_exhibition(body, client)
+            options = dict(table.last_options or {})
+            options.pop("ok_timeout", None)
+            options.pop("ok_timeout_set", None)
+            if body.get("ok_timeout_set"):
+                options["ok_timeout"] = _seconds(body.get("ok_timeout"), 5, minimum=0)
+                options["ok_timeout_set"] = True
+            elif previous.get("ok_timeout_set"):
+                options["ok_timeout"] = previous.get("ok_timeout", 5)
+                options["ok_timeout_set"] = True
+            self.last_options = options
         else:
             table.open(body, client)
+            self.last_options = dict(table.last_options or {})
         self.tables[table.table_id] = table
         self.where[client] = table.table_id
-        self.last_options = dict(table.last_options or {})
 
     def join(self, body: dict, client: str) -> None:
         if not client:
