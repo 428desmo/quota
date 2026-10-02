@@ -348,6 +348,36 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void FinishedTableReviewHidesTrayCoinsAndExitsWithLeave()
+        {
+            host = Open();
+            Set("seedText", "1");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            var player = match.Game.Players[0];
+            player.Achieved.Add(new Card(9101, Suit.H, 7));
+            var order = new List<int>();
+            var scores = new Dictionary<int, int>();
+            for (var i = 0; i < match.Game.Players.Count; i++)
+            {
+                order.Add(i);
+                scores[i] = match.Game.Players.Count - i;
+            }
+            typeof(TableView).GetField("reviewOrder", flags).SetValue(view, order);
+            typeof(TableView).GetField("reviewScores", flags).SetValue(view, scores);
+            typeof(TableView).GetMethod("ShowReview", flags).Invoke(view, null);
+            Rebuild(host);
+
+            Assert.IsNull(host.transform.Find("Root/Frame/seat0/chip-tray/coin"));
+            Assert.IsNotNull(ButtonNamed("抜ける"));
+            Assert.IsNull(FindButton("ゲームを終了"));
+            Click("抜ける");
+            Assert.IsNotNull(ButtonNamed("対局開始"));
+        }
+
+        [Test]
         public void AbandonConfirmAttachesToTheLiveSeat()
         {
             host = Open();

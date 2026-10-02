@@ -177,6 +177,12 @@ function trayTitles(player) {
   return `<div class="tray-titles">${mark("mono", "単色達成")}${mark("purist", "生粋の買い付け")}</div>`;
 }
 
+function trayPile(index, coins) {
+  if (ceremony && ceremony.review) return [];
+  if (ceremony && ceremony.coins.has(index)) return ceremony.coins.get(index);
+  return coins.bank;
+}
+
 function trayHtml(bank) {
   const coins = bank.map((coin, index) => {
     const spot = scatter(coin.id, index);
@@ -657,7 +663,7 @@ function render() {
         <div class="vlabel">実績</div>
         <div class="record-row">
           <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
-          <div class="bonus-stack">${trayTitles(player)}<div class="coin-tray" aria-label="ボーナス">${trayHtml(ceremony && !ceremony.review && ceremony.coins.has(index) ? ceremony.coins.get(index) : coins.bank)}</div></div>
+          <div class="bonus-stack">${trayTitles(player)}<div class="coin-tray" aria-label="ボーナス">${trayHtml(trayPile(index, coins))}</div></div>
         </div>
       </div>
     </section>`;
@@ -1408,7 +1414,7 @@ function ceremonyHtml() {
   }).join("");
   const last = state.finished || state.round_index >= state.round_count;
   const showOk = ceremony.phase === "ranked" || ceremony.phase === "clear" || ceremony.phase === "wait-prev" || (ceremony.phase === "ready" && (!last || ceremony.winnerShown));
-  const label = ceremony.phase === "ready" && last ? "ゲームを終了" : "OK";
+  const label = ceremony.review ? "抜ける" : ceremony.phase === "ready" && last ? "ゲームを終了" : "OK";
   const button = showOk
     ? `<button type="button" class="primary" id="ceremony-ok">${label}</button>`
     : `<button type="button" class="primary" tabindex="-1">${label}</button>`;
