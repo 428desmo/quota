@@ -314,6 +314,26 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void TheCurrentNameplateIsPaleYellowAndTheScoreHasNoMarker()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            var current = match.Game.Current;
+            var plate = host.transform.Find("Root/Frame/seat" + current + "/nameplate/fill").GetComponent<Image>();
+            Assert.AreEqual(1f, plate.color.r, 0.02f);
+            Assert.AreEqual(243f / 255f, plate.color.g, 0.02f);
+            Assert.AreEqual(214f / 255f, plate.color.b, 0.02f);
+            var other = (current + 1) % match.Game.Players.Count;
+            var plain = host.transform.Find("Root/Frame/seat" + other + "/nameplate/fill").GetComponent<Image>();
+            Assert.AreEqual(Color.white, plain.color);
+            var score = host.transform.Find("Root/Frame/seat" + current + "/score").GetComponent<Text>();
+            Assert.IsFalse(score.text.Contains("▶"));
+        }
+
+        [Test]
         public void PendingBonusCoinSitsOnTheQuotaCardUntilTheSetIsAchieved()
         {
             host = Open();

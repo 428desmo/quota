@@ -34,6 +34,12 @@ STRATEGY_COUNT = 10
 # 5 turn 18 or later
 TRIGGER_COUNT = 6
 
+# How much a character cares about title bonuses.
+# 0 none
+# 1 only when the points could catch the leader
+# 2 always
+TITLE_STANCE_COUNT = 3
+
 CONSISTENT_CHANCE = 2 / 3
 
 ADJECTIVES = (
@@ -67,6 +73,21 @@ ADJECTIVES = (
     "くすぐったい",
     "まばたきする",
     "星を見る",
+    "朝焼けの",
+    "雨上がりの",
+    "ひょっこりの",
+    "よれよれの",
+    "ほっこりの",
+    "さらさらの",
+    "ぽかぽかの",
+    "ねむたげな",
+    "ひらひらの",
+    "ゆらゆらの",
+    "ほのぼのした",
+    "ざわざわした",
+    "てかてかの",
+    "ふわふわの",
+    "きょとんとした",
 )
 
 NOUNS = (
@@ -94,25 +115,46 @@ NOUNS = (
     "蝶番",
     "時計塔",
     "雲",
+    "団扇",
+    "提灯",
+    "箒",
+    "算盤",
+    "徳利",
+    "煙突",
+    "車輪",
+    "看板",
+    "植木鉢",
+    "やかん",
+    "下駄",
+    "火鉢",
+    "行灯",
+    "扇子",
+    "硯",
+    "竹籠",
+    "手鏡",
+    "布団",
 )
 
 _NAME_STEP = 409
 
 
 def character_count() -> int:
-    return STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT
+    return STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT * TITLE_STANCE_COUNT
 
 
-def encode(before: int, trigger: int, after: int) -> int:
-    return (before * TRIGGER_COUNT + trigger) * STRATEGY_COUNT + after
+def encode(before: int, trigger: int, after: int, stance: int = 0) -> int:
+    base = (before * TRIGGER_COUNT + trigger) * STRATEGY_COUNT + after
+    return base * TITLE_STANCE_COUNT + stance
 
 
-def decode(character_id: int) -> tuple[int, int, int]:
-    after = character_id % STRATEGY_COUNT
-    rest = character_id // STRATEGY_COUNT
+def decode(character_id: int) -> tuple[int, int, int, int]:
+    stance = character_id % TITLE_STANCE_COUNT
+    rest = character_id // TITLE_STANCE_COUNT
+    after = rest % STRATEGY_COUNT
+    rest //= STRATEGY_COUNT
     trigger = rest % TRIGGER_COUNT
     before = rest // TRIGGER_COUNT
-    return before, trigger, after
+    return before, trigger, after, stance
 
 
 def character_name(character_id: int) -> str:
@@ -123,15 +165,16 @@ def character_name(character_id: int) -> str:
 
 def pick_character(rng: random.Random) -> int:
     """Consistent characters are more likely than ones that switch."""
+    stance = rng.randrange(TITLE_STANCE_COUNT)
     if rng.random() < CONSISTENT_CHANCE:
         strategy = rng.randrange(STRATEGY_COUNT)
         trigger = rng.randrange(TRIGGER_COUNT)
-        return encode(strategy, trigger, strategy)
+        return encode(strategy, trigger, strategy, stance)
     before = rng.randrange(STRATEGY_COUNT)
     after = rng.randrange(STRATEGY_COUNT - 1)
     if after >= before:
         after += 1
-    return encode(before, rng.randrange(TRIGGER_COUNT), after)
+    return encode(before, rng.randrange(TRIGGER_COUNT), after, stance)
 
 
 def assign_seats(game: Game, rng: random.Random | None = None) -> None:
@@ -160,11 +203,11 @@ class Mind:
     abandoned: bool = False
 
     def choose(self, game: Game) -> Action:
-        before, trigger, after = decode(self.character_id)
+        before, trigger, after, stance = decode(self.character_id)
         if before != after and not self.switched and _trigger(trigger, game, self):
             self.switched = True
         strategy = after if self.switched else before
-        action = choose_stock(game) if strategy == 9 else _choose_styled(game, strategy)
+        action = _choose_for(game, strategy, stance)
         if isinstance(action, Abandon):
             self.abandoned = True
         return action
@@ -187,6 +230,17 @@ def _fresh(rng: random.Random, used: set[int]) -> int:
     character_id = pick_character(rng)
     used.add(character_id)
     return character_id
+
+
+def _choose_for(game: Game, strategy: int, stance: int) -> Action:
+    if _title_chase(game, stance):
+        override = _title_override(game, strategy)
+        if override is not None:
+            return override
+    action = choose_stock(game) if strategy == 9 else _choose_styled(game, strategy)
+    if _title_chase(game, stance) and isinstance(action, Collect):
+        return _without_wilds(game, action)
+    return action
 
 
 def _choose_styled(game: Game, strategy: int) -> Action:
@@ -275,6 +329,78 @@ _PICK = {
     7: _pick_small,
     8: _pick_ace,
 }
+
+
+def _title_chase(game: Game, stance: int) -> bool:
+    if stance == 0 or not game.config.title_rule:
+        return False
+    if stance == 2:
+        return True
+    player = game.players[game.current]
+    mine = game.final_score(player)
+    others = [game.final_score(other) for index, other in enumerate(game.players) if index != game.current]
+    if not others:
+        return False
+    gap = max(others) - mine
+    return gap > 0 and _title_potential(game, player) >= gap
+
+
+def _title_potential(game: Game, player) -> int:
+    bundles = player.bundles
+    kinds = {bundle.kind for bundle in bundles}
+    wild = any(bundle.has_wild for bundle in bundles)
+    earned = len(bundles) >= game.config.title_min_achieves
+    points = 0
+    if not (earned and len(kinds) == 1) and len(kinds) <= 1:
+        points += game.config.title_mono_bonus
+    if not (earned and not wild) and not wild:
+        points += game.config.title_purist_bonus
+    return points
+
+
+def _mono_kind(player):
+    kinds = {bundle.kind for bundle in player.bundles}
+    if len(kinds) != 1:
+        return None
+    return next(iter(kinds))
+
+
+def _title_override(game: Game, strategy: int):
+    player = game.players[game.current]
+    kind = _mono_kind(player)
+    if kind is None:
+        return None
+    same = [card for card in game.market if card is not None and card.suit == kind and card.rank]
+    if player.quota is not None:
+        if player.quota.suit == kind or player.collection or game.turn_gain or game.plan != "normal" or game.double_stage:
+            return None
+        return Abandon() if same else None
+    if not same:
+        return None
+    card = _stock_pick(same) if strategy == 9 else _PICK[strategy](same)
+    return TakeQuota(card.id)
+
+
+def _stock_pick(cards):
+    def key(card):
+        sweet = -abs(card.rank - 6)
+        return (score_for(card.rank) if card.rank == 1 else 0, sweet, -card.rank)
+
+    best = max(cards, key=key)
+    if best.rank >= 11 and any(card.rank == 1 for card in cards):
+        return next(card for card in cards if card.rank == 1)
+    return best
+
+
+def _without_wilds(game: Game, action: Collect) -> Action:
+    player = game.players[game.current]
+    if any(bundle.has_wild for bundle in player.bundles):
+        return action
+    by_id = {card.id: card for card in game.market if card is not None}
+    kept = [card_id for card_id in action.card_ids if by_id[card_id].suit != "JOKER"]
+    if kept:
+        return Collect(tuple(kept))
+    return Pass()
 
 
 def _wants_abandon(strategy: int, game: Game) -> bool:
