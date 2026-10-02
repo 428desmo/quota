@@ -562,7 +562,6 @@ function render() {
       ? `<div class="bonus-toast">${bonusNote.text}</div>`
       : "";
     return `<section class="seat${alt}${turn}" data-seat="${index}">
-      ${titleCalloutHtml(index)}
       ${toast}
       <div class="bar"><span class="who"><strong>${escapeText(player.name)}</strong>${youTag}${clock}${uses}</span>
         <span class="score">${score.plus}<span class="points">${score.points}</span>点${roundPlus}</span></div>
@@ -878,32 +877,28 @@ function startCeremony(key) {
       });
     }
   });
-  const callouts = [];
-  lines.forEach((line, index) => {
-    const last = callouts[callouts.length - 1];
-    if (last && last.seat === line.seat) last.indexes.push(index);
-    else callouts.push({ seat: line.seat, indexes: [index] });
-  });
+  const reason = state.round_end_reason === "DECK"
+    ? "山札切れでラウンド終了。"
+    : state.round_end_reason === "STALL"
+      ? "膠着の連続でラウンド終了。"
+      : "";
   return {
     key,
-    phase: callouts.length ? "callout" : "prelude",
-    dialog: false,
+    phase: "reason",
+    dialog: true,
     at: Date.now(),
     readyAt: null,
     pressed: false,
     lines,
-    lineCount: 0,
-    callouts,
-    calloutIndex: 0,
-    calloutStage: "read",
+    lineCount: lines.length,
+    reason,
+    reasonShown: reason.length > 0,
     rankTitle: "",
     scores,
     coins,
     roundScore: new Map(parts.map((part, index) => [index, part.round])),
     previous: new Map(parts.map((part, index) => [index, part.previous])),
-    order: state.turn_order && state.turn_order.length === state.players.length
-      ? state.turn_order.slice()
-      : state.players.map((_, index) => index),
+    order: orderFrom(leader),
     flyLaunched: 0,
     cashLaunched: 0,
     cashJobs: null,
@@ -928,9 +923,8 @@ function finalCeremony(key) {
     lines: [],
     lineCount: 0,
     dialog: true,
-    callouts: [],
-    calloutIndex: 0,
-    calloutStage: "read",
+    reason: "",
+    reasonShown: false,
     rankTitle: "",
     scores: new Map(state.players.map((player, index) => [index, player.score || 0])),
     coins: new Map(state.players.map((_, index) => [index, []])),
@@ -980,7 +974,9 @@ function roundLeader() {
 }
 
 function orderFrom(seat) {
-  const cycle = (state.turn_order || state.players.map((_, index) => index)).slice();
+  const count = state.players.length;
+  const listed = state.turn_order || [];
+  const cycle = listed.length === count ? listed.slice() : state.players.map((_, index) => index);
   const start = cycle.indexOf(seat);
   if (start < 0) return cycle;
   return cycle.slice(start).concat(cycle.slice(0, start));
@@ -1011,60 +1007,33 @@ function updateCeremony(now) {
   const show = ceremony;
   if (!show || show.review) return false;
   let dirty = false;
-  if (show.phase === "callout") {
-    const callout = show.callouts[show.calloutIndex];
-    if (!callout) {
-      show.phase = "prelude";
-      show.at = now;
-      show.pressed = false;
-      dirty = true;
-    } else if (show.calloutStage === "read") {
-      if (show.pressed || now - show.at >= 700) {
-        show.pressed = false;
-        show.calloutStage = "fly";
-        show.at = now;
-        show.flyLaunched = 0;
-        dirty = true;
-      }
-    } else if (show.calloutStage === "fly") {
-      const jobs = calloutJobs(callout);
-      const done = show.flyLaunched >= jobs.length && callout.indexes.every((index) => show.lines[index].gone);
-      if (done) {
-        show.calloutStage = "gap";
-        show.at = now;
-        show.pressed = false;
-        dirty = true;
-      }
-    } else if (now - show.at >= 250) {
-      show.calloutIndex += 1;
-      show.calloutStage = "read";
-      show.at = now;
-      show.pressed = false;
-      if (show.calloutIndex >= show.callouts.length) show.phase = "prelude";
-      dirty = true;
-    }
-  } else if (show.phase === "prelude") {
+  if (show.phase === "reason") {
     if (now - show.at >= 1000) {
-      show.dialog = true;
-      show.phase = "bases";
+      show.reasonShown = false;
+      show.phase = "titles";
       show.at = now;
+      show.flyLaunched = 0;
+      show.pressed = false;
       dirty = true;
     }
-  } else if (show.phase === "bases") {
-    if (now - show.at >= 400) {
+  } else if (show.phase === "titles") {
+    const jobs = titleJobs();
+    const done = jobs.length === 0 || (show.flyLaunched >= jobs.length && show.lines.every((line) => line.gone));
+    if (done) {
+      show.order = sortSeats((seat) => show.scores.get(seat) || 0);
+      assignPlaces(show, (seat) => show.scores.get(seat) || 0);
+      show.phase = "base-sorted";
+      show.at = now;
+      show.pressed = false;
+      dirty = true;
+    }
+  } else if (show.phase === "base-sorted") {
+    if (now - show.at >= 500) {
       show.phase = "cash";
       show.at = now;
       show.cashJobs = cashJobs();
       show.cashLaunched = 0;
-      dirty = true;
-    }
-  } else if (show.phase === "wait-sort") {
-    if (show.pressed || now - show.at >= 2000) {
       show.pressed = false;
-      show.order = sortSeats((seat) => show.scores.get(seat) || 0);
-      assignPlaces(show, (seat) => show.scores.get(seat) || 0);
-      show.phase = "ranked";
-      show.at = now;
       dirty = true;
     }
   } else if (show.phase === "ranked") {
@@ -1160,21 +1129,28 @@ function cashJobs() {
   return jobs;
 }
 
-function calloutJobs(callout) {
+function titleJobs() {
   const jobs = [];
-  callout.indexes.forEach((index) => {
-    const line = ceremony.lines[index];
+  (ceremony.lines || []).forEach((line, index) => {
     for (let n = 0; n < line.points; n += 1) jobs.push({ index, n, seat: line.seat });
   });
   return jobs;
 }
 
+function finishCash(now) {
+  ceremony.order = sortSeats((seat) => ceremony.scores.get(seat) || 0);
+  assignPlaces(ceremony, (seat) => ceremony.scores.get(seat) || 0);
+  ceremony.phase = "ranked";
+  ceremony.at = now;
+  ceremony.pressed = false;
+  render();
+}
+
 function launchDueFlights() {
   if (!ceremony || ceremony.review) return;
   const now = Date.now();
-  if (ceremony.phase === "callout" && ceremony.calloutStage === "fly") {
-    const callout = ceremony.callouts[ceremony.calloutIndex];
-    const jobs = callout ? calloutJobs(callout) : [];
+  if (ceremony.phase === "titles") {
+    const jobs = titleJobs();
     while (ceremony.flyLaunched < jobs.length && now >= ceremony.at + ceremony.flyLaunched * 100) {
       const job = jobs[ceremony.flyLaunched];
       ceremony.flyLaunched += 1;
@@ -1183,10 +1159,7 @@ function launchDueFlights() {
   } else if (ceremony.phase === "cash") {
     const jobs = ceremony.cashJobs || [];
     if (!jobs.length) {
-      ceremony.phase = "wait-sort";
-      ceremony.at = now;
-      ceremony.pressed = false;
-      render();
+      finishCash(now);
       return;
     }
     while (ceremony.cashLaunched < jobs.length && now >= ceremony.at + ceremony.cashLaunched * 100) {
@@ -1234,12 +1207,8 @@ function flyScoreCoin(job) {
     if (!ceremony) return;
     ceremony.scores.set(job.seat, (ceremony.scores.get(job.seat) || 0) + 1);
     job.done = true;
-    if ((ceremony.cashJobs || []).every((item) => item.done)) {
-      ceremony.phase = "wait-sort";
-      ceremony.at = Date.now();
-      ceremony.pressed = false;
-    }
-    render();
+    if ((ceremony.cashJobs || []).every((item) => item.done)) finishCash(Date.now());
+    else render();
   });
 }
 
@@ -1313,22 +1282,20 @@ function winnerLine() {
   return `${names.join("さん、")}さん、総合優勝おめでとうございます`;
 }
 
-function titleCalloutHtml(index) {
-  if (!ceremony || ceremony.phase !== "callout" || ceremony.calloutStage === "gap") return "";
-  const callout = ceremony.callouts && ceremony.callouts[ceremony.calloutIndex];
-  if (!callout || callout.seat !== index) return "";
-  const lines = callout.indexes.map((lineIndex) => {
-    const line = ceremony.lines[lineIndex];
-    const html = escapeText(line.text).replace(`+${line.points}`, `<span data-bonus="${lineIndex}">+${line.points}</span>`);
-    return `<p class="title-callout-line">${html}</p>`;
-  }).join("");
-  return `<div class="title-callout">${lines}</div>`;
-}
-
 function ceremonyHtml() {
   if (!ceremony || (!ceremony.review && !ceremony.dialog)) return "";
-  const reason = state.round_end_reason === "DECK" ? "山札切れ" : state.round_end_reason === "STALL" ? "膠着の連続" : "";
-  const heading = ceremony.review ? "ゲーム終了" : `第${state.round_index}ラウンド終了${reason ? `（${reason}）` : ""}`;
+  const heading = ceremony.review ? "ゲーム終了" : `第${state.round_index}ラウンド終了`;
+  const reason = !ceremony.review && ceremony.reasonShown && ceremony.reason
+    ? `<p class="ceremony-reason">${escapeText(ceremony.reason)}</p>`
+    : "";
+  const titleRows = !ceremony.review
+    ? ceremony.lines.map((line, index) => {
+      if (line.gone) return "";
+      const html = escapeText(line.text).replace(`+${line.points}`, `<span data-bonus="${index}">+${line.points}</span>`);
+      return `<p class="ceremony-line">${html}</p>`;
+    }).join("")
+    : "";
+  const titles = titleRows ? `<div class="ceremony-titles">${titleRows}</div>` : "";
   const overall = !ceremony.review && state.round_index >= 2
     ? `<p class="ceremony-overall">${ceremony.rankTitle || ""}</p>`
     : "";
@@ -1345,14 +1312,14 @@ function ceremonyHtml() {
     </div>`;
   }).join("");
   const last = state.finished || state.round_index >= state.round_count;
-  const showOk = ceremony.phase === "wait-sort" || ceremony.phase === "ranked" || ceremony.phase === "clear" || ceremony.phase === "wait-prev" || (ceremony.phase === "ready" && (!last || ceremony.winnerShown));
+  const showOk = ceremony.phase === "ranked" || ceremony.phase === "clear" || ceremony.phase === "wait-prev" || (ceremony.phase === "ready" && (!last || ceremony.winnerShown));
   const label = ceremony.phase === "ready" && last ? "ゲームを終了" : "OK";
   const button = showOk
     ? `<button type="button" class="primary" id="ceremony-ok">${label}</button>`
     : `<button type="button" class="primary" tabindex="-1">${label}</button>`;
   const winner = winnerLine();
   const cheer = winner ? `<p class="ceremony-winner">${escapeText(winner)}</p>` : "";
-  return `<div class="ceremony"><p class="ceremony-heading">${heading}</p>${overall}<div class="ceremony-board">${rows}</div>${cheer}<p class="submit ceremony-action${showOk ? "" : " pending"}">${button}</p></div>`;
+  return `<div class="ceremony"><p class="ceremony-heading">${heading}</p>${reason}${titles}${overall}<div class="ceremony-board">${rows}</div>${cheer}<p class="submit ceremony-action${showOk ? "" : " pending"}">${button}</p></div>`;
 }
 
 function captureCeremonyRows() {

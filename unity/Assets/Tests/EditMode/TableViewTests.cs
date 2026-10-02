@@ -364,6 +364,81 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void RoundEndDialogListsTheReasonAndTitlesInsideANarrowWindow()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            var game = match.Game;
+            game.Config.TitleRule = true;
+            game.RoundCount = 3;
+            game.RoundIndex = 2;
+            game.AwaitingNextRound = true;
+            game.RoundEndReason = "DECK";
+            var leader = game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
+            var orderStart = game.TurnOrder.IndexOf(leader);
+            var expected = new List<int>();
+            for (var i = 0; i < game.TurnOrder.Count; i++) expected.Add(game.TurnOrder[(orderStart + i) % game.TurnOrder.Count]);
+            AwardThree(game.Players[expected[0]]);
+            AwardThree(game.Players[expected[1]]);
+            game.Players[leader].Achieved.Add(new Card(9001, Suit.S, 9));
+            typeof(TableView).GetMethod("PrepareCeremony", flags).Invoke(view, new object[] { game });
+            var order = (List<int>)typeof(TableView).GetField("dialogOrder", flags).GetValue(view);
+            CollectionAssert.AreEqual(expected, order);
+            Assert.AreEqual("第2ラウンド終了", typeof(TableView).GetField("ceremonyHeading", flags).GetValue(view));
+            Assert.AreEqual("山札切れでラウンド終了。", typeof(TableView).GetField("ceremonyReason", flags).GetValue(view));
+            Assert.IsNull(typeof(TableView).GetField("ceremonyPlaces", flags).GetValue(view));
+            var scores = (Dictionary<int, int>)typeof(TableView).GetField("scoreOverride", flags).GetValue(view);
+            Assert.AreEqual(9, scores[leader]);
+            typeof(TableView).GetField("ceremonyDialog", flags).SetValue(view, true);
+            typeof(TableView).GetField("ceremonyReasonShown", flags).SetValue(view, true);
+            Show(view);
+            Assert.IsNotNull(FindText("第2ラウンド終了"));
+            Assert.IsNull(FindText("第2ラウンド終了（山札切れ）"));
+            Assert.IsNotNull(FindText("山札切れでラウンド終了。"));
+            var panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
+            Assert.IsNotNull(panel);
+            Assert.AreEqual(460f, panel.sizeDelta.x, 0.1f);
+            Assert.LessOrEqual(panel.anchoredPosition.x + panel.sizeDelta.x, 770f);
+            var tray = host.transform.Find("Root/Frame/seat0/chip-tray") as RectTransform;
+            Assert.IsNotNull(tray);
+            Assert.GreaterOrEqual(tray.anchoredPosition.x, panel.anchoredPosition.x + panel.sizeDelta.x);
+            var rows = new List<RectTransform>();
+            var titles = new List<string>();
+            for (var i = 0; i < panel.childCount; i++)
+            {
+                var child = panel.GetChild(i);
+                if (child.name.StartsWith("row")) rows.Add((RectTransform)child);
+                var label = child.GetComponent<Text>();
+                if (label != null && label.text.Contains("ボーナス")) titles.Add(label.text);
+            }
+            rows.Sort((a, b) => b.anchoredPosition.y.CompareTo(a.anchoredPosition.y));
+            for (var i = 0; i < expected.Count; i++) Assert.AreEqual("row" + expected[i], rows[i].name);
+            CollectionAssert.AreEqual(new[]
+            {
+                $"{game.Players[expected[0]].Name} : 単色達成ボーナス +15",
+                $"{game.Players[expected[0]].Name} : 生粋の買い付けボーナス +5",
+                $"{game.Players[expected[1]].Name} : 単色達成ボーナス +15",
+                $"{game.Players[expected[1]].Name} : 生粋の買い付けボーナス +5",
+            }, titles);
+            Assert.IsNotNull(panel.Find("bonus0"));
+            game.RoundEndReason = "STALL";
+            typeof(TableView).GetMethod("PrepareCeremony", flags).Invoke(view, new object[] { game });
+            Assert.AreEqual("第2ラウンド終了", typeof(TableView).GetField("ceremonyHeading", flags).GetValue(view));
+            Assert.AreEqual("膠着の連続でラウンド終了。", typeof(TableView).GetField("ceremonyReason", flags).GetValue(view));
+        }
+
+        static void AwardThree(Player player)
+        {
+            player.Bundles.Add(new Bundle("S", false));
+            player.Bundles.Add(new Bundle("S", false));
+            player.Bundles.Add(new Bundle("S", false));
+        }
+
+        [Test]
         public void LeaveReturnsToSetupAndStopsTheCpuLoop()
         {
             host = Open();
