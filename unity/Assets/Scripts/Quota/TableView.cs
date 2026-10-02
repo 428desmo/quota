@@ -607,7 +607,7 @@ namespace Quota
             ceremonyHeading = "ゲーム終了";
             ceremonyReason = "";
             ceremonyReasonShown = false;
-            ceremonyButton = "ゲームを終了";
+            ceremonyButton = "抜ける";
             ceremonyOverall = false;
             ceremonyOverallSlot = false;
             ceremonyBlank = false;
@@ -1866,6 +1866,7 @@ namespace Quota
                 }
                 return;
             }
+            if (reviewMode) return;
             var slides = new List<CoinSlide>();
             for (var i = 0; i < bank.Count; i++)
             {
