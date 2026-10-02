@@ -358,20 +358,38 @@ namespace Quota.Tests
             var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
             var player = match.Game.Players[0];
             player.Achieved.Add(new Card(9101, Suit.H, 7));
+            match.Game.RoundIndex = 2;
+            match.Game.RoundEndReason = "DECK";
             var order = new List<int>();
             var scores = new Dictionary<int, int>();
+            var previous = new Dictionary<int, int>();
+            var rounds = new Dictionary<int, int>();
             for (var i = 0; i < match.Game.Players.Count; i++)
             {
                 order.Add(i);
                 scores[i] = match.Game.Players.Count - i;
+                previous[i] = scores[i] - 1;
+                rounds[i] = 1;
             }
             typeof(TableView).GetField("reviewOrder", flags).SetValue(view, order);
             typeof(TableView).GetField("reviewScores", flags).SetValue(view, scores);
+            typeof(TableView).GetField("previousScores", flags).SetValue(view, previous);
+            typeof(TableView).GetField("roundScores", flags).SetValue(view, rounds);
             typeof(TableView).GetMethod("ShowReview", flags).Invoke(view, null);
             Rebuild(host);
 
             Assert.IsNull(host.transform.Find("Root/Frame/seat0/chip-tray/coin"));
-            Assert.IsNotNull(ButtonNamed("抜ける"));
+            Assert.IsNotNull(FindText("第2ラウンド終了"));
+            Assert.IsNotNull(FindText("山札切れでラウンド終了。"));
+            Assert.IsNotNull(FindText("最終順位"));
+            Assert.IsNotNull(FindText("2+1=3"));
+            var panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
+            Assert.AreEqual(640f, -panel.anchoredPosition.y, 1f);
+            Assert.AreEqual(640f, panel.sizeDelta.y, 1f);
+            var leave = panel.Find("抜ける") as RectTransform;
+            Assert.IsNotNull(leave);
+            Assert.AreEqual((panel.sizeDelta.x - leave.sizeDelta.x) * 0.5f, leave.anchoredPosition.x, 1f);
+            Assert.AreEqual(-(panel.sizeDelta.y - 80f), leave.anchoredPosition.y, 1f);
             Assert.IsNull(FindButton("ゲームを終了"));
             Click("抜ける");
             Assert.IsNotNull(ButtonNamed("対局開始"));
