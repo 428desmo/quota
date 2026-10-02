@@ -15,6 +15,8 @@ from quota.characters import assign_seats, bind_replacement
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
 
 ROOT = Path(__file__).resolve().parent.parent / "web"
+VISUAL = ROOT.parent / "visual"
+TITLE_ART = {"title1.png", "title2.png"}
 
 
 class Table:
@@ -835,9 +837,14 @@ class Handler(BaseHTTPRequestHandler):
                 payload = HALL.snapshot(self.headers.get("X-Quota-Client", ""))
             self._json(payload)
             return
-        rel = "index.html" if self.path in ("/", "") else self.path.lstrip("/")
-        path = (ROOT / rel).resolve()
-        if not str(path).startswith(str(ROOT.resolve())) or not path.is_file():
+        rel = "index.html" if self.path in ("/", "") else self.path.split("?", 1)[0].lstrip("/")
+        if rel in TITLE_ART:
+            path = (VISUAL / rel).resolve()
+            root = VISUAL.resolve()
+        else:
+            path = (ROOT / rel).resolve()
+            root = ROOT.resolve()
+        if not str(path).startswith(str(root)) or not path.is_file():
             self.send_error(404)
             return
         kind = "text/html; charset=utf-8"

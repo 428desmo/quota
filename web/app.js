@@ -23,6 +23,8 @@ let pendingBonusSeat = null;
 let bonusNote = null;
 let titleCheer = null;
 let guide = null;
+let settingsOpen = false;
+let settingsDraft = null;
 let ask = null;
 let coverSeen = 0;
 let coverUntil = 0;
@@ -271,6 +273,83 @@ function guideBlock(block) {
   return "";
 }
 
+function playerNameFrom(data) {
+  const name = String(data.get("player_name") || "").trim();
+  return name || "あなた";
+}
+
+function startOptions(players, leftHanded) {
+  const saved = savedOptions() || {};
+  const simple = simpleOn(saved);
+  return {
+    players,
+    simple,
+    sequence: !simple,
+    title: !simple,
+    special: !simple,
+    ok_timeout: savedOkTimeout(saved),
+    ok_timeout_set: true,
+    turn_timeout: Number(saved.turn_timeout ?? 120),
+    left_handed: leftHanded,
+  };
+}
+
+function applySettings() {
+  if (!settingsDraft) return;
+  const pro = app.querySelector("#pro-mode");
+  const okInput = app.querySelector("#ok-timeout");
+  const turnInput = app.querySelector("#turn-timeout");
+  const proOn = pro ? pro.checked : settingsDraft.pro;
+  const ok = Number(okInput ? okInput.value : settingsDraft.ok);
+  const turn = Number(turnInput ? turnInput.value : settingsDraft.turn);
+  if (!Number.isFinite(ok) || ok < 0 || !Number.isFinite(turn) || turn < 1) return;
+  const form = app.querySelector("#start");
+  const data = form ? new FormData(form) : null;
+  const players = data ? Number(data.get("players")) : Number((savedOptions() || {}).players || 3);
+  const leftHanded = data ? data.get("left_handed") === "on" : !!(savedOptions() || {}).left_handed;
+  const simple = !proOn;
+  const options = {
+    players,
+    simple,
+    sequence: !simple,
+    title: !simple,
+    special: !simple,
+    ok_timeout: ok,
+    ok_timeout_set: true,
+    turn_timeout: turn,
+    left_handed: leftHanded,
+  };
+  rememberSimple(simple);
+  rememberOptions(options);
+  settingsOpen = false;
+  settingsDraft = null;
+  render();
+}
+
+function settingsHtml() {
+  if (!settingsOpen || !settingsDraft) return "";
+  return `<div class="rollover settings"><div class="panel">
+    <h2>設定</h2>
+    <label class="check">
+      <input id="pro-mode" type="checkbox" ${settingsDraft.pro ? "checked" : ""}>
+      新プロモード
+      <span id="pro-state">${settingsDraft.pro ? "オン" : "オフ"}</span>
+    </label>
+    <div class="row">
+      <label>OKタイムアウト（秒）
+        <input id="ok-timeout" class="short" type="number" min="0" step="0.5" value="${settingsDraft.ok}">
+      </label>
+      <label>手番タイムアウト（秒）
+        <input id="turn-timeout" class="short" type="number" min="1" step="1" value="${settingsDraft.turn}">
+      </label>
+    </div>
+    <p class="ask-buttons">
+      <button type="button" class="primary" id="settings-save">設定</button>
+      <button type="button" id="settings-cancel">キャンセル</button>
+    </p>
+  </div></div>`;
+}
+
 function guideHtml() {
   const page = GUIDES[guide];
   if (!page) return "";
@@ -288,11 +367,12 @@ function escapeText(value) {
 
 function savedName() {
   const match = document.cookie.match(/(?:^|; )quota_name=([^;]*)/);
-  if (!match) return "";
+  if (!match) return "あなた";
   try {
-    return decodeURIComponent(match[1]);
+    const name = decodeURIComponent(match[1]).trim();
+    return name || "あなた";
   } catch {
-    return "";
+    return "あなた";
   }
 }
 
@@ -390,11 +470,8 @@ function render() {
     const players = String(saved.players || 3);
     app.innerHTML = `
       <header class="hero">
-        <h1>
-          <span class="title-main"><span class="ruby">ク ォ ー タ</span><span class="word">QUOTA</span></span>
-          <span class="sub">揃えて、達成。</span>
-        </h1>
-        <p class="catch">ノルマは、自分で決めろ。</p>
+        <img class="hero-title" src="/title1.png" alt="QUOTA 揃えて、達成。">
+        <img class="hero-catch" src="/title2.png" alt="ノルマは、自分で決めろ。">
       </header>
       <p class="guide-buttons">
         <button type="button" data-guide="quick">QuickStartガイド</button>
@@ -402,6 +479,7 @@ function render() {
         <button type="button" data-guide="hint">勝つためのヒント</button>
       </p>
       ${guideHtml()}
+      ${settingsHtml()}
       <form class="panel" id="start">
         <div class="row">
           <label>人数
@@ -412,23 +490,7 @@ function render() {
         </div>
         <div class="row">
           <label>あなたの名前
-            <input name="player_name" maxlength="24" placeholder="あなた" autocomplete="nickname" value="${escapeAttr(savedName())}">
-          </label>
-        </div>
-        <div class="row tight">
-          <label>シード（空ならランダム）
-            <input class="short" name="seed" inputmode="numeric">
-          </label>
-          <label>OKタイムアウト（秒）
-            <input class="short" name="ok_timeout" type="number" min="0" step="0.5" value="${savedOkTimeout(saved)}">
-          </label>
-          <label>手番タイムアウト（秒）
-            <input class="short" name="turn_timeout" type="number" min="1" step="1" value="${saved.turn_timeout ?? 120}">
-          </label>
-        </div>
-        <div class="row option-gap">
-          <label class="check">
-            <input name="simple" type="checkbox" ${simpleOn(saved) ? "checked" : ""}> シンプルモード
+            <input name="player_name" maxlength="24" autocomplete="nickname" value="${escapeAttr(savedName())}">
           </label>
         </div>
         <div class="row option-gap">
@@ -436,6 +498,7 @@ function render() {
             <input name="left_handed" type="checkbox" ${saved.left_handed ? "checked" : ""}> ボタンを左に置く
           </label>
         </div>
+        <p class="submit"><button type="button" id="open-settings">設定</button></p>
         <p class="submit"><button class="primary" type="submit">卓を新設</button></p>
         <p class="submit"><button type="button" id="watch-cpu">CPU模擬戦を観戦</button></p>
       </form>
@@ -463,53 +526,57 @@ function render() {
       guide = null;
       render();
     };
+    const openSettings = app.querySelector("#open-settings");
+    if (openSettings) openSettings.onclick = () => {
+      const savedOptionsNow = savedOptions() || {};
+      settingsDraft = {
+        pro: !simpleOn(savedOptionsNow),
+        ok: savedOkTimeout(savedOptionsNow),
+        turn: Number(savedOptionsNow.turn_timeout ?? 120),
+      };
+      settingsOpen = true;
+      guide = null;
+      render();
+    };
+    const saveSettings = app.querySelector("#settings-save");
+    if (saveSettings) saveSettings.onclick = () => applySettings();
+    const cancelSettings = app.querySelector("#settings-cancel");
+    if (cancelSettings) cancelSettings.onclick = () => {
+      settingsOpen = false;
+      settingsDraft = null;
+      render();
+    };
+    const proMode = app.querySelector("#pro-mode");
+    if (proMode) proMode.onchange = () => {
+      if (!settingsDraft) return;
+      settingsDraft.pro = proMode.checked;
+      const mark = app.querySelector("#pro-state");
+      if (mark) mark.textContent = proMode.checked ? "オン" : "オフ";
+    };
     const form = app.querySelector("#start");
     form.onsubmit = async (event) => {
       event.preventDefault();
       const data = new FormData(event.target);
       const players = Number(data.get("players"));
-      const name = String(data.get("player_name") || "");
-      const simple = data.get("simple") === "on";
+      const name = playerNameFrom(data);
+      const options = startOptions(players, data.get("left_handed") === "on");
       rememberName(name);
-      rememberSimple(simple);
-      const options = {
-        players,
-        simple,
-        sequence: !simple,
-        title: !simple,
-        special: !simple,
-        ok_timeout: Number(data.get("ok_timeout")),
-        ok_timeout_set: true,
-        turn_timeout: Number(data.get("turn_timeout")),
-        left_handed: data.get("left_handed") === "on",
-      };
+      rememberSimple(options.simple);
       rememberOptions(options);
-      await post("/api/table", { ...options, name, seed: data.get("seed") });
+      await post("/api/table", { ...options, name });
     };
     const watchCpu = app.querySelector("#watch-cpu");
     if (watchCpu) watchCpu.onclick = () => {
       const data = new FormData(form);
-      const name = String(data.get("player_name") || "");
-      const simple = data.get("simple") === "on";
+      const name = playerNameFrom(data);
+      const options = startOptions(Number(data.get("players")), data.get("left_handed") === "on");
       rememberName(name);
-      rememberSimple(simple);
-      const options = {
-        players: Number(data.get("players")),
-        simple,
-        sequence: !simple,
-        title: !simple,
-        special: !simple,
-        ok_timeout: Number(data.get("ok_timeout")),
-        ok_timeout_set: true,
-        turn_timeout: Number(data.get("turn_timeout")),
-        left_handed: data.get("left_handed") === "on",
-      };
+      rememberSimple(options.simple);
       rememberOptions(options);
       post("/api/table", {
         cpu_match: true,
         ...options,
         name,
-        seed: data.get("seed"),
       });
     };
     app.querySelectorAll("[data-join]").forEach((button) => {
@@ -616,7 +683,7 @@ function render() {
   const ceremonyBoxes = captureCeremonyRows();
   app.innerHTML = `
     <div class="bar">
-      <h1 class="brand"><span class="word">QUOTA</span><span class="sub">揃えて、達成。</span></h1>
+      <h1 class="brand"><img class="brand-title" src="/title1.png" alt="QUOTA 揃えて、達成。"></h1>
     </div>
     ${joinHtml()}
     <p class="note">${state.round_count > 1 ? `第${state.round_index}ラウンド / ${state.round_count}　` : ""}手番 ${state.turn_number} / 山札 ${state.deck_count}
@@ -698,10 +765,7 @@ function renderRecruiting() {
   const open = Math.max(0, state.players - seats.length);
   app.innerHTML = `
     <header class="hero">
-      <h1>
-        <span class="title-main"><span class="word">QUOTA</span></span>
-        <span class="sub">揃えて、達成。</span>
-      </h1>
+      <img class="hero-title" src="/title1.png" alt="QUOTA 揃えて、達成。">
     </header>
     <section class="panel">
       <p>${state.players}人卓　参加 ${seats.length}人${open ? `　空き ${open}` : ""}</p>
