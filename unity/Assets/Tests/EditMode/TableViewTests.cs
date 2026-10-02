@@ -345,6 +345,25 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void NextRoundClearsTheRoundEndWindow()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Click("対局開始");
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            match.Game.RoundCount = 3;
+            match.Game.RoundIndex = 2;
+            match.Game.AwaitingNextRound = false;
+            typeof(TableView).GetField("ceremonyDialog", flags).SetValue(view, true);
+            typeof(TableView).GetField("ceremonyHeading", flags).SetValue(view, "第1ラウンド終了（山札切れ）");
+            Show(view);
+            Assert.IsNull(FindText("第1ラウンド終了（山札切れ）"));
+            Assert.IsNotNull(FindText("第2ラウンド / 3"));
+        }
+
+        [Test]
         public void LeaveReturnsToSetupAndStopsTheCpuLoop()
         {
             host = Open();
