@@ -2234,8 +2234,12 @@ namespace Quota
             ok.onValueChanged.AddListener(value => draftOk = value);
             var turn = DialogField(panel, "手番タイムアウト（秒）", draftTurn, 440f, 196f, 380f);
             turn.onValueChanged.AddListener(value => draftTurn = value);
-            Pill(panel, "決定", 32f, panelH - 112f, 200f, 72f, 28, ApplySettings);
-            Pill(panel, "キャンセル", 252f, panelH - 112f, 240f, 72f, 28, () =>
+            var decideW = 200f;
+            var cancelW = 240f;
+            var buttonGap = 20f;
+            var buttonsX = (panelW - decideW - buttonGap - cancelW) * 0.5f;
+            Pill(panel, "決定", buttonsX, panelH - 112f, decideW, 72f, 28, ApplySettings);
+            Pill(panel, "キャンセル", buttonsX + decideW + buttonGap, panelH - 112f, cancelW, 72f, 28, () =>
             {
                 setupPage = null;
                 ShowSetup();
@@ -2414,7 +2418,7 @@ namespace Quota
             var text = label.GetComponent<Text>();
             text.font = nameFont;
             text.fontSize = fontSize;
-            text.color = Color.white;
+            text.color = Color.black;
             text.alignment = TextAnchor.MiddleLeft;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;

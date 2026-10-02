@@ -128,10 +128,17 @@ namespace Quota.Tests
             Assert.AreEqual(WorldMidX(frame), WorldMidX(countRow), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(nameRow), 2f);
 
+            Assert.AreEqual(Color.black, countLabel.color);
+            Assert.AreEqual(Color.black, nameLabel.color);
+
             Click("設定");
             Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
-            Assert.IsNotNull(ButtonNamed("決定"));
-            Assert.IsNotNull(ButtonNamed("キャンセル"));
+            var decide = ButtonNamed("決定").GetComponent<RectTransform>();
+            var cancel = ButtonNamed("キャンセル").GetComponent<RectTransform>();
+            var dialog = host.transform.Find("Root/Frame/setup-dialog") as RectTransform;
+            var pairLeft = Mathf.Min(WorldLeft(decide), WorldLeft(cancel));
+            var pairRight = Mathf.Max(WorldRight(decide), WorldRight(cancel));
+            Assert.AreEqual(WorldMidX(dialog), (pairLeft + pairRight) * 0.5f, 3f);
             Click("キャンセル");
             Assert.IsNull(FindButton("シンプルモード　オン"));
 
@@ -704,6 +711,13 @@ namespace Quota.Tests
             var corners = new Vector3[4];
             rect.GetWorldCorners(corners);
             return Mathf.Min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+        }
+
+        static float WorldRight(RectTransform rect)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            return Mathf.Max(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
         }
 
         static float WorldMidX(RectTransform rect)

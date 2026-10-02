@@ -55,7 +55,7 @@ h1.brand { margin: 0; }
 .guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 12px 0; }
 .settings .panel { width: min(36em, 92vw); text-align: left; }
 .settings h2 { margin: 0 0 12px; }
-.settings .ask-buttons { display: flex; gap: 12px; justify-content: flex-end; margin: 16px 0 0; }
+.settings .ask-buttons { display: flex; gap: 12px; justify-content: center; margin: 16px 0 0; }
 .settings .check { flex-direction: row; align-items: center; gap: 8px; margin: 8px 0 16px; }
 .guide h3 { font-size: 24px; margin: 16px 0 6px; }
 .guide .lead { margin: 8px 0; }
