@@ -493,24 +493,34 @@ namespace Quota.Tests
             AssertHeadingFont(panel, 36);
             for (var i = 0; i < game.Players.Count; i++)
             {
-                var chip = host.transform.Find("Root/Frame/seat" + i + "/chip-tray");
-                var mono = chip.Find("title-mono").GetComponent<Text>();
-                var purist = chip.Find("title-purist").GetComponent<Text>();
+                var chip = host.transform.Find("Root/Frame/seat" + i + "/chip-tray") as RectTransform;
+                var names = host.transform.Find("Root/Frame/seat" + i + "/title-names") as RectTransform;
+                Assert.IsNotNull(names);
+                Assert.IsNull(chip.Find("title-mono"));
+                Assert.LessOrEqual(-names.anchoredPosition.y + names.sizeDelta.y, -chip.anchoredPosition.y);
+                var mono = names.Find("title-mono").GetComponent<Text>();
+                var purist = names.Find("title-purist").GetComponent<Text>();
                 Assert.AreEqual("単色達成", mono.text);
                 Assert.AreEqual("生粋の買い付け", purist.text);
                 var struck = i == expected[2];
                 if (struck) Assert.AreEqual(0.541f, mono.color.r, 0.02f);
                 else Assert.AreEqual(Color.black, mono.color);
                 Assert.AreEqual(mono.color, purist.color);
-                Assert.AreEqual(struck, chip.Find("title-mono-strike") != null);
-                Assert.AreEqual(struck, chip.Find("title-purist-strike") != null);
+                Assert.AreEqual(struck, names.Find("title-mono-strike") != null);
+                Assert.AreEqual(struck, names.Find("title-purist-strike") != null);
             }
             typeof(TableView).GetField("ceremonyExpand", flags).SetValue(view, 1f);
+            typeof(TableView).GetField("ceremonyButton", flags).SetValue(view, "OK");
             Show(view);
             panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
             Assert.LessOrEqual(panel.anchoredPosition.x, compactLeft);
             Assert.AreEqual(compactRight, panel.anchoredPosition.x + panel.sizeDelta.x, 0.1f);
-            Assert.GreaterOrEqual(-panel.anchoredPosition.y + panel.sizeDelta.y, 1900f);
+            Assert.AreEqual(640f, -panel.anchoredPosition.y, 1f);
+            Assert.AreEqual(640f, panel.sizeDelta.y, 1f);
+            var ok = panel.Find("OK") as RectTransform;
+            Assert.IsNotNull(ok);
+            Assert.AreEqual((panel.sizeDelta.x - ok.sizeDelta.x) * 0.5f, ok.anchoredPosition.x, 1f);
+            Assert.AreEqual(-(panel.sizeDelta.y - 80f), ok.anchoredPosition.y, 1f);
             var rows = new List<RectTransform>();
             for (var i = 0; i < panel.childCount; i++)
             {

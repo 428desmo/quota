@@ -1050,11 +1050,12 @@ namespace Quota
             var limit = Mathf.Max(compactW, right - 12f);
             if (expandedW > limit) expandedW = limit;
             var expandedX = right - expandedW;
-            var expandedH = Mathf.Max(compactH, screenH - 12f - compactY);
+            var expandedY = screenH / 3f;
+            var expandedH = screenH / 3f;
             var t = Mathf.Clamp01(expand);
             return new Rect(
                 Mathf.Lerp(compactX, expandedX, t),
-                compactY,
+                Mathf.Lerp(compactY, expandedY, t),
                 Mathf.Lerp(compactW, expandedW, t),
                 Mathf.Lerp(compactH, expandedH, t));
         }
@@ -1171,7 +1172,7 @@ namespace Quota
             if (string.IsNullOrEmpty(ceremonyButton)) return;
             var caption = ceremonyButton;
             var buttonW = caption.Length * 32f + 48f;
-            Pill(panel, caption, 16f, panelH - 80f, buttonW, 64f, 28, () =>
+            Pill(panel, caption, (panelW - buttonW) * 0.5f, panelH - 80f, buttonW, 64f, 28, () =>
             {
                 ceremonyOk = true;
             });
@@ -1380,8 +1381,8 @@ namespace Quota
         {
             if (line < 0 || line >= titleLines.Count) return Vector3.zero;
             var which = (titleLines[line].Text ?? "").Contains("単色") ? "title-mono" : "title-purist";
-            var tray = TrayOf(titleLines[line].Seat);
-            var mark = tray != null ? tray.Find(which) as RectTransform : null;
+            var seatFrame = frame != null ? frame.Find("seat" + titleLines[line].Seat) : null;
+            var mark = seatFrame != null ? seatFrame.Find("title-names/" + which) as RectTransform : null;
             if (mark != null) return CenterOf(mark);
             return TrayPoint(titleLines[line].Seat);
         }
@@ -1441,7 +1442,8 @@ namespace Quota
             var tray = TrayOf(dot.Seat);
             if (tray == null || tray.Find("cdot-" + dot.Serial) != null) return;
             float x, y, width, height, diameter;
-            CoinSpot(WideScreen(), tray.Find("title-mono") != null, out x, out y, out width, out height, out diameter);
+            CoinSpot(tray.name == "bonus-box", out x, out y, out width, out height, out diameter);
+            if (tray.name == "bonus-box") height = Mathf.Max(24f, ((RectTransform)tray).sizeDelta.y - y - 34f);
             DrawStoredDot(tray, dot, x, y, width, height, diameter);
         }
 
@@ -1656,11 +1658,14 @@ namespace Quota
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 6.5f, 3f);
             TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
-            var titled = game.Config.TitleRule;
-            var tray = Portrait.Box(seat, "chip-tray", 775f, titled ? 200f : 240f, 220f, titled ? 145f : 105f, 7f, 1f, Color.white, Color.black, false);
-            if (titled) DrawTrayTitles(tray, player, 220f, 40f, 16);
+            const float trayX = 775f;
+            const float trayY = 240f;
+            const float trayW = 220f;
+            const float trayH = 105f;
+            var tray = Portrait.Box(seat, "chip-tray", trayX, trayY, trayW, trayH, 7f, 1f, Color.white, Color.black, false);
+            if (game.Config.TitleRule) DrawTrayTitles(seat, player, trayX, trayY - 42f, trayW, 40f, 16);
             float coinX, coinY, coinW, coinH, coinD;
-            CoinSpot(false, titled, out coinX, out coinY, out coinW, out coinH, out coinD);
+            CoinSpot(false, out coinX, out coinY, out coinW, out coinH, out coinD);
             Portrait.Rect(tray, "coin-area", coinX, coinY, coinW, coinH);
             PlaceBonus(game, player, quotaCards, tray, coinX, coinY, coinW, coinH, coinD, 1f);
             var side = SeatPoints(game, index, player);
@@ -1690,22 +1695,28 @@ namespace Quota
                 TextAt(seat, uses, 860f, 14f, 320f, 28f, 16, Color.black, nameFont, TextAnchor.MiddleRight);
             }
 
-            const float boxY = 66f;
-            const float boxH = 148f;
-            Portrait.Box(seat, "bonus-box", 28f, boxY, 176f, boxH, 7f, 1f, Color.white, Color.black, false);
+            var titled = game.Config.TitleRule;
+            const float boxX = 28f;
+            const float boxW = 176f;
+            var boxY = titled ? 88f : 66f;
+            var boxH = titled ? 126f : 148f;
+            Portrait.Box(seat, "bonus-box", boxX, boxY, boxW, boxH, 7f, 1f, Color.white, Color.black, false);
+            if (titled) DrawTrayTitles(seat, player, boxX, boxY - 34f, boxW, 32f, 12);
             TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
             var wideScore = TextAt(seat, SeatPoints(game, index, player), 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
             wideScore.gameObject.name = "score";
             wideScore.supportRichText = true;
 
-            Portrait.Box(seat, "record-box", 216f, boxY, 220f, boxH, 7f, 1f, Color.white, Color.black, false);
-            TextAt(seat, "実績", 224f, boxY + 4f, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
-            var achieved = Portrait.Rect(seat, "achieved-cards", 224f, boxY + 30f, 200f, boxH - 38f);
+            const float recordY = 66f;
+            const float recordH = 148f;
+            Portrait.Box(seat, "record-box", 216f, recordY, 220f, recordH, 7f, 1f, Color.white, Color.black, false);
+            TextAt(seat, "実績", 224f, recordY + 4f, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var achieved = Portrait.Rect(seat, "achieved-cards", 224f, recordY + 30f, 200f, recordH - 38f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 2f, 3f, 0.62f);
 
-            TextAt(seat, "ノルマ", 452f, boxY, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
-            var quotaCards = Portrait.Rect(seat, "quota-cards", 452f, boxY + 22f, 730f, CardHeight + 4f);
+            TextAt(seat, "ノルマ", 452f, recordY, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var quotaCards = Portrait.Rect(seat, "quota-cards", 452f, recordY + 22f, 730f, CardHeight + 4f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
@@ -1718,36 +1729,36 @@ namespace Quota
             }
             LayCards(quotaCards, theme, strip, 0f, stride, 1f);
             var bonusBox = seat.Find("bonus-box");
-            var titled = game.Config.TitleRule;
-            if (titled) DrawTrayTitles(bonusBox, player, 176f, 36f, 13, 28f);
             float coinX, coinY, coinW, coinH, coinD;
-            CoinSpot(true, titled, out coinX, out coinY, out coinW, out coinH, out coinD);
+            CoinSpot(true, out coinX, out coinY, out coinW, out coinH, out coinD);
+            coinH = Mathf.Max(24f, boxH - coinY - 34f);
             Portrait.Rect(bonusBox, "coin-area", coinX, coinY, coinW, coinH);
             PlaceBonus(game, player, quotaCards, bonusBox, coinX, coinY, coinW, coinH, coinD, 1f);
         }
 
-        static void CoinSpot(bool wide, bool titled, out float x, out float y, out float width, out float height, out float diameter)
+        static void CoinSpot(bool wide, out float x, out float y, out float width, out float height, out float diameter)
         {
             x = 8f;
             if (wide)
             {
                 diameter = 12f;
                 width = 160f;
-                y = titled ? 66f : 28f;
-                height = titled ? 48f : 82f;
+                y = 28f;
+                height = 82f;
                 return;
             }
             diameter = 14f;
             width = 204f;
-            y = titled ? 40f : 8f;
-            height = titled ? 97f : 89f;
+            y = 8f;
+            height = 89f;
         }
 
-        void DrawTrayTitles(Transform tray, Player player, float width, float band, int font, float top = 0f)
+        void DrawTrayTitles(Transform seat, Player player, float x, float y, float width, float band, int font)
         {
+            var host = Portrait.Rect(seat, "title-names", x, y, width, band);
             var lineH = band * 0.5f;
-            DrawTitleName(tray, "title-mono", "単色達成", 4f, top, width - 8f, lineH, font, TitleMonoOut(player));
-            DrawTitleName(tray, "title-purist", "生粋の買い付け", 4f, top + lineH, width - 8f, lineH, font, TitlePuristOut(player));
+            DrawTitleName(host, "title-mono", "単色達成", 0f, 0f, width, lineH, font, TitleMonoOut(player));
+            DrawTitleName(host, "title-purist", "生粋の買い付け", 0f, lineH, width, lineH, font, TitlePuristOut(player));
         }
 
         static bool TitleMonoOut(Player player)
