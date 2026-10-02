@@ -314,7 +314,7 @@ function noteFinishedGame() {
       localStorage.setItem("quota.finishedGames", String(count));
       localStorage.setItem("quota.countedTable", state.table_id);
     }
-    if (count >= 3) standardOffer = true;
+    if (count >= 3 && simpleOn(savedOptions() || {})) standardOffer = true;
   } catch {
     standardOffer = false;
   }
@@ -323,7 +323,7 @@ function noteFinishedGame() {
 function standardOfferHtml() {
   if (!standardOffer) return "";
   return `<div class="rollover standard-offer"><div class="panel">
-    <p>標準ルールを試してみますか？（設定からいつでも切り替えられます）</p>
+    <p>シンプルモードをオフにして標準ルールに戻しますか？</p>
     <p class="ask-buttons"><button type="button" id="standard-yes">はい</button><button type="button" id="standard-no">いいえ</button></p>
   </div></div>`;
 }
@@ -365,6 +365,12 @@ function rememberSimple(on) {
   } catch {
     /* the submitted options still record the choice */
   }
+}
+
+function savedOkTimeout(saved) {
+  if (!saved || !saved.ok_timeout_set) return 5;
+  const value = Number(saved.ok_timeout);
+  return Number.isFinite(value) ? value : 5;
 }
 
 function savedOptions() {
@@ -414,7 +420,7 @@ function render() {
             <input class="short" name="seed" inputmode="numeric">
           </label>
           <label>OKタイムアウト（秒）
-            <input class="short" name="ok_timeout" type="number" min="0" step="0.5" value="${saved.ok_timeout ?? 3}">
+            <input class="short" name="ok_timeout" type="number" min="0" step="0.5" value="${savedOkTimeout(saved)}">
           </label>
           <label>手番タイムアウト（秒）
             <input class="short" name="turn_timeout" type="number" min="1" step="1" value="${saved.turn_timeout ?? 120}">
@@ -466,29 +472,44 @@ function render() {
       const simple = data.get("simple") === "on";
       rememberName(name);
       rememberSimple(simple);
-      await post("/api/table", {
+      const options = {
         players,
-        name,
-        seed: data.get("seed"),
         simple,
         sequence: !simple,
         title: !simple,
         special: !simple,
         ok_timeout: Number(data.get("ok_timeout")),
+        ok_timeout_set: true,
         turn_timeout: Number(data.get("turn_timeout")),
         left_handed: data.get("left_handed") === "on",
-      });
+      };
+      rememberOptions(options);
+      await post("/api/table", { ...options, name, seed: data.get("seed") });
     };
     const watchCpu = app.querySelector("#watch-cpu");
     if (watchCpu) watchCpu.onclick = () => {
       const data = new FormData(form);
+      const name = String(data.get("player_name") || "");
       const simple = data.get("simple") === "on";
+      rememberName(name);
+      rememberSimple(simple);
+      const options = {
+        players: Number(data.get("players")),
+        simple,
+        sequence: !simple,
+        title: !simple,
+        special: !simple,
+        ok_timeout: Number(data.get("ok_timeout")),
+        ok_timeout_set: true,
+        turn_timeout: Number(data.get("turn_timeout")),
+        left_handed: data.get("left_handed") === "on",
+      };
+      rememberOptions(options);
       post("/api/table", {
         cpu_match: true,
-        players: Number(data.get("players")),
-        name: String(data.get("player_name") || ""),
+        ...options,
+        name,
         seed: data.get("seed"),
-        simple,
       });
     };
     app.querySelectorAll("[data-join]").forEach((button) => {
@@ -1001,16 +1022,17 @@ function updateCeremony(now) {
     if (show.pressed || now - show.at >= 2000) {
       show.pressed = false;
       if (state.round_index >= 2) {
-        show.overall = true;
-        show.phase = "overall";
+        show.phase = "clear";
         show.at = now;
       } else enterReady(show, now);
       dirty = true;
     }
-  } else if (show.phase === "overall") {
-    if (show.pressed || now - show.at >= 1500) {
+  } else if (show.phase === "clear") {
+    if (show.pressed || now - show.at >= 800) {
       show.pressed = false;
+      show.overall = true;
       show.scores = new Map(show.previous);
+      show.places = null;
       show.phase = "wait-prev";
       show.at = now;
       dirty = true;
@@ -1260,17 +1282,20 @@ function ceremonyHtml() {
       return `<p class="ceremony-line">${escapeText(line.text).replace(`+${line.points}`, `<span data-bonus="${index}">+${line.points}</span>`)}</p>`;
     }).join("")}</div>`
     : "";
+  const blank = ceremony.phase === "clear";
   const rows = ceremony.order.map((seat, row) => {
     const player = state.players[seat];
-    const place = ceremony.places ? `${ceremony.places.get(seat)}位` : "";
-    return `<div class="ceremony-row" data-ceremony-row="${seat}">
+    const place = !blank && ceremony.places ? `${ceremony.places.get(seat)}位` : "";
+    const name = blank ? "" : escapeText(player.name);
+    const figure = blank ? "" : ceremonyFigure(seat, row);
+    return `<div class="ceremony-row${blank ? " is-blank" : ""}" data-ceremony-row="${seat}">
       <span class="ceremony-rank">${place}</span>
-      <span class="ceremony-name">${escapeText(player.name)}</span>
-      <span class="ceremony-figure">${ceremonyFigure(seat, row)}</span>
+      <span class="ceremony-name">${name}</span>
+      <span class="ceremony-figure">${figure}</span>
     </div>`;
   }).join("");
   const last = state.finished || state.round_index >= state.round_count;
-  const showOk = ceremony.phase === "titles" || ceremony.phase === "wait-sort" || ceremony.phase === "ranked" || ceremony.phase === "overall" || ceremony.phase === "wait-prev" || (ceremony.phase === "ready" && (!last || ceremony.winnerShown));
+  const showOk = ceremony.phase === "titles" || ceremony.phase === "wait-sort" || ceremony.phase === "ranked" || ceremony.phase === "clear" || ceremony.phase === "wait-prev" || (ceremony.phase === "ready" && (!last || ceremony.winnerShown));
   const label = ceremony.phase === "ready" && last ? "ゲームを終了" : "OK";
   const button = showOk
     ? `<button type="button" class="primary" id="ceremony-ok">${label}</button>`

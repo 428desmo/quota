@@ -81,6 +81,7 @@ namespace Quota
         bool ceremonyLast;
         bool ceremonyOverall;
         bool ceremonyOverallSlot;
+        bool ceremonyBlank;
         bool ceremonyWinner;
         int dotSerial;
         int ceremonyPending;
@@ -319,6 +320,7 @@ namespace Quota
             ceremonyEquation = false;
             ceremonyOverall = false;
             ceremonyOverallSlot = false;
+            ceremonyBlank = false;
             ceremonyWinner = false;
             scoreOverride = null;
             plusOverride = null;
@@ -416,6 +418,7 @@ namespace Quota
             ceremonyButton = "ゲームを終了";
             ceremonyOverall = false;
             ceremonyOverallSlot = false;
+            ceremonyBlank = false;
             ceremonyWinner = true;
             ceremonyLineCount = 0;
             titleLines.Clear();
@@ -524,6 +527,7 @@ namespace Quota
             ceremonyEquation = false;
             ceremonyOverall = false;
             ceremonyOverallSlot = game.RoundIndex >= 2;
+            ceremonyBlank = false;
             ceremonyWinner = false;
             if (game.TurnOrder.Count == count) dialogOrder.AddRange(game.TurnOrder);
             else for (var i = 0; i < count; i++) dialogOrder.Add(i);
@@ -618,13 +622,16 @@ namespace Quota
             if (serial != cpuRun) yield break;
             if (ceremonyRoundIndex >= 2)
             {
-                ceremonyOverall = true;
+                ceremonyBlank = true;
                 ceremonyButton = "OK";
                 ceremonyOk = false;
                 RedrawCeremonyPanel();
-                yield return WaitOr(serial, 1.5f);
+                yield return WaitOr(serial, 0.8f);
                 if (serial != cpuRun) yield break;
+                ceremonyBlank = false;
+                ceremonyOverall = true;
                 scoreOverride = new Dictionary<int, int>(previousScores);
+                ceremonyPlaces = null;
                 plusOverride = null;
                 ceremonyEquation = false;
                 ceremonyButton = "OK";
@@ -866,14 +873,17 @@ namespace Quota
                 for (var r = 0; r < dialogOrder.Count; r++)
                 {
                     var seat = dialogOrder[r];
-                    var row = Portrait.Rect(panel, "row" + seat, 16f, y, panelW - 32f, rowH);
-                    var rank = ceremonyPlaces != null && ceremonyPlaces.TryGetValue(seat, out var place) ? $"{place}位" : "";
-                    TextAt(row, rank, 0f, 0f, 72f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
-                    TextAt(row, match.Game.Players[seat].Name, 76f, 0f, 190f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
-                    var figure = TextAt(row, FigureText(seat), 270f, 0f, panelW - 32f - 286f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleRight);
-                    figure.gameObject.name = "figure";
-                    figure.supportRichText = true;
-                    figure.horizontalOverflow = HorizontalWrapMode.Overflow;
+                    if (!ceremonyBlank)
+                    {
+                        var row = Portrait.Rect(panel, "row" + seat, 16f, y, panelW - 32f, rowH);
+                        var rank = ceremonyPlaces != null && ceremonyPlaces.TryGetValue(seat, out var place) ? $"{place}位" : "";
+                        TextAt(row, rank, 0f, 0f, 72f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
+                        TextAt(row, match.Game.Players[seat].Name, 76f, 0f, 190f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleLeft);
+                        var figure = TextAt(row, FigureText(seat), 270f, 0f, panelW - 32f - 286f, rowH, 20, Color.black, nameFont, TextAnchor.MiddleRight);
+                        figure.gameObject.name = "figure";
+                        figure.supportRichText = true;
+                        figure.horizontalOverflow = HorizontalWrapMode.Overflow;
+                    }
                     y += rowH;
                 }
             }
@@ -1724,7 +1734,7 @@ namespace Quota
             var games = PlayerPrefs.GetInt("quota.games", 0) + 1;
             PlayerPrefs.SetInt("quota.games", games);
             PlayerPrefs.Save();
-            if (games >= AdvancedPromptAfter) offerStandard = true;
+            if (games >= AdvancedPromptAfter && simpleMode) offerStandard = true;
         }
 
         void DrawStandardOffer()
@@ -1739,7 +1749,7 @@ namespace Quota
             var offerX = WideScreen() ? (LandWidth - 800f) * 0.5f : 140f;
             var offerY = WideScreen() ? (LandHeight - 340f) * 0.5f : 760f;
             var panel = Portrait.Box(veil, "offer-card", offerX, offerY, 800f, 340f, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, "標準ルールを試してみますか？\n（設定からいつでも切り替えられます）", 32f, 36f, 736f, 140f, 28, Color.black, nameFont, TextAnchor.MiddleCenter);
+            TextAt(panel, "シンプルモードをオフにして標準ルールに戻しますか？", 32f, 36f, 736f, 140f, 28, Color.black, nameFont, TextAnchor.MiddleCenter);
             Pill(panel, "はい", 48f, 210f, 200f, 72f, 32, () =>
             {
                 simpleMode = false;
