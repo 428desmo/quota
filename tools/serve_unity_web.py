@@ -34,6 +34,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Content-Encoding", "gzip")
         elif path.suffix == ".br":
             self.send_header("Content-Encoding", "br")
+        self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
     def guess_type(self, path: str) -> str:

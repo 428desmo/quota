@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 
 namespace Quota
@@ -50,6 +51,7 @@ namespace Quota
         Sprite verticalBackground;
         Sprite horizontalBackground;
         readonly Dictionary<string, Sprite> goodsSprites = new Dictionary<string, Sprite>();
+        bool webAssetsReady = true;
         readonly List<RectTransform> seatFrames = new List<RectTransform>();
         bool busy;
         string confirm;
@@ -130,8 +132,16 @@ namespace Quota
                 events.AddComponent<UnityEngine.EventSystems.EventSystem>();
                 events.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
             }
-            verticalBackground = LoadBackground("vertical_base.jpg");
-            horizontalBackground = LoadBackground("horizontal_base.jpg");
+            if (Application.platform == RuntimePlatform.WebGLPlayer)
+            {
+                webAssetsReady = false;
+                if (Application.isPlaying) StartCoroutine(LoadWebAssets());
+            }
+            else
+            {
+                verticalBackground = LoadBackground("vertical_base.jpg");
+                horizontalBackground = LoadBackground("horizontal_base.jpg");
+            }
             var root = Portrait.Rect(transform, "Root", 0f, 0f, ScreenWidth, ScreenHeight);
             Stretch(root);
             var backdropRect = Portrait.Rect(root, "Backdrop", 0f, 0f, ScreenWidth, ScreenHeight);
@@ -215,6 +225,7 @@ namespace Quota
         {
             if (string.IsNullOrEmpty(file)) return null;
             if (goodsSprites.TryGetValue(file, out var cached)) return cached;
+            if (Application.platform == RuntimePlatform.WebGLPlayer) return null;
             var path = Path.Combine(Application.streamingAssetsPath, "goods", file + ".png");
             Sprite sprite = null;
             if (File.Exists(path))
@@ -249,9 +260,74 @@ namespace Quota
             if (Application.isPlaying) splashRun = StartCoroutine(FadeSplash());
         }
 
+        IEnumerator LoadWebAssets()
+        {
+            Sprite vertical = null;
+            yield return LoadSprite("vertical_base.jpg", sprite => vertical = sprite);
+            verticalBackground = vertical;
+            Sprite horizontal = null;
+            yield return LoadSprite("horizontal_base.jpg", sprite => horizontal = sprite);
+            horizontalBackground = horizontal;
+            string json = null;
+            yield return LoadText("quota_goods_v1.0.json", text => json = text);
+            if (!string.IsNullOrEmpty(json)) ItemCatalog.LoadJson(json);
+            if (ItemCatalog.IsLoaded)
+            {
+                foreach (var file in ItemCatalog.PictureFiles())
+                {
+                    Sprite picture = null;
+                    yield return LoadSprite("goods/" + file + ".png", sprite => picture = sprite);
+                    if (picture != null) goodsSprites[file] = picture;
+                }
+            }
+            webAssetsReady = true;
+            Fit();
+        }
+
+        IEnumerator LoadText(string fileName, System.Action<string> done)
+        {
+            var request = UnityWebRequest.Get(StreamingUrl(fileName));
+            yield return request.SendWebRequest();
+            var text = request.result == UnityWebRequest.Result.Success ? request.downloadHandler.text : null;
+            request.Dispose();
+            done(text);
+        }
+
+        IEnumerator LoadSprite(string fileName, System.Action<Sprite> done)
+        {
+            var request = UnityWebRequestTexture.GetTexture(StreamingUrl(fileName));
+            yield return request.SendWebRequest();
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                request.Dispose();
+                done(null);
+                yield break;
+            }
+            var texture = DownloadHandlerTexture.GetContent(request);
+            request.disposeDownloadHandlerOnDispose = false;
+            request.Dispose();
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+            texture.hideFlags = HideFlags.HideAndDontSave;
+            done(Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f));
+        }
+
+        static string StreamingUrl(string fileName)
+        {
+            var root = Application.streamingAssetsPath;
+            if (!root.EndsWith("/")) root += "/";
+            return root + fileName;
+        }
+
         IEnumerator FadeSplash()
         {
             yield return new WaitForSeconds(SplashSeconds);
+            var extra = 0f;
+            while (!webAssetsReady && extra < 17f)
+            {
+                extra += Time.deltaTime;
+                yield return null;
+            }
             var splash = frame.Find("splash");
             var group = splash != null ? splash.GetComponent<CanvasGroup>() : null;
             var elapsed = 0f;
@@ -359,6 +435,7 @@ namespace Quota
 
         void StartMatch(bool cpuOnly)
         {
+            if (Application.platform == RuntimePlatform.WebGLPlayer && !ItemCatalog.IsLoaded) return;
             cpuRun++;
             ceremonyRunning = false;
             ceremonyDismissed = false;
@@ -2049,14 +2126,19 @@ namespace Quota
 
         static Font LoadFont(string[] names)
         {
-            try
+            if (Application.platform != RuntimePlatform.WebGLPlayer)
             {
-                var font = Font.CreateDynamicFontFromOSFont(names, 32);
-                if (font != null) return font;
+                try
+                {
+                    var font = Font.CreateDynamicFontFromOSFont(names, 32);
+                    if (font != null) return font;
+                }
+                catch (System.Exception)
+                {
+                }
             }
-            catch (System.Exception)
-            {
-            }
+            var embedded = Resources.Load<Font>("NotoSansJP-Regular");
+            if (embedded != null) return embedded;
             return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
