@@ -66,7 +66,6 @@ namespace Quota.Tests
 
             var buttons = host.GetComponentsInChildren<Button>();
             Assert.Greater(buttons.Length, 0);
-            var sawSimple = false;
             foreach (var button in buttons)
             {
                 var caption = button.GetComponentInChildren<Text>();
@@ -76,15 +75,30 @@ namespace Quota.Tests
                 Assert.IsFalse(caption.text.Contains("並び順ボーナス"), caption.text);
                 Assert.IsFalse(caption.text.Contains("称号ボーナス"), caption.text);
                 Assert.IsFalse(caption.text.Contains("特殊アクション"), caption.text);
-                if (caption.text.StartsWith("シンプルモード")) sawSimple = true;
+                Assert.IsFalse(caption.text.Contains("シード"), caption.text);
+                Assert.IsFalse(caption.text.StartsWith("シンプルモード"), caption.text);
             }
-            Assert.IsTrue(sawSimple);
+            Assert.IsNotNull(host.transform.Find("Root/Frame/title-mark"));
+            Assert.IsNotNull(host.transform.Find("Root/Frame/title-catch"));
+            InputField name = null;
+            foreach (var field in host.GetComponentsInChildren<InputField>())
+                if (field.text == "あなた") name = field;
+            Assert.IsNotNull(name);
 
-            Text title = null;
+            Click("設定");
+            Assert.IsNotNull(ButtonNamed("新プロモード　オフ"));
+            Assert.IsNotNull(ButtonNamed("キャンセル"));
+            Click("キャンセル");
+            Assert.IsNull(FindButton("新プロモード　オフ"));
+
+            Click("QuickStartガイド");
+            Assert.IsNotNull(FindText("QuickStartガイド"));
+            Text intro = null;
             foreach (var label in host.GetComponentsInChildren<Text>())
-                if (label.text == "QUOTA") title = label;
-            Assert.IsNotNull(title);
-            Assert.Greater(title.rectTransform.rect.height, 20f);
+                if (label.text.StartsWith("場札から商品のカードを1枚選んで")) intro = label;
+            Assert.IsNotNull(intro);
+            Click("OK");
+            Assert.IsNull(host.transform.Find("Root/Frame/setup-dialog"));
         }
 
         [Test]

@@ -64,6 +64,15 @@ namespace Quota
         bool offerStandard;
         Coroutine splashRun;
         string seedText = "";
+        string playerName = "あなた";
+        string setupPage;
+        string draftOk = "5";
+        string draftTurn = "120";
+        bool draftPro;
+        float okTimeout = 5f;
+        float turnTimeout = 120f;
+        Sprite titleMark;
+        Sprite catchMark;
         bool widePreview;
         bool laidOutWide;
         int cpuRun;
@@ -284,6 +293,12 @@ namespace Quota
                     if (picture != null) goodsSprites[file] = picture;
                 }
             }
+            Sprite loadedTitle = null;
+            yield return LoadSprite("title1.png", sprite => loadedTitle = sprite);
+            if (loadedTitle != null) titleMark = loadedTitle;
+            Sprite loadedCatch = null;
+            yield return LoadSprite("title2.png", sprite => loadedCatch = sprite);
+            if (loadedCatch != null) catchMark = loadedCatch;
             webAssetsReady = true;
             Fit();
         }
@@ -371,6 +386,10 @@ namespace Quota
             }
             if (PlayerPrefs.HasKey("quota.simple")) simpleMode = PlayerPrefs.GetInt("quota.simple", 1) == 1;
             else simpleMode = PlayerPrefs.GetInt("quota.sequence", 0) == 0 && PlayerPrefs.GetInt("quota.title", 0) == 0 && PlayerPrefs.GetInt("quota.special", 0) == 0;
+            playerName = PlayerPrefs.GetString("quota.name", "あなた");
+            if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
+            okTimeout = PlayerPrefs.GetFloat("quota.okTimeout", 5f);
+            turnTimeout = PlayerPrefs.GetFloat("quota.turnTimeout", 120f);
             ApplyMode();
         }
 
@@ -382,6 +401,9 @@ namespace Quota
             PlayerPrefs.SetInt("quota.sequence", sequenceRule ? 1 : 0);
             PlayerPrefs.SetInt("quota.title", titleRule ? 1 : 0);
             PlayerPrefs.SetInt("quota.special", specialRule ? 1 : 0);
+            PlayerPrefs.SetString("quota.name", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName.Trim());
+            PlayerPrefs.SetFloat("quota.okTimeout", okTimeout);
+            PlayerPrefs.SetFloat("quota.turnTimeout", turnTimeout);
             PlayerPrefs.Save();
         }
 
@@ -412,34 +434,71 @@ namespace Quota
             CleanupFlyers();
             Clear();
             UseFrame();
-            var x = WideScreen() ? (LandWidth - 984f) * 0.5f : 48f;
-            TextAt(frame, "QUOTA", x, 36f, 700f, 72f, 64, Color.white, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, "揃えて、達成。", x, 112f, 700f, 36f, 28, Color.white, nameFont, TextAnchor.MiddleLeft);
-            var column = Portrait.Rect(frame, "setup", x, 180f, 984f, 1600f);
+            var wide = WideScreen();
+            var x = wide ? (LandWidth - 984f) * 0.5f : 48f;
+            var title = TitleSprite(true);
+            var catchLine = TitleSprite(false);
+            if (title != null) PlaceSprite(frame, "title-mark", title, x, 24f, 760f, 152f);
+            else TextAt(frame, "QUOTA", x, 36f, 700f, 72f, 64, Color.white, nameFont, TextAnchor.MiddleLeft);
+            if (catchLine != null) PlaceSprite(frame, "title-catch", catchLine, x, 184f, 560f, 56f);
+            else TextAt(frame, "ノルマは、自分で決めろ。", x, 184f, 700f, 40f, 28, Color.white, nameFont, TextAnchor.MiddleLeft);
+            var column = Portrait.Rect(frame, "setup", x, 260f, 984f, 1500f);
             var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.spacing = 16f;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
+            SetupButton(column, "QuickStartガイド", () => OpenPage("quick"));
+            SetupButton(column, "ルール", () => OpenPage("rules"));
+            SetupButton(column, "勝つためのヒント", () => OpenPage("hint"));
             SetupButton(column, $"人数  {playerCount}", () =>
             {
                 playerCount = playerCount == 3 ? 4 : 3;
                 ShowSetup();
             });
-            var seed = Field(column, "シード（空ならランダム）", seedText);
-            seed.onValueChanged.AddListener(value => seedText = value);
-            SetupButton(column, $"シンプルモード  {(simpleMode ? "オン" : "オフ")}", () =>
-            {
-                simpleMode = !simpleMode;
-                ApplyMode();
-                SaveRules();
-                ShowSetup();
-            });
+            var name = Field(column, "あなたの名前", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName);
+            name.onValueChanged.AddListener(value => playerName = value);
+            SetupButton(column, "設定", OpenSettings);
             SetupButton(column, "対局開始", () => StartMatch(false));
             SetupButton(column, "CPU模擬戦を観戦", () => StartMatch(true));
             if (reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0)
                 SetupButton(column, "ゲーム終了の卓を見る", ShowReview);
+            if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
+        }
+
+        void OpenPage(string page)
+        {
+            setupPage = page;
+            ShowSetup();
+        }
+
+        void OpenSettings()
+        {
+            draftPro = !simpleMode;
+            draftOk = okTimeout.ToString("0.##");
+            draftTurn = turnTimeout.ToString("0.##");
+            setupPage = "settings";
+            ShowSetup();
+        }
+
+        void ApplySettings()
+        {
+            simpleMode = !draftPro;
+            ApplyMode();
+            okTimeout = ParseSeconds(draftOk, 5f, 0f);
+            turnTimeout = ParseSeconds(draftTurn, 120f, 1f);
+            draftOk = okTimeout.ToString("0.##");
+            draftTurn = turnTimeout.ToString("0.##");
+            SaveRules();
+            setupPage = null;
+            ShowSetup();
+        }
+
+        static float ParseSeconds(string text, float fallback, float minimum)
+        {
+            if (!float.TryParse(text, out var value)) return fallback;
+            return value < minimum ? minimum : value;
         }
 
         void StartMatch(bool cpuOnly)
@@ -459,7 +518,13 @@ namespace Quota
             var used = new HashSet<int>();
             var rng = new System.Random();
             var firstCpu = cpuOnly ? 0 : 1;
-            if (!cpuOnly) names.Add("あなた");
+            playerName = HumanName();
+            if (Application.isPlaying)
+            {
+                PlayerPrefs.SetString("quota.name", playerName);
+                PlayerPrefs.Save();
+            }
+            if (!cpuOnly) names.Add(playerName);
             for (var i = firstCpu; i < playerCount; i++)
             {
                 var character = Characters.PickFresh(rng, used);
@@ -1306,7 +1371,9 @@ namespace Quota
 
         void DrawTitle(Game game)
         {
-            TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Color.white, nameFont, TextAnchor.MiddleLeft);
+            var mark = TitleSprite(true);
+            if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 12f, 320f, 64f);
+            else TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Color.white, nameFont, TextAnchor.MiddleLeft);
             TextAt(frame, RoundLabel(game), 28f, 84f, 640f, 32f, 24, Color.white, nameFont, TextAnchor.MiddleLeft);
             if (game.DoubleStage == 1) TextAt(frame, "ダブル：1回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
             else if (game.DoubleStage == 2) TextAt(frame, "ダブル：2回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
@@ -1323,7 +1390,9 @@ namespace Quota
 
         void DrawTitleWide(Game game)
         {
-            TextAt(frame, "QUOTA", 28f, 28f, 280f, 64f, 48, Color.white, nameFont, TextAnchor.MiddleLeft);
+            var mark = TitleSprite(true);
+            if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 24f, 260f, 52f);
+            else TextAt(frame, "QUOTA", 28f, 28f, 280f, 64f, 48, Color.white, nameFont, TextAnchor.MiddleLeft);
             TextAt(frame, RoundLabel(game), 300f, 48f, 280f, 36f, 26, Color.white, nameFont, TextAnchor.MiddleLeft);
             var note = "";
             if (game.DoubleStage == 1) note = "ダブル：1回目の行動です。  ";
@@ -2105,6 +2174,129 @@ namespace Quota
             button.targetGraphic = hit;
             button.onClick.AddListener(action);
             TextAt(host, caption, 0f, 0f, width, height, size, Color.black, nameFont, TextAnchor.MiddleCenter);
+        }
+
+        void DrawSetupPage(bool wide)
+        {
+            var screenW = wide ? LandWidth : ScreenWidth;
+            var screenH = wide ? LandHeight : ScreenHeight;
+            var veil = Portrait.Solid(frame, "setup-veil", 0f, 0f, screenW, screenH, new Color(0f, 0f, 0f, 0.28f));
+            veil.GetComponent<Image>().raycastTarget = true;
+            if (setupPage == "settings") DrawSettings(screenW, screenH);
+            else DrawGuide(screenW, screenH);
+        }
+
+        void DrawSettings(float screenW, float screenH)
+        {
+            const float panelW = 860f;
+            const float panelH = 560f;
+            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Color.white, Color.black, false);
+            TextAt(panel, "設定", 32f, 24f, panelW - 64f, 48f, 32, Color.black, nameFont, TextAnchor.MiddleLeft);
+            Pill(panel, draftPro ? "新プロモード　オン" : "新プロモード　オフ", 32f, 96f, panelW - 64f, 72f, 28, () =>
+            {
+                draftPro = !draftPro;
+                ShowSetup();
+            });
+            var ok = DialogField(panel, "OKタイムアウト（秒）", draftOk, 32f, 196f, 380f);
+            ok.onValueChanged.AddListener(value => draftOk = value);
+            var turn = DialogField(panel, "手番タイムアウト（秒）", draftTurn, 440f, 196f, 380f);
+            turn.onValueChanged.AddListener(value => draftTurn = value);
+            Pill(panel, "設定", 32f, panelH - 112f, 200f, 72f, 28, ApplySettings);
+            Pill(panel, "キャンセル", 252f, panelH - 112f, 240f, 72f, 28, () =>
+            {
+                setupPage = null;
+                ShowSetup();
+            });
+        }
+
+        void DrawGuide(float screenW, float screenH)
+        {
+            var panelW = Mathf.Min(980f, screenW - 48f);
+            var panelH = Mathf.Min(screenH - 80f, screenW > screenH ? 820f : 1400f);
+            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Color.white, Color.black, false);
+            TextAt(panel, GuideCopy.Title(setupPage), 32f, 20f, panelW - 64f, 48f, 32, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var viewW = panelW - 64f;
+            var viewH = panelH - 180f;
+            var viewport = Portrait.Rect(panel, "guide-view", 32f, 80f, viewW, viewH);
+            viewport.gameObject.AddComponent<RectMask2D>();
+            var content = Portrait.Rect(viewport, "guide-body", 0f, 0f, viewW, viewH);
+            var text = TextAt(content, GuideCopy.Body(setupPage), 0f, 0f, viewW, viewH, 24, Color.black, nameFont, TextAnchor.UpperLeft);
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            Canvas.ForceUpdateCanvases();
+            var bodyH = Mathf.Max(viewH, text.preferredHeight + 16f);
+            content.sizeDelta = new Vector2(viewW, bodyH);
+            text.rectTransform.sizeDelta = new Vector2(viewW, bodyH);
+            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
+            scroll.content = content;
+            scroll.viewport = viewport;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            Pill(panel, "OK", 32f, panelH - 84f, 160f, 64f, 28, () =>
+            {
+                setupPage = null;
+                ShowSetup();
+            });
+        }
+
+        InputField DialogField(Transform parent, string caption, string value, float x, float y, float width)
+        {
+            TextAt(parent, caption, x, y, width, 28f, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var host = Portrait.Box(parent, caption, x, y + 32f, width, 56f, 4f, 1f, Color.white, Color.black, false);
+            host.GetComponent<Image>().raycastTarget = true;
+            var textGo = new GameObject("text", typeof(RectTransform), typeof(Text));
+            textGo.transform.SetParent(host, false);
+            Stretch(textGo.GetComponent<RectTransform>(), 12f, 8f);
+            var text = textGo.GetComponent<Text>();
+            text.font = nameFont;
+            text.fontSize = 28;
+            text.color = Color.black;
+            text.supportRichText = false;
+            var field = host.gameObject.AddComponent<InputField>();
+            field.textComponent = text;
+            field.text = value;
+            return field;
+        }
+
+        string HumanName()
+        {
+            var human = playerName == null ? "" : playerName.Trim();
+            if (human.Length > 24) human = human.Substring(0, 24);
+            return human.Length == 0 ? "あなた" : human;
+        }
+
+        Sprite TitleSprite(bool mark)
+        {
+            if (mark)
+            {
+                if (titleMark == null) titleMark = ReadSprite("title1.png");
+                return titleMark;
+            }
+            if (catchMark == null) catchMark = ReadSprite("title2.png");
+            return catchMark;
+        }
+
+        static Sprite ReadSprite(string fileName)
+        {
+            var path = Path.Combine(Application.streamingAssetsPath, fileName);
+            if (!File.Exists(path)) return null;
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(File.ReadAllBytes(path))) return null;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+            texture.hideFlags = HideFlags.HideAndDontSave;
+            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        static void PlaceSprite(Transform parent, string name, Sprite sprite, float x, float y, float width, float height)
+        {
+            var host = Portrait.Rect(parent, name, x, y, width, height);
+            var image = host.gameObject.AddComponent<Image>();
+            image.sprite = sprite;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            image.color = Color.white;
         }
 
         void SetupButton(RectTransform parent, string caption, UnityAction action)
