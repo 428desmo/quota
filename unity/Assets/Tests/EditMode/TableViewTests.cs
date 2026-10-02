@@ -459,6 +459,9 @@ namespace Quota.Tests
             for (var i = 0; i < game.TurnOrder.Count; i++) expected.Add(game.TurnOrder[(orderStart + i) % game.TurnOrder.Count]);
             AwardThree(game.Players[expected[0]]);
             AwardThree(game.Players[expected[1]]);
+            var broken = game.Players[expected[2]];
+            broken.Bundles.Add(new Bundle("S", false));
+            broken.Bundles.Add(new Bundle("H", true));
             game.Players[leader].Achieved.Add(new Card(9001, Suit.S, 9));
             typeof(TableView).GetMethod("PrepareCeremony", flags).Invoke(view, new object[] { game });
             var order = (List<int>)typeof(TableView).GetField("dialogOrder", flags).GetValue(view);
@@ -477,33 +480,72 @@ namespace Quota.Tests
             var panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
             Assert.IsNotNull(panel);
             Assert.AreEqual(460f, panel.sizeDelta.x, 0.1f);
+            Assert.AreEqual(189f, panel.sizeDelta.y, 0.1f);
+            Assert.AreEqual(180.5f, -panel.anchoredPosition.y, 0.1f);
             Assert.LessOrEqual(panel.anchoredPosition.x + panel.sizeDelta.x, 770f);
+            var compactLeft = panel.anchoredPosition.x;
+            var compactRight = panel.anchoredPosition.x + panel.sizeDelta.x;
             var tray = host.transform.Find("Root/Frame/seat0/chip-tray") as RectTransform;
             Assert.IsNotNull(tray);
-            Assert.GreaterOrEqual(tray.anchoredPosition.x, panel.anchoredPosition.x + panel.sizeDelta.x);
+            Assert.GreaterOrEqual(tray.anchoredPosition.x, compactRight);
+            Assert.AreEqual(0, CountRows(panel));
+            Assert.IsNull(panel.Find("bonus0"));
+            AssertHeadingFont(panel, 36);
+            for (var i = 0; i < game.Players.Count; i++)
+            {
+                var chip = host.transform.Find("Root/Frame/seat" + i + "/chip-tray");
+                var mono = chip.Find("title-mono").GetComponent<Text>();
+                var purist = chip.Find("title-purist").GetComponent<Text>();
+                Assert.AreEqual("単色達成", mono.text);
+                Assert.AreEqual("生粋の買い付け", purist.text);
+                var struck = i == expected[2];
+                if (struck) Assert.AreEqual(0.541f, mono.color.r, 0.02f);
+                else Assert.AreEqual(Color.black, mono.color);
+                Assert.AreEqual(mono.color, purist.color);
+                Assert.AreEqual(struck, chip.Find("title-mono-strike") != null);
+                Assert.AreEqual(struck, chip.Find("title-purist-strike") != null);
+            }
+            typeof(TableView).GetField("ceremonyExpand", flags).SetValue(view, 1f);
+            Show(view);
+            panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
+            Assert.LessOrEqual(panel.anchoredPosition.x, compactLeft);
+            Assert.AreEqual(compactRight, panel.anchoredPosition.x + panel.sizeDelta.x, 0.1f);
+            Assert.GreaterOrEqual(-panel.anchoredPosition.y + panel.sizeDelta.y, 1900f);
             var rows = new List<RectTransform>();
-            var titles = new List<string>();
             for (var i = 0; i < panel.childCount; i++)
             {
                 var child = panel.GetChild(i);
                 if (child.name.StartsWith("row")) rows.Add((RectTransform)child);
-                var label = child.GetComponent<Text>();
-                if (label != null && label.text.Contains("ボーナス")) titles.Add(label.text);
             }
             rows.Sort((a, b) => b.anchoredPosition.y.CompareTo(a.anchoredPosition.y));
+            Assert.AreEqual(expected.Count, rows.Count);
             for (var i = 0; i < expected.Count; i++) Assert.AreEqual("row" + expected[i], rows[i].name);
-            CollectionAssert.AreEqual(new[]
-            {
-                $"{game.Players[expected[0]].Name} : 単色達成ボーナス +15",
-                $"{game.Players[expected[0]].Name} : 生粋の買い付けボーナス +5",
-                $"{game.Players[expected[1]].Name} : 単色達成ボーナス +15",
-                $"{game.Players[expected[1]].Name} : 生粋の買い付けボーナス +5",
-            }, titles);
-            Assert.IsNotNull(panel.Find("bonus0"));
+            Assert.IsNull(panel.Find("bonus0"));
+            AssertHeadingFont(panel, 36);
             game.RoundEndReason = "STALL";
             typeof(TableView).GetMethod("PrepareCeremony", flags).Invoke(view, new object[] { game });
             Assert.AreEqual("第2ラウンド終了", typeof(TableView).GetField("ceremonyHeading", flags).GetValue(view));
             Assert.AreEqual("膠着の連続でラウンド終了。", typeof(TableView).GetField("ceremonyReason", flags).GetValue(view));
+        }
+
+        static int CountRows(Transform panel)
+        {
+            var count = 0;
+            for (var i = 0; i < panel.childCount; i++)
+                if (panel.GetChild(i).name.StartsWith("row")) count++;
+            return count;
+        }
+
+        static void AssertHeadingFont(Transform panel, int minimum)
+        {
+            Text heading = null;
+            for (var i = 0; i < panel.childCount; i++)
+            {
+                var label = panel.GetChild(i).GetComponent<Text>();
+                if (label != null && label.text == "第2ラウンド終了") heading = label;
+            }
+            Assert.IsNotNull(heading);
+            Assert.GreaterOrEqual(heading.fontSize, minimum);
         }
 
         static void AwardThree(Player player)
