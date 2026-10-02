@@ -167,12 +167,20 @@ function achievementCoins(rank) {
   return 0;
 }
 
+function trayTitles(player) {
+  if (!state || !state.title_rule) return "";
+  const voids = player.title_void || {};
+  const mark = (key, name) => `<span class="tray-title${voids[key] ? " void" : ""}" data-title="${key}">${name}</span>`;
+  return `<div class="tray-titles">${mark("mono", "単色達成")}${mark("purist", "生粋の買い付け")}</div>`;
+}
+
 function trayHtml(bank) {
-  return bank.map((coin, index) => {
+  const coins = bank.map((coin, index) => {
     const spot = scatter(coin.id, index);
     const hidden = coinHold.has(coin.id) ? "opacity:0;" : "";
     return `<i class="coin ${coin.kind}" data-id="${coin.id}" data-kind="${coin.kind}" style="left:${spot.x}%;top:${spot.y}%;z-index:${index + 1};${hidden}"></i>`;
   }).join("");
+  return `<div class="tray-coins">${coins}</div>`;
 }
 
 function guideRich(text) {
@@ -639,7 +647,7 @@ function render() {
         <div class="vlabel">実績</div>
         <div class="record-row">
           <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
-          <div class="coin-tray" aria-label="ボーナス">${trayHtml(ceremony && !ceremony.review && ceremony.coins.has(index) ? ceremony.coins.get(index) : coins.bank)}</div>
+          <div class="coin-tray" aria-label="ボーナス">${trayTitles(player)}${trayHtml(ceremony && !ceremony.review && ceremony.coins.has(index) ? ceremony.coins.get(index) : coins.bank)}</div>
         </div>
       </div>
     </section>`;
@@ -710,6 +718,7 @@ function render() {
   const ceremonyOk = app.querySelector("#ceremony-ok");
   if (ceremonyOk) ceremonyOk.onclick = () => pressCeremony();
   slideCeremonyRows(ceremonyBoxes);
+  placeCeremony();
   app.querySelectorAll(".pick").forEach((button) => {
     button.onclick = () => onPick(Number(button.parentElement.dataset.id));
   });
@@ -963,6 +972,7 @@ function startCeremony(key) {
     previous: new Map(parts.map((part, index) => [index, part.previous])),
     order: orderFrom(leader),
     flyLaunched: 0,
+    expandArmed: false,
     cashLaunched: 0,
     cashJobs: null,
     plusCount: null,
@@ -1070,9 +1080,8 @@ function updateCeremony(now) {
   const show = ceremony;
   if (!show || show.review) return false;
   let dirty = false;
-  if (show.phase === "reason") {
+    if (show.phase === "reason") {
     if (now - show.at >= 1000) {
-      show.reasonShown = false;
       show.phase = "titles";
       show.at = now;
       show.flyLaunched = 0;
@@ -1083,6 +1092,14 @@ function updateCeremony(now) {
     const jobs = titleJobs();
     const done = jobs.length === 0 || (show.flyLaunched >= jobs.length && show.lines.every((line) => line.gone));
     if (done) {
+      show.phase = "expand";
+      show.at = now;
+      show.expandArmed = false;
+      show.pressed = false;
+      dirty = true;
+    }
+  } else if (show.phase === "board") {
+    if (now - show.at >= 500) {
       show.order = sortSeats((seat) => show.scores.get(seat) || 0);
       assignPlaces(show, (seat) => show.scores.get(seat) || 0);
       show.phase = "base-sorted";
@@ -1237,10 +1254,12 @@ function launchDueFlights() {
 }
 
 function flyTitleCoin(job) {
-  const source = document.querySelector(`[data-bonus="${job.index}"]`);
+  const line = ceremony && ceremony.lines[job.index];
+  const kind = line && line.text.includes("単色") ? "mono" : "purist";
+  const source = document.querySelector(`[data-seat="${job.seat}"] [data-title="${kind}"]`);
   const from = source ? source.getBoundingClientRect() : { left: 40, top: 40, width: 14, height: 14 };
   flyDot(from, () => {
-    const live = document.querySelector(`[data-seat="${job.seat}"] .coin-tray`);
+    const live = document.querySelector(`[data-seat="${job.seat}"] .tray-coins`);
     return live ? trayCenter(live.getBoundingClientRect()) : from;
   }, "blue", () => {
     if (!ceremony) return;
@@ -1348,17 +1367,11 @@ function winnerLine() {
 function ceremonyHtml() {
   if (!ceremony || (!ceremony.review && !ceremony.dialog)) return "";
   const heading = ceremony.review ? "ゲーム終了" : `第${state.round_index}ラウンド終了`;
+  const compact = !ceremony.review && (ceremony.phase === "reason" || ceremony.phase === "titles" || ceremony.phase === "expand");
   const reason = !ceremony.review && ceremony.reasonShown && ceremony.reason
     ? `<p class="ceremony-reason">${escapeText(ceremony.reason)}</p>`
     : "";
-  const titleRows = !ceremony.review
-    ? ceremony.lines.map((line, index) => {
-      if (line.gone) return "";
-      const html = escapeText(line.text).replace(`+${line.points}`, `<span data-bonus="${index}">+${line.points}</span>`);
-      return `<p class="ceremony-line">${html}</p>`;
-    }).join("")
-    : "";
-  const titles = titleRows ? `<div class="ceremony-titles">${titleRows}</div>` : "";
+  if (compact) return `<div class="ceremony compact"><p class="ceremony-heading">${heading}</p>${reason}</div>`;
   const overall = !ceremony.review && state.round_index >= 2
     ? `<p class="ceremony-overall">${ceremony.rankTitle || ""}</p>`
     : "";
@@ -1382,7 +1395,53 @@ function ceremonyHtml() {
     : `<button type="button" class="primary" tabindex="-1">${label}</button>`;
   const winner = winnerLine();
   const cheer = winner ? `<p class="ceremony-winner">${escapeText(winner)}</p>` : "";
-  return `<div class="ceremony"><p class="ceremony-heading">${heading}</p>${reason}${titles}${overall}<div class="ceremony-board">${rows}</div>${cheer}<p class="submit ceremony-action${showOk ? "" : " pending"}">${button}</p></div>`;
+  const klass = ceremony.review ? "ceremony" : "ceremony large";
+  return `<div class="${klass}"><p class="ceremony-heading">${heading}</p>${reason}${overall}<div class="ceremony-board">${rows}</div>${cheer}<p class="submit ceremony-action${showOk ? "" : " pending"}">${button}</p></div>`;
+}
+
+function placeCeremony() {
+  const box = document.querySelector(".ceremony");
+  if (!box || !ceremony || ceremony.review) return;
+  const market = document.querySelector(".market-panel");
+  if (!market) return;
+  const marketBox = market.getBoundingClientRect();
+  const compactW = Math.min(420, Math.max(220, window.innerWidth - 160));
+  const compactH = marketBox.height * 0.9;
+  const compactLeft = marketBox.left + (marketBox.width - compactW) / 2;
+  const compactTop = marketBox.top + (marketBox.height - compactH) / 2;
+  const right = compactLeft + compactW;
+  const expandedW = Math.min(680, Math.max(compactW, right - 8));
+  const expandedLeft = right - expandedW;
+  const expandedH = Math.max(compactH, window.innerHeight - compactTop - 8);
+  const apply = (node, left, top, width, height) => {
+    node.style.left = `${left}px`;
+    node.style.top = `${top}px`;
+    node.style.width = `${width}px`;
+    node.style.height = `${height}px`;
+  };
+  if (ceremony.phase === "expand" && !ceremony.expandArmed) {
+    ceremony.expandArmed = true;
+    box.style.transition = "none";
+    apply(box, compactLeft, compactTop, compactW, compactH);
+    requestAnimationFrame(() => {
+      const live = document.querySelector(".ceremony");
+      if (!live || !ceremony || ceremony.phase !== "expand") return;
+      live.style.transition = "left .55s ease, width .55s ease, height .55s ease";
+      apply(live, expandedLeft, compactTop, expandedW, expandedH);
+    });
+    setTimeout(() => {
+      if (!ceremony || ceremony.phase !== "expand") return;
+      ceremony.phase = "board";
+      ceremony.at = Date.now();
+      ceremony.pressed = false;
+      render();
+    }, 560);
+    return;
+  }
+  box.style.transition = "none";
+  const compactPhase = ceremony.phase === "reason" || ceremony.phase === "titles";
+  if (compactPhase) apply(box, compactLeft, compactTop, compactW, compactH);
+  else apply(box, expandedLeft, compactTop, expandedW, expandedH);
 }
 
 function captureCeremonyRows() {

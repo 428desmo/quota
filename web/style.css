@@ -218,6 +218,35 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
   background: #fff;
   overflow: hidden;
 }
+.coin-tray:has(.tray-titles) {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: calc(var(--card-h) * 0.68);
+  width: max(calc(var(--card-w) * 1.8), 7.6em);
+}
+.tray-titles {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1px 2px 0;
+  line-height: 1.15;
+}
+.tray-title {
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tray-title.void {
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
+.tray-coins {
+  position: relative;
+  height: calc(var(--card-h) * 0.68);
+  flex: none;
+}
 .coin-tray .coin { position: absolute; }
 .card.incoming { visibility: hidden; }
 .card .goods {
@@ -289,6 +318,7 @@ main:has(#leave) { padding-bottom: 44px; }
   .band-main, .market { flex: 1; min-width: 0; }
   .card .coins { top: 14px; left: 2px; gap: 1px; max-height: calc(var(--card-h) - 20px); }
   .card .coins .coin { width: 11px; height: 11px; }
+  .tray-title { font-size: 10px; }
   .seat { padding: 4px 2px; }
   h1 { font-size: 22px; }
 }
@@ -318,6 +348,20 @@ main:has(#leave) { padding-bottom: 44px; }
   border: 2px solid #222;
   padding: 14px 16px 12px;
 }
+.ceremony.compact {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+.ceremony.compact .ceremony-heading { font-size: clamp(22px, 4.2vw, 36px); margin: 0 0 8px; }
+.ceremony.compact .ceremony-reason { font-size: clamp(16px, 3.2vw, 26px); margin: 0; }
+.ceremony.large .ceremony-heading { font-size: 28px; }
+.ceremony.large .ceremony-reason { font-size: 20px; }
+.ceremony.large .ceremony-overall,
+.ceremony.large .ceremony-winner { font-size: 22px; }
+.ceremony.large .ceremony-row { min-height: 44px; font-size: 22px; }
 .ceremony-heading { margin: 0 0 8px; font-weight: 700; }
 .ceremony-reason { margin: 0 0 8px; }
 .ceremony-overall { margin: 0 0 6px; min-height: 1.4em; font-weight: 700; }

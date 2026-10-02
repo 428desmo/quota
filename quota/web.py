@@ -436,6 +436,10 @@ class Table:
                     "delivery_score": p.score,
                     "sequence_bonus": game.sequence_points(p),
                     "titles": [{"name": name, "points": points} for name, points in game.title_awards(p)],
+                    "title_void": {
+                        "mono": len({bundle.kind for bundle in p.bundles}) > 1,
+                        "purist": any(bundle.has_wild for bundle in p.bundles),
+                    },
                     "achieve_count": p.achieve_count,
                     "max_single_score": p.max_single_score,
                     "quota": None if p.quota is None else _card(p.quota, theme),
