@@ -45,21 +45,22 @@ h1.brand { margin: 0; }
 .guide .panel {
   display: flex;
   flex-direction: column;
+  width: min(44rem, 94vw);
   max-height: min(78vh, 720px);
   text-align: left;
 }
-.guide .panel > h2 { flex: none; }
+.guide .panel > h2 { flex: none; font-size: 28px; }
 .guide .panel > p { text-align: center; flex: none; margin-bottom: 0; }
-.guide-body { overflow: auto; min-height: 0; }
-.guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.guide-body { overflow: auto; min-height: 0; font-size: 22px; line-height: 1.75; }
+.guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 12px 0; }
 .settings .panel { width: min(36em, 92vw); text-align: left; }
 .settings h2 { margin: 0 0 12px; }
 .settings .ask-buttons { display: flex; gap: 12px; justify-content: flex-end; margin: 16px 0 0; }
 .settings .check { flex-direction: row; align-items: center; gap: 8px; margin: 8px 0 16px; }
-.guide h3 { font-size: 16px; margin: 14px 0 4px; }
+.guide h3 { font-size: 24px; margin: 16px 0 6px; }
 .guide .lead { margin: 8px 0; }
 .guide ul { margin: 8px 0; padding-left: 1.2em; }
-.guide table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+.guide table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 20px; }
 .guide th, .guide td { border: 1px solid #222; padding: 4px 8px; text-align: left; }
 .rollover {
   position: fixed; inset: 0; z-index: 75;
