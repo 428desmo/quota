@@ -23,6 +23,7 @@ body {
   background: #f4f1ea;
   color: #222;
 }
+body.dim { background: #6e675c; }
 main { max-width: 980px; margin: 0 auto; padding: 16px; }
 @media (orientation: portrait) and (max-width: 700px) {
   main { padding: 8px; }
@@ -386,6 +387,7 @@ main:has(#leave) { padding-bottom: 44px; }
 }
 .ceremony-row.is-blank { border-color: transparent; background: transparent; }
 .ceremony-rank { width: 2.8em; flex: none; font-weight: 700; }
+.ceremony-mover { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .ceremony-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ceremony-figure { flex: none; margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ceremony-action { min-height: 38px; margin: 8px 0 0; }
