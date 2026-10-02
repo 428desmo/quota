@@ -647,7 +647,7 @@ function render() {
         <div class="vlabel">実績</div>
         <div class="record-row">
           <div class="band-main"><div class="records${recordRows.length > 1 ? " multi" : ""}" style="--rows:${recordRows.length}">${done}</div></div>
-          <div class="coin-tray" aria-label="ボーナス">${trayTitles(player)}${trayHtml(ceremony && !ceremony.review && ceremony.coins.has(index) ? ceremony.coins.get(index) : coins.bank)}</div>
+          <div class="bonus-stack">${trayTitles(player)}<div class="coin-tray" aria-label="ボーナス">${trayHtml(ceremony && !ceremony.review && ceremony.coins.has(index) ? ceremony.coins.get(index) : coins.bank)}</div></div>
         </div>
       </div>
     </section>`;
@@ -1412,7 +1412,8 @@ function placeCeremony() {
   const right = compactLeft + compactW;
   const expandedW = Math.min(680, Math.max(compactW, right - 8));
   const expandedLeft = right - expandedW;
-  const expandedH = Math.max(compactH, window.innerHeight - compactTop - 8);
+  const expandedTop = window.innerHeight / 3;
+  const expandedH = window.innerHeight / 3;
   const apply = (node, left, top, width, height) => {
     node.style.left = `${left}px`;
     node.style.top = `${top}px`;
@@ -1426,8 +1427,8 @@ function placeCeremony() {
     requestAnimationFrame(() => {
       const live = document.querySelector(".ceremony");
       if (!live || !ceremony || ceremony.phase !== "expand") return;
-      live.style.transition = "left .55s ease, width .55s ease, height .55s ease";
-      apply(live, expandedLeft, compactTop, expandedW, expandedH);
+      live.style.transition = "left .55s ease, top .55s ease, width .55s ease, height .55s ease";
+      apply(live, expandedLeft, expandedTop, expandedW, expandedH);
     });
     setTimeout(() => {
       if (!ceremony || ceremony.phase !== "expand") return;
@@ -1441,7 +1442,7 @@ function placeCeremony() {
   box.style.transition = "none";
   const compactPhase = ceremony.phase === "reason" || ceremony.phase === "titles";
   if (compactPhase) apply(box, compactLeft, compactTop, compactW, compactH);
-  else apply(box, expandedLeft, compactTop, expandedW, expandedH);
+  else apply(box, expandedLeft, expandedTop, expandedW, expandedH);
 }
 
 function captureCeremonyRows() {
