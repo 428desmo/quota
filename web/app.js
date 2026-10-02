@@ -35,7 +35,10 @@ const splash = document.querySelector("#splash");
 if (splash) {
   setTimeout(() => {
     splash.classList.add("out");
-    setTimeout(() => splash.remove(), 600);
+    setTimeout(() => {
+      splash.remove();
+      document.body.classList.add("dim");
+    }, 600);
   }, 3000);
 }
 let turnLeft = null;
@@ -470,7 +473,14 @@ function savedOptions() {
   }
 }
 
+function syncDim() {
+  const atStart = !state || state.phase === "hall" || state.phase === "recruiting";
+  if (!atStart) document.body.classList.remove("dim");
+  else if (!document.querySelector("#splash")) document.body.classList.add("dim");
+}
+
 function render() {
+  syncDim();
   if (ask && ask.kind !== "leave" && !state.your_turn) ask = null;
   if (!state || state.phase === "hall") {
     const saved = savedOptions() || {};
@@ -1019,6 +1029,10 @@ function finalCeremony(key) {
   return board;
 }
 
+function captureRankSlots(show) {
+  show.rankSlots = show.order.map((seat) => (show.places ? show.places.get(seat) : 0) || 0);
+}
+
 function assignPlaces(show, scoreOf) {
   const places = new Map();
   let place = 1;
@@ -1102,6 +1116,7 @@ function updateCeremony(now) {
     if (now - show.at >= 500) {
       show.order = sortSeats((seat) => show.scores.get(seat) || 0);
       assignPlaces(show, (seat) => show.scores.get(seat) || 0);
+      captureRankSlots(show);
       show.phase = "base-sorted";
       show.at = now;
       show.pressed = false;
@@ -1131,7 +1146,9 @@ function updateCeremony(now) {
       show.overall = true;
       show.scores = new Map(show.previous);
       show.rankTitle = "暫定順位";
-      assignPlacesByScore(show, (seat) => show.previous.get(seat) || 0);
+      show.order = sortSeats((seat) => show.previous.get(seat) || 0);
+      assignPlaces(show, (seat) => show.previous.get(seat) || 0);
+      captureRankSlots(show);
       show.phase = "wait-prev";
       show.at = now;
       dirty = true;
@@ -1175,6 +1192,7 @@ function updateCeremony(now) {
     if (show.readyAt != null && now - show.readyAt >= 1000) {
       show.order = sortSeats((seat) => show.scores.get(seat) || 0);
       assignPlaces(show, (seat) => show.scores.get(seat) || 0);
+      captureRankSlots(show);
       show.rankTitle = state.finished || state.round_index >= state.round_count ? "最終順位" : "暫定順位";
       show.plusCleared = true;
       enterReady(show, now);
@@ -1220,6 +1238,7 @@ function titleJobs() {
 function finishCash(now) {
   ceremony.order = sortSeats((seat) => ceremony.scores.get(seat) || 0);
   assignPlaces(ceremony, (seat) => ceremony.scores.get(seat) || 0);
+  captureRankSlots(ceremony);
   ceremony.phase = "ranked";
   ceremony.at = now;
   ceremony.pressed = false;
@@ -1378,13 +1397,13 @@ function ceremonyHtml() {
   const blank = ceremony.phase === "clear";
   const rows = ceremony.order.map((seat, row) => {
     const player = state.players[seat];
-    const place = !blank && ceremony.places ? `${ceremony.places.get(seat)}位` : "";
+    const slot = !blank && ceremony.rankSlots ? ceremony.rankSlots[row] : !blank && ceremony.places ? ceremony.places.get(seat) : 0;
+    const place = slot ? `${slot}位` : "";
     const name = blank ? "" : escapeText(player.name);
     const figure = blank ? "" : ceremonyFigure(seat, row);
     return `<div class="ceremony-row${blank ? " is-blank" : ""}" data-ceremony-row="${seat}">
       <span class="ceremony-rank">${place}</span>
-      <span class="ceremony-name">${name}</span>
-      <span class="ceremony-figure">${figure}</span>
+      <span class="ceremony-mover"><span class="ceremony-name">${name}</span><span class="ceremony-figure">${figure}</span></span>
     </div>`;
   }).join("");
   const last = state.finished || state.round_index >= state.round_count;
@@ -1448,7 +1467,8 @@ function placeCeremony() {
 function captureCeremonyRows() {
   const boxes = new Map();
   document.querySelectorAll("[data-ceremony-row]").forEach((el) => {
-    boxes.set(el.dataset.ceremonyRow, el.getBoundingClientRect().top);
+    const mover = el.querySelector(".ceremony-mover") || el;
+    boxes.set(el.dataset.ceremonyRow, mover.getBoundingClientRect().top);
   });
   return boxes;
 }
@@ -1456,15 +1476,17 @@ function captureCeremonyRows() {
 function slideCeremonyRows(before) {
   if (!before || !before.size) return;
   document.querySelectorAll("[data-ceremony-row]").forEach((el) => {
+    const mover = el.querySelector(".ceremony-mover");
+    if (!mover) return;
     const prev = before.get(el.dataset.ceremonyRow);
     if (prev == null) return;
-    const dy = prev - el.getBoundingClientRect().top;
+    const dy = prev - mover.getBoundingClientRect().top;
     if (Math.abs(dy) < 1) return;
-    el.style.transition = "none";
-    el.style.transform = `translateY(${dy}px)`;
+    mover.style.transition = "none";
+    mover.style.transform = `translateY(${dy}px)`;
     requestAnimationFrame(() => {
-      el.style.transition = "transform .45s ease";
-      el.style.transform = "";
+      mover.style.transition = "transform .45s ease";
+      mover.style.transform = "";
     });
   });
 }

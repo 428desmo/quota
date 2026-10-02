@@ -128,8 +128,8 @@ namespace Quota.Tests
             Assert.AreEqual(WorldMidX(frame), WorldMidX(countRow), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(nameRow), 2f);
 
-            Assert.AreEqual(Color.black, countLabel.color);
-            Assert.AreEqual(Color.black, nameLabel.color);
+            Assert.AreEqual(Color.white, countLabel.color);
+            Assert.AreEqual(Color.white, nameLabel.color);
 
             Click("設定");
             Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
@@ -530,6 +530,25 @@ namespace Quota.Tests
             rows.Sort((a, b) => b.anchoredPosition.y.CompareTo(a.anchoredPosition.y));
             Assert.AreEqual(expected.Count, rows.Count);
             for (var i = 0; i < expected.Count; i++) Assert.AreEqual("row" + expected[i], rows[i].name);
+            var slots = new List<int>();
+            for (var i = 0; i < expected.Count; i++) slots.Add(i + 1);
+            typeof(TableView).GetField("ceremonyRankSlots", flags).SetValue(view, slots);
+            var swapped = new List<int>(expected);
+            swapped.Reverse();
+            typeof(TableView).GetField("dialogOrder", flags).SetValue(view, swapped);
+            Show(view);
+            panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
+            rows.Clear();
+            for (var i = 0; i < panel.childCount; i++)
+            {
+                var child = panel.GetChild(i);
+                if (child.name.StartsWith("row")) rows.Add((RectTransform)child);
+            }
+            rows.Sort((a, b) => b.anchoredPosition.y.CompareTo(a.anchoredPosition.y));
+            Assert.AreEqual("row" + swapped[0], rows[0].name);
+            Assert.AreEqual("1位", rows[0].Find("rank").GetComponent<Text>().text);
+            Assert.AreEqual(game.Players[swapped[0]].Name, rows[0].Find("mover").GetComponentInChildren<Text>().text);
+            Assert.AreEqual(expected.Count + "位", rows[rows.Count - 1].Find("rank").GetComponent<Text>().text);
             Assert.IsNull(panel.Find("bonus0"));
             AssertHeadingFont(panel, 36);
             game.RoundEndReason = "STALL";
