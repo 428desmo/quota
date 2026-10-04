@@ -170,8 +170,8 @@
         canvas.className = "unity-mobile";
 
         // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
+        // performance, and to keep GPU memory under the Safari limit:
+        config.devicePixelRatio = 1;
 
 #if SHOW_DIAGNOSTICS
         // position the diagnostics icon in the corner on the canvas

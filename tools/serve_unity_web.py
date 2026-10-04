@@ -16,6 +16,7 @@ TYPES = {
     ".css": "text/css; charset=utf-8",
     ".wasm": "application/wasm",
     ".data": "application/octet-stream",
+    ".unityweb": "application/octet-stream",
     ".json": "application/json",
     ".png": "image/png",
     ".jpg": "image/jpeg",
