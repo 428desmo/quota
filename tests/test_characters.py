@@ -4,6 +4,8 @@ from quota.ai import choose_action
 from quota.characters import (
     ADJECTIVES,
     CONSISTENT_CHANCE,
+    DENIAL_CHANCE,
+    DENIAL_COUNT,
     NOUNS,
     STRATEGY_COUNT,
     TITLE_STANCE_COUNT,
@@ -21,7 +23,8 @@ from quota.engine import Abandon, Bundle, Collect, Game, GameConfig, Pass, TakeQ
 
 def test_every_character_has_its_own_name():
     names = [character_name(character_id) for character_id in range(character_count())]
-    assert len(names) == STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT * TITLE_STANCE_COUNT
+    expected = STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT * TITLE_STANCE_COUNT * DENIAL_COUNT
+    assert len(names) == expected
     assert len(set(names)) == len(names)
     pool = {adjective + noun for adjective in ADJECTIVES for noun in NOUNS}
     assert set(names) <= pool
@@ -29,7 +32,20 @@ def test_every_character_has_its_own_name():
 
 
 def test_names_do_not_describe_the_strategy():
-    blocked = ("粘", "放棄", "ノルマ", "エース", "見切", "戦略", "柔軟", "かぶり")
+    blocked = (
+        "粘",
+        "放棄",
+        "ノルマ",
+        "エース",
+        "見切",
+        "戦略",
+        "柔軟",
+        "かぶり",
+        "妨害",
+        "一徹",
+        "山読",
+        "単色",
+    )
     for name in (character_name(character_id) for character_id in range(character_count())):
         assert not any(word in name for word in blocked)
 
@@ -38,12 +54,15 @@ def test_consistent_characters_are_chosen_more_often():
     rng = random.Random(0)
     picks = [pick_character(rng) for _ in range(4000)]
     consistent = 0
+    deniers = 0
     for character_id in picks:
-        before, _trigger, after, _stance = decode(character_id)
+        before, _trigger, after, _stance, denial = decode(character_id)
         consistent += before == after
+        deniers += denial
     rate = consistent / len(picks)
     assert abs(rate - CONSISTENT_CHANCE) < 0.03
     assert rate > 0.5
+    assert abs(deniers / len(picks) - DENIAL_CHANCE) < 0.03
 
 
 def test_same_strategy_ignores_the_trigger():
@@ -155,6 +174,133 @@ def test_titles_off_ignores_the_stance():
     assert isinstance(action, TakeQuota)
     assert action.card_id == other.id
     assert not isinstance(action, Pass)
+
+
+def _card(game, suit, rank):
+    return next(card for card in game.deck if card.suit == suit and card.rank == rank)
+
+
+def _blocker_table(game, rival_quota=True):
+    game.current = 0
+    me = game.players[0]
+    me.quota = _card(game, "S", 5)
+    me.collection = []
+    rival = game.players[1]
+    rival.quota = _card(game, "S", 9) if rival_quota else None
+    rival.collection = []
+    game.market = [_card(game, "H", 3), None, None, None, None, None, None]
+    mind = Mind(encode(8, 0, 8, 0, 1))
+    mind.block_seat = 1
+    mind.block_suit = "S"
+    mind.block_turn = game.turn_number
+    return mind
+
+
+def test_a_blocker_takes_the_quota_a_rival_is_waiting_for():
+    game = Game.start(GameConfig(num_players=3, seed=11, human_seats=[]))
+    game.current = 0
+    me = game.players[0]
+    me.quota = None
+    me.collection = []
+    rival = game.players[1]
+    rival.quota = _card(game, "S", 9)
+    rival.collection = []
+    plain_pick = _card(game, "H", 3)
+    block_pick = _card(game, "S", 5)
+    game.market = [plain_pick, block_pick, None, None, None, None, None]
+    blocker = Mind(encode(8, 0, 8, 0, 1))
+    plain = Mind(encode(8, 0, 8, 0, 0))
+    block_action = blocker.choose(game)
+    plain_action = plain.choose(game)
+    assert isinstance(plain_action, TakeQuota)
+    assert plain_action.card_id == plain_pick.id
+    assert isinstance(block_action, TakeQuota)
+    assert block_action.card_id == block_pick.id
+    assert blocker.block_seat == 1
+    assert blocker.block_suit == "S"
+    assert blocker.block_turn == game.turn_number
+
+
+def test_a_blocker_lets_an_appealing_card_win_over_the_block():
+    game = Game.start(GameConfig(num_players=3, seed=11, human_seats=[]))
+    game.current = 0
+    me = game.players[0]
+    me.quota = None
+    me.collection = []
+    rival = game.players[1]
+    rival.quota = _card(game, "S", 9)
+    rival.collection = []
+    ace = _card(game, "H", 1)
+    block_pick = _card(game, "S", 5)
+    game.market = [ace, block_pick, None, None, None, None, None]
+    blocker = Mind(encode(8, 0, 8, 0, 1))
+    action = blocker.choose(game)
+    assert isinstance(action, TakeQuota)
+    assert action.card_id == ace.id
+    assert blocker.block_suit is None
+
+
+def test_a_blocker_drops_the_block_while_the_rival_holds_on():
+    game = Game.start(GameConfig(num_players=3, seed=12, human_seats=[]))
+    blocker = _blocker_table(game)
+    assert not isinstance(blocker.choose(game), Abandon)
+    assert blocker.block_suit == "S"
+    game.turn_number += 1
+    assert isinstance(blocker.choose(game), Abandon)
+    assert blocker.block_suit is None
+
+
+def test_a_blocker_keeps_the_quota_once_the_rival_let_go():
+    game = Game.start(GameConfig(num_players=3, seed=12, human_seats=[]))
+    blocker = _blocker_table(game, rival_quota=False)
+    game.turn_number += 1
+    assert not isinstance(blocker.choose(game), Abandon)
+    assert blocker.block_suit is None
+
+
+def test_the_single_suit_strategy_stays_on_its_own_colour():
+    game = Game.start(GameConfig(num_players=3, seed=13, human_seats=[]))
+    game.current = 0
+    player = game.players[0]
+    player.quota = None
+    player.collection = []
+    player.bundles = [Bundle("S", False)]
+    near_six = _card(game, "H", 6)
+    own = _card(game, "S", 9)
+    game.market = [near_six, own, None, None, None, None, None]
+    mono = Mind(encode(10, 0, 10, 0, 0))
+    steady = Mind(encode(0, 0, 0, 0, 0))
+    mono_action = mono.choose(game)
+    steady_action = steady.choose(game)
+    assert isinstance(steady_action, TakeQuota)
+    assert steady_action.card_id == near_six.id
+    assert isinstance(mono_action, TakeQuota)
+    assert mono_action.card_id == own.id
+
+    player.quota = near_six
+    player.collection = []
+    game.market = [own, None, None, None, None, None, None]
+    assert isinstance(mono.choose(game), Abandon)
+
+
+def test_the_deck_reader_skips_a_quota_the_deck_cannot_fill():
+    game = Game.start(GameConfig(num_players=3, seed=14, human_seats=[]))
+    game.current = 0
+    player = game.players[0]
+    player.quota = None
+    player.collection = []
+    dead = _card(game, "S", 13)
+    live = _card(game, "H", 6)
+    game.players[1].achieved = [card for card in game.deck if card.suit == "S" and card is not dead]
+    game.market = [dead, live, None, None, None, None, None]
+    reader = Mind(encode(11, 0, 11, 0, 0))
+    greedy = Mind(encode(5, 0, 5, 0, 0))
+    reader_action = reader.choose(game)
+    greedy_action = greedy.choose(game)
+    assert isinstance(greedy_action, TakeQuota)
+    assert greedy_action.card_id == dead.id
+    assert isinstance(reader_action, TakeQuota)
+    assert reader_action.card_id == live.id
 
 
 def test_assigned_cpus_finish_a_game_under_their_names():
