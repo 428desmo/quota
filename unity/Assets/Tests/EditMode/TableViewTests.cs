@@ -93,66 +93,40 @@ namespace Quota.Tests
             var guide = ButtonNamed("QuickStartガイド").GetComponent<RectTransform>();
             var rules = ButtonNamed("ルール").GetComponent<RectTransform>();
             var hint = ButtonNamed("勝つためのヒント").GetComponent<RectTransform>();
-            var settings = ButtonNamed("設定").GetComponent<RectTransform>();
             var start = ButtonNamed("対局開始").GetComponent<RectTransform>();
-            var watch = ButtonNamed("CPU模擬戦を観戦").GetComponent<RectTransform>();
             Assert.AreEqual(1080f * 0.40f, guide.rect.width, 2f);
             Assert.AreEqual(guide.rect.width, rules.rect.width, 1f);
             Assert.AreEqual(guide.rect.width, hint.rect.width, 1f);
-            Assert.AreEqual(1080f * 0.35f, settings.rect.width, 2f);
-            Assert.AreEqual(settings.rect.width, start.rect.width, 1f);
-            Assert.AreEqual(settings.rect.width, watch.rect.width, 1f);
+            Assert.AreEqual(1080f * 0.35f, start.rect.width, 2f);
             Assert.AreEqual(guide.rect.height * 2f, start.rect.height, 2f);
             Assert.AreEqual(guide.GetComponentInChildren<Text>().fontSize * 2, start.GetComponentInChildren<Text>().fontSize);
+            Assert.IsNull(FindButton("設定"));
+            Assert.IsNull(FindButton("CPU模擬戦を観戦"));
+            Assert.IsNull(FindText("プレイヤーの数："));
 
-            var countLabel = FindText("プレイヤーの数：");
             var nameLabel = FindText("あなたの名前：");
-            Assert.IsNotNull(countLabel);
             Assert.IsNotNull(nameLabel);
-            var countRow = countLabel.rectTransform.parent as RectTransform;
             var nameRow = nameLabel.rectTransform.parent as RectTransform;
-            var countButton = ButtonNamed("3人").GetComponent<RectTransform>();
             var nameBox = name.GetComponent<RectTransform>();
-            Assert.AreEqual(1080f * 0.60f, countRow.rect.width, 2f);
-            Assert.AreEqual(countRow.rect.width, nameRow.rect.width, 1f);
-            Assert.AreEqual(WorldLeft(countLabel.rectTransform), WorldLeft(nameLabel.rectTransform), 1f);
-            var scaleX = Mathf.Abs(WorldRight(countRow) - WorldLeft(countRow)) / countRow.rect.width;
-            Assert.AreEqual(countLabel.fontSize, (WorldLeft(countLabel.rectTransform) - WorldLeft(countRow)) / scaleX, 2f);
+            Assert.AreEqual(1080f * 0.60f, nameRow.rect.width, 2f);
+            var scaleX = Mathf.Abs(WorldRight(nameRow) - WorldLeft(nameRow)) / nameRow.rect.width;
             Assert.AreEqual(nameLabel.fontSize, (WorldLeft(nameLabel.rectTransform) - WorldLeft(nameRow)) / scaleX, 2f);
-            Assert.AreEqual(WorldLeft(countButton), WorldLeft(nameBox), 1f);
-            Assert.AreEqual(countButton.rect.width, nameBox.rect.width, 1f);
-            Assert.AreEqual(WorldMidY(countLabel.rectTransform), WorldMidY(countButton), 2f);
             Assert.AreEqual(WorldMidY(nameLabel.rectTransform), WorldMidY(nameBox), 2f);
             var section = guide.rect.height * 2f;
             var scaleY = Mathf.Abs(WorldTop(guide) - WorldBottom(guide)) / guide.rect.height;
-            Assert.AreEqual(section, (WorldBottom(hint) - WorldTop(countRow)) / scaleY, 3f);
-            Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(settings)) / scaleY, 3f);
-            Assert.AreEqual(section, (WorldBottom(settings) - WorldTop(start)) / scaleY, 3f);
+            Assert.AreEqual(section, (WorldBottom(hint) - WorldTop(nameRow)) / scaleY, 3f);
+            Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(start)) / scaleY, 3f);
 
             Assert.AreEqual(WorldMidX(frame), WorldMidX(guide), 2f);
-            Assert.AreEqual(WorldMidX(frame), WorldMidX(settings), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(start), 2f);
-            Assert.AreEqual(WorldMidX(frame), WorldMidX(countRow), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(nameRow), 2f);
 
             Color inkLabel;
             ColorUtility.TryParseHtmlString("#2C221E", out inkLabel);
-            Assert.AreEqual(inkLabel, countLabel.color);
             Assert.AreEqual(inkLabel, nameLabel.color);
             Color accent;
             ColorUtility.TryParseHtmlString("#8C3D2A", out accent);
             Assert.AreEqual(accent, start.GetComponent<Image>().color);
-
-            Click("設定");
-            Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
-            var decide = ButtonNamed("決定").GetComponent<RectTransform>();
-            var cancel = ButtonNamed("キャンセル").GetComponent<RectTransform>();
-            var dialog = host.transform.Find("Root/Frame/setup-dialog") as RectTransform;
-            var pairLeft = Mathf.Min(WorldLeft(decide), WorldLeft(cancel));
-            var pairRight = Mathf.Max(WorldRight(decide), WorldRight(cancel));
-            Assert.AreEqual(WorldMidX(dialog), (pairLeft + pairRight) * 0.5f, 3f);
-            Click("キャンセル");
-            Assert.IsNull(FindButton("シンプルモード　オン"));
 
             Click("QuickStartガイド");
             Assert.IsNotNull(FindText("QuickStartガイド"));
@@ -175,11 +149,84 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void TheLobbyListsTheWaitingCpusAndRunsThemAloneWhenYouSitOut()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Click("対局開始");
+            Assert.IsNull(FindButton("対局開始"));
+            Assert.IsNotNull(FindText("プレイヤーの数："));
+            Assert.IsNotNull(FindText("あなた"));
+            Assert.AreEqual(2, CountText("CPU"));
+
+            Click("戻る");
+            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNull(FindButton("ゲーム開始"));
+            Click("対局開始");
+
+            Click("3人");
+            Assert.IsNotNull(ButtonNamed("4人"));
+            Assert.AreEqual(3, CountText("CPU"));
+            var cast = (List<int>)typeof(TableView).GetField("lobbyCast", flags).GetValue(view);
+            var before = new List<int>(cast);
+            Assert.AreEqual(4, before.Count);
+            Assert.IsNotNull(FindText(Ranking.DisplayName(before[0])));
+            Click("シャッフル");
+            CollectionAssert.AreNotEqual(before, cast);
+            Assert.IsNotNull(FindText(Ranking.DisplayName(cast[0])));
+
+            Click("設定");
+            Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
+            var decide = ButtonNamed("決定").GetComponent<RectTransform>();
+            var cancel = ButtonNamed("キャンセル").GetComponent<RectTransform>();
+            var dialog = host.transform.Find("Root/Frame/setup-dialog") as RectTransform;
+            var pairLeft = Mathf.Min(WorldLeft(decide), WorldLeft(cancel));
+            var pairRight = Mathf.Max(WorldRight(decide), WorldRight(cancel));
+            Assert.AreEqual(WorldMidX(dialog), (pairLeft + pairRight) * 0.5f, 3f);
+            Click("キャンセル");
+            Assert.IsNull(FindButton("シンプルモード　オン"));
+
+            Click("自分は参加しない　オフ");
+            Assert.IsNotNull(ButtonNamed("自分は参加しない　オン"));
+            Assert.IsNull(FindText("あなた"));
+            Assert.AreEqual(4, CountText("CPU"));
+
+            Set("seedText", "0");
+            Click("ゲーム開始");
+            Assert.IsFalse((bool)typeof(TableView).GetField("lobbyOpen", flags).GetValue(view));
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            Assert.AreEqual(4, match.Game.Players.Count);
+            foreach (var player in match.Game.Players) Assert.IsFalse(player.IsHuman);
+        }
+
+        [Test]
+        public void RoundEndStopsWaitingForAPersonOnceEverySeatIsACpu()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var noHuman = typeof(TableView).GetMethod("NoHumanSeats", flags);
+            Assert.IsFalse((bool)noHuman.Invoke(view, null));
+            Set("seedText", "0");
+            Begin();
+            Assert.IsFalse((bool)noHuman.Invoke(view, null));
+
+            Click("ゲームから抜ける");
+            Click("抜ける");
+            Click("対局開始");
+            Click("自分は参加しない　オフ");
+            Click("ゲーム開始");
+            Assert.IsTrue((bool)noHuman.Invoke(view, null));
+            Assert.AreEqual(5f, (float)typeof(TableView).GetField("okTimeout", flags).GetValue(view));
+        }
+
+        [Test]
         public void MarketCardsShowTheGoodsPicture()
         {
             host = Open();
             Set("seedText", "7");
-            Click("対局開始");
+            Begin();
             Image icon = null;
             foreach (var image in host.GetComponentsInChildren<Image>())
             {
@@ -197,7 +244,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var pass = ButtonNamed("パス");
             Assert.Greater(pass.GetComponent<RectTransform>().rect.width, 40f);
             Assert.Greater(pass.GetComponent<RectTransform>().rect.height, 16f);
@@ -216,7 +263,7 @@ namespace Quota.Tests
             host = Open();
             Set("specialRule", true);
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
 
             var seat = host.transform.Find("Root/Frame/seat0");
             Assert.IsNull(seat.Find("wash"));
@@ -266,7 +313,7 @@ namespace Quota.Tests
             host = Open();
             Set("widePreview", true);
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
 
             var frame = host.transform.Find("Root/Frame") as RectTransform;
             Assert.AreEqual(1920f, frame.sizeDelta.x, 0.01f);
@@ -332,7 +379,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
             var current = match.Game.Current;
@@ -352,7 +399,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "1");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
             var player = match.Game.Players[0];
@@ -386,7 +433,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "1");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
@@ -434,7 +481,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var frame = host.transform.Find("Root/Frame");
             var live = frame.Find("seat0");
@@ -454,7 +501,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
             var game = match.Game;
@@ -506,7 +553,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
@@ -525,7 +572,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
@@ -676,7 +723,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
@@ -727,7 +774,7 @@ namespace Quota.Tests
         {
             host = Open();
             Set("seedText", "0");
-            Click("対局開始");
+            Begin();
             var view = host.GetComponent<TableView>();
             var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
             var game = match.Game;
@@ -796,6 +843,12 @@ namespace Quota.Tests
             Rebuild(host);
         }
 
+        void Begin()
+        {
+            Click("対局開始");
+            Click("ゲーム開始");
+        }
+
         void AssertConfirmInside(string seatName)
         {
             var panel = host.transform.Find("Root/Frame/" + seatName + "/confirm") as RectTransform;
@@ -823,6 +876,14 @@ namespace Quota.Tests
                 if (label != null && label.text == caption) return button;
             }
             return null;
+        }
+
+        int CountText(string caption)
+        {
+            var found = 0;
+            foreach (var label in host.GetComponentsInChildren<Text>())
+                if (label.text == caption) found++;
+            return found;
         }
 
         Text FindText(string caption)
