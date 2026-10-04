@@ -169,10 +169,6 @@
         document.querySelector("#unity-container").className = "unity-mobile";
         canvas.className = "unity-mobile";
 
-        // Cap the backing store so a 3x phone stays sharp without tripling
-        // the WebGL framebuffer. Leaving this unset would use the full DPR.
-        config.devicePixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-
 #if SHOW_DIAGNOSTICS
         // position the diagnostics icon in the corner on the canvas
         let diagnostics_icon = document.getElementById("diagnostics-icon");
