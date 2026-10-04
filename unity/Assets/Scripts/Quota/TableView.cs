@@ -565,7 +565,7 @@ namespace Quota
             SetupButton(column, "勝つためのヒント", () => OpenPage("hint"), guideW, buttonH, font);
             SetupGap(column, section);
             var labelW = LabelSlot(font, "プレイヤーの数：", "あなたの名前：");
-            var fieldW = rowW - labelW - 12f;
+            var fieldW = rowW - labelW - 12f - font;
             SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, fieldW, font, () =>
             {
                 playerCount = playerCount == 3 ? 4 : 3;
@@ -2714,6 +2714,7 @@ namespace Quota
             SizeElement(go.GetComponent<LayoutElement>(), rowW, height);
             var layout = go.GetComponent<HorizontalLayoutGroup>();
             layout.spacing = 12f;
+            layout.padding = new RectOffset(fontSize, 0, 0, 0);
             layout.childAlignment = TextAnchor.MiddleLeft;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
