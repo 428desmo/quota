@@ -357,7 +357,18 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 }
 main:has(#leave) { padding-bottom: 44px; }
 .table-line { justify-content: space-between; align-items: center; width: 100%; }
-.roster { margin: 8px 0; padding-left: 1.2em; }
+.roster { list-style: none; margin: 8px 0; padding: 0; }
+.roster li { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.roster .tag {
+  border: 1px solid var(--ink); border-radius: 8px; background: var(--ecru);
+  padding: 1px 7px; font-size: 11px; letter-spacing: 0.08em;
+}
+.seat-count { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.seat-count .chip { min-height: 36px; padding: 4px 16px; border-radius: 999px; }
+.seat-count .chip.on { background: var(--accent); color: var(--cream); border-color: #5c2618; font-weight: 700; }
+.seat-count .chip:disabled { opacity: 0.45; cursor: default; }
+.submit-cast { margin: 8px 0; }
+.submit-cast button { min-height: 36px; padding: 4px 16px; }
 @media (orientation: portrait) and (max-width: 700px) {
   .panel { padding: 8px; margin: 8px 0; }
   .band { display: flex; align-items: center; gap: 4px; }

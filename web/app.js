@@ -786,6 +786,7 @@ function render() {
 function renderRecruiting() {
   const you = state.you || {};
   const seats = state.seats || [];
+  const cpus = state.cpus || [];
   const open = Math.max(0, state.players - seats.length);
   app.innerHTML = `
     <header class="hero">
@@ -793,10 +794,13 @@ function renderRecruiting() {
     </header>
     <section class="panel">
       <p>${state.players}人卓　参加 ${seats.length}人${open ? `　空き ${open}` : ""}</p>
+      ${you.leader ? `<p class="seat-count">人数${[3, 4].map((count) => `<button type="button" class="chip${count === state.players ? " on" : ""}" data-players="${count}"${count < seats.length ? " disabled" : ""}>${count}人</button>`).join("")}</p>` : ""}
       <ul class="roster">
         ${seats.map((seat) => `<li>${escapeText(seat.name)}${seat.leader ? "（リーダー）" : ""}</li>`).join("")}
-        ${open ? `<li class="note">参加待ち</li>` : ""}
+        ${cpus.map((name) => `<li class="cpu">${escapeText(name)}<span class="tag">CPU</span></li>`).join("")}
       </ul>
+      ${open ? `<p class="note">空いている席はこのCPUが入ります。人が参加すると下から席を譲ります。</p>` : ""}
+      ${open && you.leader ? `<p class="submit-cast"><button type="button" id="shuffle">シャッフル</button></p>` : ""}
       ${rosterNote ? `<p class="note">${escapeText(rosterNote)}</p>` : ""}
       ${watcherHtml()}
       ${you.leader ? `<p class="submit"><button class="primary" type="button" id="begin">ゲーム開始</button></p>` : `<p class="note">リーダーの開始を待っています。</p>`}
@@ -805,6 +809,14 @@ function renderRecruiting() {
     <button type="button" id="leave">${leaveLabel()}</button>`;
   const begin = app.querySelector("#begin");
   if (begin) begin.onclick = () => post("/api/start", {});
+  const shuffle = app.querySelector("#shuffle");
+  if (shuffle) shuffle.onclick = () => post("/api/shuffle", {});
+  app.querySelectorAll("[data-players]").forEach((button) => {
+    button.onclick = () => {
+      if (Number(button.dataset.players) === state.players) return;
+      post("/api/players", { players: Number(button.dataset.players) });
+    };
+  });
   const leave = app.querySelector("#leave");
   if (leave) leave.onclick = () => confirmLeave();
   bindAsk();

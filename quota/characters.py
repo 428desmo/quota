@@ -258,16 +258,32 @@ def pick_character(rng: random.Random) -> int:
     return encode(before, rng.randrange(TRIGGER_COUNT), after, stance, denial)
 
 
-def assign_seats(game: Game, rng: random.Random | None = None) -> None:
-    """Name each CPU seat with a character and remember how it plays."""
+def pick_cast(count: int, rng: random.Random | None = None, used=None) -> list[int]:
+    """Distinct characters, ready to show before the deal."""
     picker = rng or random.Random()
-    used: set[int] = set()
+    seen = set(used or ())
+    return [_fresh(picker, seen) for _ in range(max(0, count))]
+
+
+def seat_cast(game: Game, characters, rng: random.Random | None = None) -> None:
+    """Name the CPU seats with characters chosen in advance."""
+    spare = iter(characters)
+    picker = rng or random.Random()
     for player in game.players:
         if player.is_human:
             continue
-        character_id = _fresh(picker, used)
+        character_id = next(spare, None)
+        if character_id is None:
+            character_id = pick_character(picker)
         player.name = display_name(character_id)
         bind(player, Mind(character_id))
+
+
+def assign_seats(game: Game, rng: random.Random | None = None) -> None:
+    """Name each CPU seat with a character and remember how it plays."""
+    picker = rng or random.Random()
+    cpus = sum(1 for player in game.players if not player.is_human)
+    seat_cast(game, pick_cast(cpus, picker), picker)
 
 
 def bind_replacement(player, rng: random.Random | None = None) -> None:
