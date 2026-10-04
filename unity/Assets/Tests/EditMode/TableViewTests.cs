@@ -157,7 +157,7 @@ namespace Quota.Tests
             Click("対局開始");
             Assert.IsNull(FindButton("対局開始"));
             Assert.IsNotNull(FindText("プレイヤーの数："));
-            Assert.IsNotNull(FindText("あなた"));
+            Assert.IsNotNull(FindText("1. あなた"));
             Assert.AreEqual(2, CountText("CPU"));
 
             Click("戻る");
@@ -171,10 +171,12 @@ namespace Quota.Tests
             var cast = (List<int>)typeof(TableView).GetField("lobbyCast", flags).GetValue(view);
             var before = new List<int>(cast);
             Assert.AreEqual(4, before.Count);
-            Assert.IsNotNull(FindText(Ranking.DisplayName(before[0])));
+            Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(before[0])));
+            Assert.IsNotNull(FindText("1. あなた"));
+            Assert.IsNotNull(FindTextContaining("2. "));
             Click("シャッフル");
             CollectionAssert.AreNotEqual(before, cast);
-            Assert.IsNotNull(FindText(Ranking.DisplayName(cast[0])));
+            Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(cast[0])));
 
             Click("設定");
             Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
@@ -189,8 +191,10 @@ namespace Quota.Tests
 
             Click("自分は参加しない　オフ");
             Assert.IsNotNull(ButtonNamed("自分は参加しない　オン"));
-            Assert.IsNull(FindText("あなた"));
+            Assert.IsNull(FindText("1. あなた"));
             Assert.AreEqual(4, CountText("CPU"));
+            Assert.IsNotNull(FindTextContaining("1. "));
+            Assert.IsNotNull(FindTextContaining("4. "));
 
             Set("seedText", "0");
             Click("ゲーム開始");
@@ -890,6 +894,13 @@ namespace Quota.Tests
         {
             foreach (var label in host.GetComponentsInChildren<Text>())
                 if (label.text == caption) return label;
+            return null;
+        }
+
+        Text FindTextContaining(string fragment)
+        {
+            foreach (var label in host.GetComponentsInChildren<Text>())
+                if (label.text != null && label.text.Contains(fragment)) return label;
             return null;
         }
 

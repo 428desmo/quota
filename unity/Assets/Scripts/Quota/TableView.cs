@@ -435,7 +435,7 @@ namespace Quota
             return root + fileName;
         }
 
-        const int WebTextureCap = 2048;
+        const int WebTextureCap = 4096;
 
         static Texture2D FitTexture(Texture2D texture)
         {
@@ -648,9 +648,11 @@ namespace Quota
                 ShowSetup();
             });
             SetupGap(column, innerGap);
+            var seatNumber = 1;
             foreach (var seat in LobbySeats())
             {
-                SetupSeatRow(column, seat.Key, seat.Value, rowW, buttonH, font);
+                SetupSeatRow(column, $"{seatNumber}. {seat.Key}", seat.Value, rowW, buttonH, font);
+                seatNumber++;
                 SetupGap(column, innerGap);
             }
             SetupButton(column, "シャッフル", ShuffleCast, actionW, buttonH, font);
