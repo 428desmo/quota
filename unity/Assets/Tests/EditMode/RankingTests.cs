@@ -26,10 +26,11 @@ namespace Quota.Tests
             var listed = Characters.Encode(1, 0, 1, 0, 0);
             var missing = Characters.Encode(2, 0, 2, 0, 0);
             Ranking.LoadJson(
-                "{\"format\":\"quota-cpu-ranking\",\"version\":1," +
+                "{\"format\":\"quota-cpu-ranking\",\"version\":2," +
                 "\"dimensions\":[\"before\",\"trigger\",\"after\",\"stance\",\"denial\"]," +
+                "\"award\":[3.0,2.0],\"seats\":4,\"mean\":1.25," +
                 "\"provisional\":7,\"players\":[" +
-                "{\"id\":[1,0,1,0,0],\"rating\":1600.0,\"games\":4,\"points\":3.0,\"rank\":2}]}");
+                "{\"id\":[1,0,1,0,0],\"value\":1.75,\"games\":4,\"points\":7.0,\"rank\":2}]}");
             Assert.IsTrue(Ranking.IsLoaded);
             Assert.AreEqual(2, Ranking.PlaceOf(listed));
             Assert.AreEqual(7, Ranking.PlaceOf(missing));
@@ -39,7 +40,9 @@ namespace Quota.Tests
         [Test]
         public void AnotherFormatIsIgnoredSoTheNameStaysPlain()
         {
-            Ranking.LoadJson("{\"format\":\"something-else\",\"version\":1}");
+            Ranking.LoadJson("{\"format\":\"something-else\",\"version\":2}");
+            Assert.IsFalse(Ranking.IsLoaded);
+            Ranking.LoadJson("{\"format\":\"quota-cpu-ranking\",\"version\":1}");
             Assert.IsFalse(Ranking.IsLoaded);
             Assert.AreEqual(0, Ranking.PlaceOf(0));
             Assert.AreEqual(Characters.NameOf(0), Ranking.DisplayName(0));
