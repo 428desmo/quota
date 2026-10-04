@@ -24,7 +24,9 @@ from quota.engine import Abandon, Action, Collect, Game, Pass, TakeQuota
 # 7 小回り: ranks 3-5, drop an untouched 8+ if a 5 or less is showing
 # 8 エース: aces, else the lowest rank, never
 # 9 標準: the original CPU
-STRATEGY_COUNT = 10
+# 10 単色一徹: the suit it already owns, swap an untouched quota of another suit for it
+# 11 山読み: the card with the best finish outlook, swap when a clearly better one shows
+STRATEGY_COUNT = 12
 
 # 0 behind by 8 or more
 # 1 another seat holds the same suit
@@ -40,7 +42,16 @@ TRIGGER_COUNT = 6
 # 2 always
 TITLE_STANCE_COUNT = 3
 
+# Whether it takes a quota just to keep a card away from a rival.
+# 0 none
+# 1 when the market holds nothing its own style wants
+DENIAL_COUNT = 2
+
 CONSISTENT_CHANCE = 2 / 3
+DENIAL_CHANCE = 1 / 3
+
+# A rival quota worth this much or more is worth blocking.
+BLOCK_FLOOR = 4
 
 ADJECTIVES = (
     "放浪する",
@@ -88,6 +99,34 @@ ADJECTIVES = (
     "てかてかの",
     "ふわふわの",
     "きょとんとした",
+    "たそがれの",
+    "寄り道の",
+    "石畳の",
+    "波止場の",
+    "霧の",
+    "真昼の",
+    "沖合の",
+    "内緒の",
+    "おぼろげな",
+    "のどかな",
+    "真夜中の",
+    "旅支度の",
+    "こぼれ落ちる",
+    "はしゃぐ",
+    "遠雷の",
+    "ひそやかな",
+    "たっぷりの",
+    "ちぐはぐな",
+    "そっけない",
+    "おせっかいな",
+    "気まぐれな",
+    "まっさらの",
+    "水玉の",
+    "うららかな",
+    "しとやかな",
+    "ひたむきな",
+    "寝ぼけた",
+    "大あくびの",
 )
 
 NOUNS = (
@@ -133,28 +172,60 @@ NOUNS = (
     "竹籠",
     "手鏡",
     "布団",
+    "羅針盤",
+    "砂時計",
+    "麦藁帽",
+    "桟橋",
+    "浮き輪",
+    "封蝋",
+    "天秤",
+    "樽",
+    "麻袋",
+    "帆布",
+    "綱",
+    "舵輪",
+    "書棚",
+    "木箱",
+    "便箋",
+    "切符",
+    "風見鶏",
+    "糸車",
+    "蓄音機",
+    "望遠鏡",
+    "万年筆",
+    "水差し",
+    "茶筒",
+    "風呂敷",
+    "巾着",
+    "帳面",
+    "竹馬",
+    "紙風船",
+    "椅子",
+    "階段",
 )
 
 _NAME_STEP = 409
 
 
 def character_count() -> int:
-    return STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT * TITLE_STANCE_COUNT
+    return STRATEGY_COUNT * TRIGGER_COUNT * STRATEGY_COUNT * TITLE_STANCE_COUNT * DENIAL_COUNT
 
 
-def encode(before: int, trigger: int, after: int, stance: int = 0) -> int:
+def encode(before: int, trigger: int, after: int, stance: int = 0, denial: int = 0) -> int:
     base = (before * TRIGGER_COUNT + trigger) * STRATEGY_COUNT + after
-    return base * TITLE_STANCE_COUNT + stance
+    return (base * TITLE_STANCE_COUNT + stance) * DENIAL_COUNT + denial
 
 
-def decode(character_id: int) -> tuple[int, int, int, int]:
-    stance = character_id % TITLE_STANCE_COUNT
-    rest = character_id // TITLE_STANCE_COUNT
+def decode(character_id: int) -> tuple[int, int, int, int, int]:
+    denial = character_id % DENIAL_COUNT
+    rest = character_id // DENIAL_COUNT
+    stance = rest % TITLE_STANCE_COUNT
+    rest //= TITLE_STANCE_COUNT
     after = rest % STRATEGY_COUNT
     rest //= STRATEGY_COUNT
     trigger = rest % TRIGGER_COUNT
     before = rest // TRIGGER_COUNT
-    return before, trigger, after, stance
+    return before, trigger, after, stance, denial
 
 
 def character_name(character_id: int) -> str:
@@ -166,15 +237,16 @@ def character_name(character_id: int) -> str:
 def pick_character(rng: random.Random) -> int:
     """Consistent characters are more likely than ones that switch."""
     stance = rng.randrange(TITLE_STANCE_COUNT)
+    denial = 1 if rng.random() < DENIAL_CHANCE else 0
     if rng.random() < CONSISTENT_CHANCE:
         strategy = rng.randrange(STRATEGY_COUNT)
         trigger = rng.randrange(TRIGGER_COUNT)
-        return encode(strategy, trigger, strategy, stance)
+        return encode(strategy, trigger, strategy, stance, denial)
     before = rng.randrange(STRATEGY_COUNT)
     after = rng.randrange(STRATEGY_COUNT - 1)
     if after >= before:
         after += 1
-    return encode(before, rng.randrange(TRIGGER_COUNT), after, stance)
+    return encode(before, rng.randrange(TRIGGER_COUNT), after, stance, denial)
 
 
 def assign_seats(game: Game, rng: random.Random | None = None) -> None:
@@ -201,13 +273,16 @@ class Mind:
     character_id: int
     switched: bool = False
     abandoned: bool = False
+    block_seat: int | None = None
+    block_suit: str | None = None
+    block_turn: int = -1
 
     def choose(self, game: Game) -> Action:
-        before, trigger, after, stance = decode(self.character_id)
+        before, trigger, after, stance, denial = decode(self.character_id)
         if before != after and not self.switched and _trigger(trigger, game, self):
             self.switched = True
         strategy = after if self.switched else before
-        action = _choose_for(game, strategy, stance)
+        action = _choose_for(game, strategy, stance, denial, self)
         if isinstance(action, Abandon):
             self.abandoned = True
         return action
@@ -232,11 +307,19 @@ def _fresh(rng: random.Random, used: set[int]) -> int:
     return character_id
 
 
-def _choose_for(game: Game, strategy: int, stance: int) -> Action:
+def _choose_for(game: Game, strategy: int, stance: int, denial: int = 0, mind: Mind | None = None) -> Action:
+    if mind is not None and mind.block_suit is not None:
+        settled = _block_settle(game, mind)
+        if settled is not None:
+            return settled
     if _title_chase(game, stance):
         override = _title_override(game, strategy)
         if override is not None:
             return override
+    if denial and mind is not None:
+        block = _block_take(game, strategy, mind)
+        if block is not None:
+            return block
     action = choose_stock(game) if strategy == 9 else _choose_styled(game, strategy)
     if _title_chase(game, stance) and isinstance(action, Collect):
         return _without_wilds(game, action)
@@ -254,11 +337,14 @@ def _choose_styled(game: Game, strategy: int) -> Action:
 
 
 def _take(game: Game, strategy: int) -> Action:
-    cards = [card for card in game.market if card is not None and card.suit != "JOKER" and card.rank]
+    cards = _takeable(game)
     if not cards:
         return Pass()
-    card = _PICK[strategy](cards)
-    return TakeQuota(card.id)
+    return TakeQuota(_pick_card(game, strategy, cards).id)
+
+
+def _takeable(game: Game):
+    return [card for card in game.market if card is not None and card.suit != "JOKER" and card.rank]
 
 
 def _collect(game: Game) -> Action:
@@ -318,6 +404,19 @@ def _pick_ace(cards):
     return min(cards, key=lambda card: card.rank)
 
 
+def _pick_mono(game: Game, cards):
+    kind = _mono_kind(game.players[game.current])
+    if kind is not None:
+        same = [card for card in cards if card.suit == kind]
+        if same:
+            return _pick_six(same)
+    return _pick_six(cards)
+
+
+def _pick_reader(game: Game, cards):
+    return max(cards, key=lambda card: (_prospect(game, card), card.rank))
+
+
 _PICK = {
     0: _pick_six,
     1: _pick_six,
@@ -329,6 +428,16 @@ _PICK = {
     7: _pick_small,
     8: _pick_ace,
 }
+
+
+def _pick_card(game: Game, strategy: int, cards):
+    if strategy == 9:
+        return _stock_pick(cards)
+    if strategy == 10:
+        return _pick_mono(game, cards)
+    if strategy == 11:
+        return _pick_reader(game, cards)
+    return _PICK[strategy](cards)
 
 
 def _title_chase(game: Game, stance: int) -> bool:
@@ -377,8 +486,92 @@ def _title_override(game: Game, strategy: int):
         return Abandon() if same else None
     if not same:
         return None
-    card = _stock_pick(same) if strategy == 9 else _PICK[strategy](same)
+    return TakeQuota(_pick_card(game, strategy, same).id)
+
+
+def _forget_block(mind: Mind) -> None:
+    mind.block_seat = None
+    mind.block_suit = None
+    mind.block_turn = -1
+
+
+def _block_settle(game: Game, mind: Mind):
+    """Drop a blocking quota on the next turn and go back to the real plan."""
+    player = game.players[game.current]
+    if player.quota is None or player.quota.suit != mind.block_suit or player.collection:
+        _forget_block(mind)
+        return None
+    if game.turn_number == mind.block_turn:
+        return None
+    if game.turn_gain or game.plan != "normal" or game.double_stage:
+        return None
+    seat = mind.block_seat
+    rival = game.players[seat] if seat is not None and 0 <= seat < len(game.players) else None
+    still_held = (
+        rival is not None
+        and rival is not player
+        and rival.quota is not None
+        and rival.quota.suit == mind.block_suit
+    )
+    _forget_block(mind)
+    return Abandon() if still_held else None
+
+
+def _rival_pressure(game: Game):
+    """The suit each rival most wants, keyed by suit, worth blocking."""
+    pressure: dict[str, tuple[int, int, int]] = {}
+    for seat, rival in enumerate(game.players):
+        if seat == game.current or rival.quota is None or rival.quota.rank is None:
+            continue
+        need = rival.quota.rank - 1 - len(rival.collection)
+        if need < 1 or score_for(rival.quota.rank) < BLOCK_FLOOR:
+            continue
+        weight = (score_for(rival.quota.rank), -need, seat)
+        held = pressure.get(rival.quota.suit)
+        if held is None or weight[:2] > held[:2]:
+            pressure[rival.quota.suit] = weight
+    return pressure
+
+
+def _block_take(game: Game, strategy: int, mind: Mind):
+    player = game.players[game.current]
+    if player.quota is not None:
+        return None
+    cards = _takeable(game)
+    if not cards:
+        return None
+    if _appealing(game, strategy, _pick_card(game, strategy, cards)):
+        return None
+    pressure = _rival_pressure(game)
+    wanted = [card for card in cards if card.rank > 1 and card.suit in pressure]
+    if not wanted:
+        return None
+    suits = {card.suit for card in wanted}
+    target = max(suits, key=lambda suit: pressure[suit][:2])
+    options = [card for card in wanted if card.suit == target]
+    card = _pick_card(game, strategy, options)
+    mind.block_seat = pressure[target][2]
+    mind.block_suit = target
+    mind.block_turn = game.turn_number
     return TakeQuota(card.id)
+
+
+def _appealing(game: Game, strategy: int, card) -> bool:
+    """Whether the best card on offer already suits this character."""
+    rank = card.rank
+    if strategy in (5, 6):
+        return 7 <= rank <= 10
+    if strategy == 7:
+        return 3 <= rank <= 5
+    if strategy == 8:
+        return rank == 1
+    if strategy == 10:
+        kind = _mono_kind(game.players[game.current])
+        if kind is not None:
+            return card.suit == kind
+    if strategy == 11:
+        return _prospect(game, card) >= 3
+    return abs(rank - 6) <= 1 or rank == 1
 
 
 def _stock_pick(cards):
@@ -419,6 +612,10 @@ def _wants_abandon(strategy: int, game: Game) -> bool:
         return _big_clash(game)
     if strategy == 7:
         return _small_escape(game)
+    if strategy == 10:
+        return _mono_swap(game)
+    if strategy == 11:
+        return _reader_swap(game)
     return False
 
 
@@ -520,6 +717,57 @@ def _keep_outlook(game: Game) -> float:
         return score_for(rank) * 0.05
     chance = min(1.0, (future / (left * 3.0)) ** 1.4)
     return score_for(rank) * chance
+
+
+def _prospect(game: Game, card) -> float:
+    """The outlook of a market card, as if it were already this seat's quota."""
+    rank = card.rank
+    need = rank - 1
+    if need <= 0:
+        return float(score_for(rank))
+    market_same = sum(
+        1 for other in game.market if other is not None and other is not card and other.suit == card.suit
+    )
+    market_jokers = sum(1 for other in game.market if other is not None and other.suit == "JOKER")
+    left = need - min(need, market_same + market_jokers)
+    if left <= 0:
+        return float(score_for(rank))
+    suits, jokers = _visible_counts(game)
+    hidden = (26 - suits[card.suit]) + (4 - jokers)
+    if hidden < left:
+        return 0.0
+    future = hidden * len(game.deck) / max(len(game.deck) + 8, 1)
+    if future < left:
+        return score_for(rank) * 0.05
+    chance = min(1.0, (future / (left * 3.0)) ** 1.4)
+    return score_for(rank) * chance
+
+
+def _mono_swap(game: Game) -> bool:
+    me = game.players[game.current]
+    if me.quota is None or me.collection:
+        return False
+    kind = _mono_kind(me)
+    if kind is None or me.quota.suit == kind:
+        return False
+    return any(card is not None and card.suit == kind and card.rank for card in game.market)
+
+
+def _reader_swap(game: Game) -> bool:
+    me = game.players[game.current]
+    if me.quota is None or me.quota.rank is None:
+        return False
+    outlook = _keep_outlook(game)
+    if outlook < 1:
+        return True
+    if me.collection:
+        return False
+    best = 0.0
+    for card in game.market:
+        if card is None or card.suit == "JOKER" or card.rank is None or card.suit == me.quota.suit:
+            continue
+        best = max(best, _prospect(game, card))
+    return best - outlook >= 3
 
 
 def _previous_clash(game: Game) -> bool:

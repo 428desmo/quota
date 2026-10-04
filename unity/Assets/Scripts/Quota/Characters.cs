@@ -8,6 +8,9 @@ namespace Quota
         public readonly int CharacterId;
         public bool Switched;
         public bool Abandoned;
+        public int BlockSeat = -1;
+        public Suit? BlockSuit;
+        public int BlockTurn = -1;
 
         public CpuMind(int characterId)
         {
@@ -16,10 +19,10 @@ namespace Quota
 
         public GameAction Choose(Game game)
         {
-            Characters.Decode(CharacterId, out var before, out var trigger, out var after, out var stance);
+            Characters.Decode(CharacterId, out var before, out var trigger, out var after, out var stance, out var denial);
             if (before != after && !Switched && Characters.Trigger(trigger, game, this)) Switched = true;
             var strategy = Switched ? after : before;
-            var action = Characters.ChooseFor(game, strategy, stance);
+            var action = Characters.ChooseFor(game, strategy, stance, denial, this);
             if (action is Abandon) Abandoned = true;
             return action;
         }
@@ -27,10 +30,15 @@ namespace Quota
 
     public static class Characters
     {
-        public const int StrategyCount = 10;
+        public const int StrategyCount = 12;
         public const int TriggerCount = 6;
         public const int TitleStanceCount = 3;
+        public const int DenialCount = 2;
         public const double ConsistentChance = 2.0 / 3.0;
+        public const double DenialChance = 1.0 / 3.0;
+
+        // A rival quota worth this much or more is worth blocking.
+        const int BlockFloor = 4;
 
         static readonly string[] Adjectives =
         {
@@ -39,6 +47,9 @@ namespace Quota
             "風向きの", "忘れ物の", "とけない", "うたたねする", "こっそりした", "そわそわした", "のんびりした", "くすぐったい", "まばたきする", "星を見る",
             "朝焼けの", "雨上がりの", "ひょっこりの", "よれよれの", "ほっこりの", "さらさらの", "ぽかぽかの", "ねむたげな", "ひらひらの", "ゆらゆらの",
             "ほのぼのした", "ざわざわした", "てかてかの", "ふわふわの", "きょとんとした",
+            "たそがれの", "寄り道の", "石畳の", "波止場の", "霧の", "真昼の", "沖合の", "内緒の", "おぼろげな", "のどかな",
+            "真夜中の", "旅支度の", "こぼれ落ちる", "はしゃぐ", "遠雷の", "ひそやかな", "たっぷりの", "ちぐはぐな", "そっけない", "おせっかいな",
+            "気まぐれな", "まっさらの", "水玉の", "うららかな", "しとやかな", "ひたむきな", "寝ぼけた", "大あくびの",
         };
 
         static readonly string[] Nouns =
@@ -48,6 +59,9 @@ namespace Quota
             "郵便箱", "蝶番", "時計塔", "雲",
             "団扇", "提灯", "箒", "算盤", "徳利", "煙突", "車輪", "看板", "植木鉢",
             "やかん", "下駄", "火鉢", "行灯", "扇子", "硯", "竹籠", "手鏡", "布団",
+            "羅針盤", "砂時計", "麦藁帽", "桟橋", "浮き輪", "封蝋", "天秤", "樽", "麻袋", "帆布",
+            "綱", "舵輪", "書棚", "木箱", "便箋", "切符", "風見鶏", "糸車", "蓄音機", "望遠鏡",
+            "万年筆", "水差し", "茶筒", "風呂敷", "巾着", "帳面", "竹馬", "紙風船", "椅子", "階段",
         };
 
         const int NameStep = 409;
@@ -66,18 +80,20 @@ namespace Quota
 
         static readonly Dictionary<Game, TakeNote> Takes = new Dictionary<Game, TakeNote>();
 
-        public static int Count => StrategyCount * TriggerCount * StrategyCount * TitleStanceCount;
+        public static int Count => StrategyCount * TriggerCount * StrategyCount * TitleStanceCount * DenialCount;
 
-        public static int Encode(int before, int trigger, int after, int stance = 0)
+        public static int Encode(int before, int trigger, int after, int stance = 0, int denial = 0)
         {
             var basis = (before * TriggerCount + trigger) * StrategyCount + after;
-            return basis * TitleStanceCount + stance;
+            return (basis * TitleStanceCount + stance) * DenialCount + denial;
         }
 
-        public static void Decode(int characterId, out int before, out int trigger, out int after, out int stance)
+        public static void Decode(int characterId, out int before, out int trigger, out int after, out int stance, out int denial)
         {
-            stance = characterId % TitleStanceCount;
-            var rest = characterId / TitleStanceCount;
+            denial = characterId % DenialCount;
+            var rest = characterId / DenialCount;
+            stance = rest % TitleStanceCount;
+            rest /= TitleStanceCount;
             after = rest % StrategyCount;
             rest /= StrategyCount;
             trigger = rest % TriggerCount;
@@ -95,15 +111,16 @@ namespace Quota
         public static int Pick(Random rng)
         {
             var stance = rng.Next(TitleStanceCount);
+            var denial = rng.NextDouble() < DenialChance ? 1 : 0;
             if (rng.NextDouble() < ConsistentChance)
             {
                 var strategy = rng.Next(StrategyCount);
-                return Encode(strategy, rng.Next(TriggerCount), strategy, stance);
+                return Encode(strategy, rng.Next(TriggerCount), strategy, stance, denial);
             }
             var before = rng.Next(StrategyCount);
             var after = rng.Next(StrategyCount - 1);
             if (after >= before) after += 1;
-            return Encode(before, rng.Next(TriggerCount), after, stance);
+            return Encode(before, rng.Next(TriggerCount), after, stance, denial);
         }
 
         public static int PickFresh(Random rng, HashSet<int> used)
@@ -186,12 +203,22 @@ namespace Quota
             }
         }
 
-        public static GameAction ChooseFor(Game game, int strategy, int stance)
+        public static GameAction ChooseFor(Game game, int strategy, int stance, int denial = 0, CpuMind mind = null)
         {
+            if (mind != null && mind.BlockSuit != null)
+            {
+                var settled = BlockSettle(game, mind);
+                if (settled != null) return settled;
+            }
             if (TitleChase(game, stance))
             {
                 var titleAction = TitleOverride(game, strategy);
                 if (titleAction != null) return titleAction;
+            }
+            if (denial != 0 && mind != null)
+            {
+                var block = BlockTake(game, strategy, mind);
+                if (block != null) return block;
             }
             var action = strategy == 9 ? Cpu.ChooseStock(game) : ChooseStyled(game, strategy);
             if (TitleChase(game, stance) && action is Collect) return WithoutWilds(game, (Collect)action);
@@ -209,11 +236,17 @@ namespace Quota
 
         static GameAction Take(Game game, int strategy)
         {
+            var cards = Takeable(game);
+            if (cards.Count == 0) return new Pass();
+            return new TakeQuota(PickCard(game, strategy, cards).Id);
+        }
+
+        static List<Card> Takeable(Game game)
+        {
             var cards = new List<Card>();
             foreach (var card in game.Market)
                 if (card != null && card.Suit != Suit.Joker && card.Rank != null) cards.Add(card);
-            if (cards.Count == 0) return new Pass();
-            return new TakeQuota(PickCard(strategy, cards).Id);
+            return cards;
         }
 
         static GameAction Collect(Game game)
@@ -237,12 +270,44 @@ namespace Quota
             return new Collect(chosen.ConvertAll(card => card.Id));
         }
 
-        static Card PickCard(int strategy, List<Card> cards)
+        static Card PickCard(Game game, int strategy, List<Card> cards)
         {
             if (strategy == 5 || strategy == 6) return PickBig(cards);
             if (strategy == 7) return PickSmall(cards);
             if (strategy == 8) return PickAce(cards);
+            if (strategy == 9) return StockPick(cards);
+            if (strategy == 10) return PickMono(game, cards);
+            if (strategy == 11) return PickReader(game, cards);
             return PickSix(cards);
+        }
+
+        static Card PickMono(Game game, List<Card> cards)
+        {
+            var kind = MonoKind(game.Players[game.Current]);
+            if (kind != null)
+            {
+                var same = new List<Card>();
+                foreach (var card in cards)
+                    if (card.Suit.ToString() == kind) same.Add(card);
+                if (same.Count > 0) return PickSix(same);
+            }
+            return PickSix(cards);
+        }
+
+        static Card PickReader(Game game, List<Card> cards)
+        {
+            var best = cards[0];
+            var score = Prospect(game, best);
+            foreach (var card in cards)
+            {
+                var value = Prospect(game, card);
+                if (value > score || (value == score && card.Rank > best.Rank))
+                {
+                    best = card;
+                    score = value;
+                }
+            }
+            return best;
         }
 
         static Card PickSix(List<Card> cards)
@@ -312,6 +377,8 @@ namespace Quota
             if (strategy == 4) return KeepOutlook(game) < 1 || PreviousClash(game) || SwapReady(game);
             if (strategy == 6) return BigClash(game);
             if (strategy == 7) return SmallEscape(game);
+            if (strategy == 10) return MonoSwap(game);
+            if (strategy == 11) return ReaderSwap(game);
             return false;
         }
 
@@ -374,8 +441,95 @@ namespace Quota
                 return same.Count > 0 ? (GameAction)new Abandon() : null;
             }
             if (same.Count == 0) return null;
-            var picked = strategy == 9 ? StockPick(same) : PickCard(strategy, same);
+            return new TakeQuota(PickCard(game, strategy, same).Id);
+        }
+
+        static void ForgetBlock(CpuMind mind)
+        {
+            mind.BlockSeat = -1;
+            mind.BlockSuit = null;
+            mind.BlockTurn = -1;
+        }
+
+        static GameAction BlockSettle(Game game, CpuMind mind)
+        {
+            var player = game.Players[game.Current];
+            if (player.Quota == null || player.Quota.Suit != mind.BlockSuit || player.Collection.Count > 0)
+            {
+                ForgetBlock(mind);
+                return null;
+            }
+            if (game.TurnNumber == mind.BlockTurn) return null;
+            if (game.TurnGain || game.Plan != "normal" || game.DoubleStage != 0) return null;
+            var seat = mind.BlockSeat;
+            var rival = seat >= 0 && seat < game.Players.Count ? game.Players[seat] : null;
+            var stillHeld = rival != null && rival != player && rival.Quota != null && rival.Quota.Suit == mind.BlockSuit;
+            ForgetBlock(mind);
+            return stillHeld ? new Abandon() : null;
+        }
+
+        static Dictionary<Suit, (int Score, int Need, int Seat)> RivalPressure(Game game)
+        {
+            var pressure = new Dictionary<Suit, (int Score, int Need, int Seat)>();
+            for (var seat = 0; seat < game.Players.Count; seat++)
+            {
+                var rival = game.Players[seat];
+                if (seat == game.Current || rival.Quota == null || rival.Quota.Rank == null) continue;
+                var need = rival.Quota.Rank.Value - 1 - rival.Collection.Count;
+                var score = Cards.ScoreFor(rival.Quota.Rank.Value);
+                if (need < 1 || score < BlockFloor) continue;
+                var suit = rival.Quota.Suit;
+                (int Score, int Need, int Seat) held;
+                if (pressure.TryGetValue(suit, out held) && !Heavier(score, need, held)) continue;
+                pressure[suit] = (score, need, seat);
+            }
+            return pressure;
+        }
+
+        static bool Heavier(int score, int need, (int Score, int Need, int Seat) held)
+        {
+            if (score != held.Score) return score > held.Score;
+            return need < held.Need;
+        }
+
+        static GameAction BlockTake(Game game, int strategy, CpuMind mind)
+        {
+            var player = game.Players[game.Current];
+            if (player.Quota != null) return null;
+            var cards = Takeable(game);
+            if (cards.Count == 0) return null;
+            if (Appealing(game, strategy, PickCard(game, strategy, cards))) return null;
+            var pressure = RivalPressure(game);
+            var wanted = new List<Card>();
+            foreach (var card in cards)
+                if (card.Rank > 1 && pressure.ContainsKey(card.Suit)) wanted.Add(card);
+            if (wanted.Count == 0) return null;
+            var target = wanted[0].Suit;
+            foreach (var card in wanted)
+                if (Heavier(pressure[card.Suit].Score, pressure[card.Suit].Need, pressure[target])) target = card.Suit;
+            var options = new List<Card>();
+            foreach (var card in wanted)
+                if (card.Suit == target) options.Add(card);
+            var picked = PickCard(game, strategy, options);
+            mind.BlockSeat = pressure[target].Seat;
+            mind.BlockSuit = target;
+            mind.BlockTurn = game.TurnNumber;
             return new TakeQuota(picked.Id);
+        }
+
+        static bool Appealing(Game game, int strategy, Card card)
+        {
+            var rank = card.Rank.Value;
+            if (strategy == 5 || strategy == 6) return rank >= 7 && rank <= 10;
+            if (strategy == 7) return rank >= 3 && rank <= 5;
+            if (strategy == 8) return rank == 1;
+            if (strategy == 10)
+            {
+                var kind = MonoKind(game.Players[game.Current]);
+                if (kind != null) return card.Suit.ToString() == kind;
+            }
+            if (strategy == 11) return Prospect(game, card) >= 3;
+            return Math.Abs(rank - 6) <= 1 || rank == 1;
         }
 
         static Card StockPick(List<Card> cards)
@@ -489,25 +643,8 @@ namespace Quota
             }
             var left = need - Math.Min(need, marketSame + marketJokers);
             if (left <= 0) return Cards.ScoreFor(rank);
-            var suits = new Dictionary<Suit, int>
-            {
-                { Suit.S, 0 }, { Suit.H, 0 }, { Suit.D, 0 }, { Suit.C, 0 },
-            };
-            var jokers = 0;
-            void Add(Card card)
-            {
-                if (card == null) return;
-                if (card.Suit == Suit.Joker) jokers++;
-                else suits[card.Suit] = suits[card.Suit] + 1;
-            }
-            foreach (var card in game.Market) Add(card);
-            foreach (var card in game.Discard) Add(card);
-            foreach (var owner in game.Players)
-            {
-                Add(owner.Quota);
-                foreach (var card in owner.Collection) Add(card);
-                foreach (var card in owner.Achieved) Add(card);
-            }
+            int jokers;
+            var suits = VisibleCounts(game, out jokers);
             var hiddenSuits = 26 - suits[player.Quota.Suit];
             var hiddenJokers = 4 - jokers;
             if (hiddenSuits + hiddenJokers < left) return 0;
@@ -515,6 +652,83 @@ namespace Quota
             if (future < left) return Cards.ScoreFor(rank) * 0.05;
             var chance = Math.Min(1.0, Math.Pow(future / (left * 3.0), 1.4));
             return Cards.ScoreFor(rank) * chance;
+        }
+
+        static Dictionary<Suit, int> VisibleCounts(Game game, out int jokers)
+        {
+            var suits = new Dictionary<Suit, int>
+            {
+                { Suit.S, 0 }, { Suit.H, 0 }, { Suit.D, 0 }, { Suit.C, 0 },
+            };
+            var seen = 0;
+            Action<Card> add = card =>
+            {
+                if (card == null) return;
+                if (card.Suit == Suit.Joker) seen++;
+                else suits[card.Suit] = suits[card.Suit] + 1;
+            };
+            foreach (var card in game.Market) add(card);
+            foreach (var card in game.Discard) add(card);
+            foreach (var owner in game.Players)
+            {
+                add(owner.Quota);
+                foreach (var card in owner.Collection) add(card);
+                foreach (var card in owner.Achieved) add(card);
+            }
+            jokers = seen;
+            return suits;
+        }
+
+        static double Prospect(Game game, Card card)
+        {
+            var rank = card.Rank.Value;
+            var need = rank - 1;
+            if (need <= 0) return Cards.ScoreFor(rank);
+            var marketSame = 0;
+            var marketJokers = 0;
+            foreach (var other in game.Market)
+            {
+                if (other == null || other == card) continue;
+                if (other.Suit == card.Suit) marketSame++;
+                else if (other.Suit == Suit.Joker) marketJokers++;
+            }
+            var left = need - Math.Min(need, marketSame + marketJokers);
+            if (left <= 0) return Cards.ScoreFor(rank);
+            int jokers;
+            var suits = VisibleCounts(game, out jokers);
+            var hidden = 26 - suits[card.Suit] + (4 - jokers);
+            if (hidden < left) return 0;
+            var future = hidden * (double)game.Deck.Count / Math.Max(game.Deck.Count + 8, 1);
+            if (future < left) return Cards.ScoreFor(rank) * 0.05;
+            var chance = Math.Min(1.0, Math.Pow(future / (left * 3.0), 1.4));
+            return Cards.ScoreFor(rank) * chance;
+        }
+
+        static bool MonoSwap(Game game)
+        {
+            var me = game.Players[game.Current];
+            if (me.Quota == null || me.Collection.Count > 0) return false;
+            var kind = MonoKind(me);
+            if (kind == null || me.Quota.Suit.ToString() == kind) return false;
+            foreach (var card in game.Market)
+                if (card != null && card.Rank != null && card.Suit.ToString() == kind) return true;
+            return false;
+        }
+
+        static bool ReaderSwap(Game game)
+        {
+            var me = game.Players[game.Current];
+            if (me.Quota == null || me.Quota.Rank == null) return false;
+            var outlook = KeepOutlook(game);
+            if (outlook < 1) return true;
+            if (me.Collection.Count > 0) return false;
+            var best = 0.0;
+            foreach (var card in game.Market)
+            {
+                if (card == null || card.Suit == Suit.Joker || card.Rank == null || card.Suit == me.Quota.Suit) continue;
+                best = Math.Max(best, Prospect(game, card));
+            }
+            return best - outlook >= 3;
         }
 
         static bool PreviousClash(Game game)
