@@ -10,10 +10,10 @@ namespace Quota
     /// </summary>
     public static class Ranking
     {
-        public const string FileName = "cpu_ranking_v1.0.json";
+        public const string FileName = "cpu_ranking_v1.1.json";
 
         const string Format = "quota-cpu-ranking";
-        const int Version = 1;
+        const int Version = 2;
 
         [Serializable]
         class Sheet
@@ -30,7 +30,7 @@ namespace Quota
         class Row
         {
             public int[] id;
-            public float rating;
+            public float value;
             public int games;
             public float points;
             public int rank;

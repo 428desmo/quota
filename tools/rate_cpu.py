@@ -6,6 +6,9 @@ disk, so the ranking gets steadier each time this is run.
 
     python3 tools/rate_cpu.py --matches 30000 --seed 1
 
+To keep adding matches on their own, with the file committed as it grows, use
+`tools/rate_loop.py` instead.
+
 The framework below is fixed so that runs stay comparable. Four seats over
 four rounds means every seat leads once, which keeps the first-player
 advantage out of the rating.
@@ -47,27 +50,35 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1, help="seed for the draw and the deals")
     parser.add_argument("--out", type=Path, default=None, help="ranking file to update")
     parser.add_argument("--fresh", action="store_true", help="start from an empty table")
+    parser.add_argument("--quiet", action="store_true", help="skip the progress and the report")
     args = parser.parse_args()
 
-    path = args.out or RANKING_PATH
-    table = Table() if args.fresh or not path.exists() else load(path)
-    before = dict((key, entry.rating) for key, entry in table.entries.items())
+    run_batch(args.matches, args.seed, args.out or RANKING_PATH, args.fresh, args.quiet)
 
-    rng = random.Random(args.seed)
-    for index in range(args.matches):
+
+def run_batch(matches: int, seed: int, path: Path = RANKING_PATH,
+              fresh: bool = False, quiet: bool = False) -> Table:
+    """Add matches to the table on disk and write it back."""
+    table = Table(seats=FRAMEWORK["players"]) if fresh or not path.exists() else load(path)
+    before = dict((key, entry.value) for key, entry in table.entries.items())
+
+    rng = random.Random(seed)
+    for index in range(matches):
         play(table, rng)
-        if (index + 1) % 2000 == 0:
-            print(f"{index + 1}/{args.matches} matches", flush=True)
+        if not quiet and (index + 1) % 2000 == 0:
+            print(f"{index + 1}/{matches} matches", flush=True)
 
     table.runs.append({
-        "matches": args.matches,
-        "seed": args.seed,
+        "matches": matches,
+        "seed": seed,
         "at": datetime.date.today().isoformat(),
         **FRAMEWORK,
     })
     save(table, path)
     mirror(path)
-    report(table, before)
+    if not quiet:
+        report(table, before)
+    return table
 
 
 def play(table: Table, rng: random.Random) -> None:
@@ -125,13 +136,13 @@ def report(table: Table, before: dict) -> None:
     played = [entry.games for entry in table.entries.values()]
     moved = 0.0
     for key, entry in table.entries.items():
-        moved = max(moved, abs(entry.rating - before.get(key, table.start)))
+        moved = max(moved, abs(entry.value - before.get(key, table.mean())))
     print(f"matches {table.matches}, combinations {len(players)}")
-    print(f"games per combination {min(played)}-{max(played)}, biggest move this run {moved:.1f}")
+    print(f"games per combination {min(played)}-{max(played)}, biggest move this run {moved:.3f}")
     for label, rows in (("top", players[:10]), ("bottom", players[-10:])):
         print(label)
         for row in rows:
-            print(f"  {row['rank']:>5} {row['rating']:>7.1f} {tuple(row['id'])} games {row['games']}")
+            print(f"  {row['rank']:>5} {row['value']:>7.3f} {tuple(row['id'])} games {row['games']}")
 
 
 if __name__ == "__main__":
