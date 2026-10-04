@@ -1,7 +1,10 @@
 {
   "name": "Quota",
   "rootNamespace": "Quota",
-  "references": [],
+  "references": [
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

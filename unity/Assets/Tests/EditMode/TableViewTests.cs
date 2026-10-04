@@ -43,6 +43,10 @@ namespace Quota.Tests
                 if (label.text.StartsWith("港で働く仲買人のあなた。")) splash = label;
             Assert.IsNotNull(splash);
             Assert.AreEqual("港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。", splash.text);
+            Assert.IsNotNull(host.transform.Find("Root/Frame/splash/splash-panel"));
+            Color ink;
+            ColorUtility.TryParseHtmlString("#2C221E", out ink);
+            Assert.AreEqual(ink, splash.color);
             Assert.IsNull(host.transform.Find("Root/Frame/setup"));
             var hold = (float)typeof(TableView).GetField("SplashSeconds", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             Assert.AreEqual(3f, hold);
@@ -128,8 +132,13 @@ namespace Quota.Tests
             Assert.AreEqual(WorldMidX(frame), WorldMidX(countRow), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(nameRow), 2f);
 
-            Assert.AreEqual(Color.white, countLabel.color);
-            Assert.AreEqual(Color.white, nameLabel.color);
+            Color inkLabel;
+            ColorUtility.TryParseHtmlString("#2C221E", out inkLabel);
+            Assert.AreEqual(inkLabel, countLabel.color);
+            Assert.AreEqual(inkLabel, nameLabel.color);
+            Color accent;
+            ColorUtility.TryParseHtmlString("#8C3D2A", out accent);
+            Assert.AreEqual(accent, start.GetComponent<Image>().color);
 
             Click("設定");
             Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
@@ -212,13 +221,15 @@ namespace Quota.Tests
             Assert.AreEqual(0, plate.GetSiblingIndex());
             Assert.AreEqual(new Vector2(25f, -25f), plate.anchoredPosition);
             Assert.AreEqual(new Vector2(1030f, 340f), plate.sizeDelta);
-            Assert.AreEqual(Color.black, plate.GetComponent<Image>().color);
+            Color ink;
+            ColorUtility.TryParseHtmlString("#2C221E", out ink);
+            Assert.AreEqual(ink, plate.GetComponent<Image>().color);
             var fill = plate.Find("fill") as RectTransform;
             var fillColor = fill.GetComponent<Image>().color;
-            Assert.AreEqual(1f, fillColor.r, 0.001f);
-            Assert.AreEqual(1f, fillColor.g, 0.001f);
-            Assert.AreEqual(1f, fillColor.b, 0.001f);
-            Assert.AreEqual(0.7f, fillColor.a, 0.001f);
+            Assert.AreEqual(0.953f, fillColor.r, 0.002f);
+            Assert.AreEqual(0.929f, fillColor.g, 0.002f);
+            Assert.AreEqual(0.894f, fillColor.b, 0.002f);
+            Assert.AreEqual(0.8f, fillColor.a, 0.001f);
             Assert.AreEqual(new Vector2(1f, -1f), fill.anchoredPosition);
             Assert.AreEqual(new Vector2(1028f, 338f), fill.sizeDelta);
 
@@ -572,7 +583,12 @@ namespace Quota.Tests
                 Assert.AreEqual("生粋の買い付け", purist.text);
                 var struck = i == expected[2];
                 if (struck) Assert.AreEqual(0.541f, mono.color.r, 0.02f);
-                else Assert.AreEqual(Color.black, mono.color);
+                else
+                {
+                    Color titleInk;
+                    ColorUtility.TryParseHtmlString("#2C221E", out titleInk);
+                    Assert.AreEqual(titleInk, mono.color);
+                }
                 Assert.AreEqual(mono.color, purist.color);
                 Assert.AreEqual(struck, names.Find("title-mono-strike") != null);
                 Assert.AreEqual(struck, names.Find("title-purist-strike") != null);

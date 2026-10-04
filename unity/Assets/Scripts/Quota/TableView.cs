@@ -4,6 +4,8 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
 namespace Quota
@@ -34,6 +36,15 @@ namespace Quota
         const float CardHeight = 132f;
         const float GoodsNameSize = 14f;
 
+        static readonly Color Ink = Hex("#2C221E");
+        static readonly Color Cream = Hex("#F6F1E8");
+        static readonly Color Ecru = Hex("#F3EDE4");
+        static readonly Color Accent = Hex("#8C3D2A");
+        static readonly Color Plate = new Color(0.953f, 0.929f, 0.894f, 0.8f);
+        static readonly Color Paper = new Color(0.965f, 0.945f, 0.910f, 0.96f);
+        static readonly Color Field = Hex("#FFF8F0");
+        static readonly Color DimTint = new Color(0.78f, 0.74f, 0.68f, 1f);
+
         static readonly Color[] IndicatorColors =
         {
             Hex("#000000"),
@@ -49,6 +60,8 @@ namespace Quota
         RectTransform frame;
         Image backdrop;
         bool backdropDim;
+        SpriteRenderer backdropStage;
+        VolumeProfile gradeProfile;
         Sprite verticalBackground;
         Sprite horizontalBackground;
         readonly Dictionary<string, Sprite> goodsSprites = new Dictionary<string, Sprite>();
@@ -130,12 +143,6 @@ namespace Quota
         {
             nameFont = LoadFont(new[] { "Hiragino Kaku Gothic ProN W6", "HiraginoSans-W6", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic" });
             roundFont = LoadFont(new[] { "FOT-TsukuBRdGothic Std B", "FOT-筑紫B丸ゴシック Std B", "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", "Hiragino Sans" });
-            var camera = Camera.main;
-            if (camera != null)
-            {
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = Color.black;
-            }
             var canvas = gameObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = gameObject.AddComponent<CanvasScaler>();
@@ -171,9 +178,64 @@ namespace Quota
             frame.anchorMin = frame.anchorMax = new Vector2(0.5f, 0.5f);
             frame.pivot = new Vector2(0.5f, 0.5f);
             frame.anchoredPosition = Vector2.zero;
+            EnsureBackdropGrade();
             Fit();
             LoadRules();
             ShowSplash();
+        }
+
+        void OnDestroy()
+        {
+            if (gradeProfile == null) return;
+            if (Application.isPlaying) Destroy(gradeProfile);
+            else DestroyImmediate(gradeProfile);
+        }
+
+        void EnsureBackdropGrade()
+        {
+            var camera = Camera.main;
+            if (camera == null)
+            {
+                var cameraObject = new GameObject("Main Camera");
+                cameraObject.tag = "MainCamera";
+                cameraObject.transform.SetParent(transform, false);
+                camera = cameraObject.AddComponent<Camera>();
+            }
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = Hex("#1A1410");
+            camera.orthographic = true;
+            camera.orthographicSize = 5f;
+            camera.nearClipPlane = 0.3f;
+            camera.farClipPlane = 40f;
+            camera.transform.position = new Vector3(0f, 0f, -10f);
+            camera.transform.rotation = Quaternion.identity;
+            var extra = camera.GetUniversalAdditionalCameraData();
+            extra.renderPostProcessing = true;
+            extra.volumeLayerMask = ~0;
+            if (backdropStage == null)
+            {
+                var stage = new GameObject("BackdropStage");
+                stage.transform.SetParent(transform, false);
+                backdropStage = stage.AddComponent<SpriteRenderer>();
+                backdropStage.sortingOrder = -20;
+            }
+            if (gradeProfile != null) return;
+            var volumeObject = new GameObject("BackdropGrade");
+            volumeObject.transform.SetParent(transform, false);
+            var volume = volumeObject.AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.priority = 20f;
+            gradeProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+            gradeProfile.hideFlags = HideFlags.HideAndDontSave;
+            var vignette = gradeProfile.Add<Vignette>(true);
+            vignette.intensity.Override(0.36f);
+            vignette.smoothness.Override(0.48f);
+            vignette.color.Override(Hex("#140E0B"));
+            vignette.rounded.Override(false);
+            var grade = gradeProfile.Add<ColorAdjustments>(true);
+            grade.saturation.Override(-16f);
+            grade.contrast.Override(10f);
+            volume.sharedProfile = gradeProfile;
         }
 
         void Update()
@@ -213,9 +275,9 @@ namespace Quota
             if (backdrop != null && sprite != null)
             {
                 backdrop.sprite = sprite;
-                backdrop.color = backdropDim ? new Color(0.5f, 0.5f, 0.5f) : Color.white;
                 var cover = Mathf.Max(Screen.width / sprite.rect.width, Screen.height / sprite.rect.height);
                 backdrop.rectTransform.sizeDelta = new Vector2(sprite.rect.width * cover, sprite.rect.height * cover);
+                PresentBackdrop();
             }
             var wide = WideScreen();
             var designW = wide ? LandWidth : ScreenWidth;
@@ -223,6 +285,31 @@ namespace Quota
             frame.sizeDelta = new Vector2(designW, designH);
             var scale = Mathf.Min(Screen.width / designW, Screen.height / designH);
             frame.localScale = new Vector3(scale, scale, 1f);
+        }
+
+        void PresentBackdrop()
+        {
+            if (backdrop == null) return;
+            var tint = backdropDim ? DimTint : Color.white;
+            var camera = Camera.main;
+            if (backdropStage != null && backdrop.sprite != null && camera != null && camera.orthographic)
+            {
+                backdropStage.sprite = backdrop.sprite;
+                backdropStage.color = tint;
+                backdropStage.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, 0f);
+                var worldHeight = camera.orthographicSize * 2f;
+                var worldWidth = worldHeight * Mathf.Max(0.01f, camera.aspect);
+                var size = backdrop.sprite.bounds.size;
+                if (size.x > 0.01f && size.y > 0.01f)
+                {
+                    var cover = Mathf.Max(worldWidth / size.x, worldHeight / size.y);
+                    backdropStage.transform.localScale = new Vector3(cover, cover, 1f);
+                }
+                backdrop.color = new Color(tint.r, tint.g, tint.b, 0f);
+                backdropStage.enabled = true;
+                return;
+            }
+            backdrop.color = tint;
         }
 
         static Sprite LoadBackground(string fileName)
@@ -268,9 +355,12 @@ namespace Quota
             var height = wide ? LandHeight : ScreenHeight;
             var splash = Portrait.Rect(frame, "splash", 0f, 0f, width, height);
             splash.gameObject.AddComponent<CanvasGroup>();
-            var veilY = wide ? (height - 400f) * 0.5f : 760f;
-            Portrait.Solid(splash, "veil", 0f, veilY, width, 400f, new Color(0f, 0f, 0f, 0.45f));
-            var copy = TextAt(splash, SplashCopy, 48f, wide ? (height - 320f) * 0.5f : 800f, width - 96f, 320f, 34, Color.white, nameFont, TextAnchor.MiddleCenter);
+            var panelW = wide ? 1040f : 880f;
+            var panelH = 320f;
+            var panelX = (width - panelW) * 0.5f;
+            var panelY = wide ? (height - panelH) * 0.5f : 800f;
+            SoftPanel(splash, "splash-panel", panelX, panelY, panelW, panelH, Plate);
+            var copy = TextAt(splash, SplashCopy, panelX + 40f, panelY + 28f, panelW - 80f, panelH - 56f, 34, Ink, nameFont, TextAnchor.MiddleCenter);
             copy.horizontalOverflow = HorizontalWrapMode.Overflow;
             copy.lineSpacing = 1.15f;
             if (Application.isPlaying) splashRun = StartCoroutine(FadeSplash());
@@ -414,7 +504,7 @@ namespace Quota
         {
             busy = false;
             backdropDim = true;
-            if (backdrop != null) backdrop.color = new Color(0.5f, 0.5f, 0.5f);
+            PresentBackdrop();
             if (ceremonyRunning)
             {
                 cpuRun++;
@@ -448,9 +538,9 @@ namespace Quota
             var title = TitleSprite(true);
             var catchLine = TitleSprite(false);
             if (title != null) PlaceSprite(frame, "title-mark", title, x, 24f, 760f, 152f);
-            else TextAt(frame, "QUOTA", x, 36f, 700f, 72f, 64, Color.white, nameFont, TextAnchor.MiddleLeft);
+            else Shade(TextAt(frame, "QUOTA", x, 36f, 700f, 72f, 64, Cream, nameFont, TextAnchor.MiddleLeft));
             if (catchLine != null) PlaceSprite(frame, "title-catch", catchLine, x, 184f, 560f, 56f);
-            else TextAt(frame, "ノルマは、自分で決めろ。", x, 184f, 700f, 40f, 28, Color.white, nameFont, TextAnchor.MiddleLeft);
+            else Shade(TextAt(frame, "ノルマは、自分で決めろ。", x, 184f, 700f, 40f, 28, Cream, nameFont, TextAnchor.MiddleLeft));
             const float columnTop = 260f;
             const float innerGap = 16f;
             var showReview = reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0;
@@ -631,7 +721,7 @@ namespace Quota
         void ShowTable()
         {
             backdropDim = false;
-            if (backdrop != null) backdrop.color = Color.white;
+            PresentBackdrop();
             coinFrom = SnapshotCardCoins();
             var game = match.Game;
             var ceremonyBreak = !reviewMode && game != null && (game.AwaitingNextRound || (Application.isPlaying && game.Finished && !ceremonyDismissed));
@@ -653,7 +743,7 @@ namespace Quota
                 if (wide) DrawPlayerWide(game, theme, rows[row], row);
                 else DrawPlayer(game, theme, rows[row], row);
             }
-            var marketWash = new Color(0f, 0f, 0f, 0.5f);
+            var marketWash = Plate;
             if (wide) Portrait.Box(frame, "market-tray", LandMarketX, LandMarketY, LandMarketW, LandMarketH, 7f, 0f, marketWash, Color.white, false);
             else Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, marketWash, Color.white, false);
             if (wide) DrawMarketWide(game, theme);
@@ -671,8 +761,8 @@ namespace Quota
             {
                 var note = $"{game.Players[game.Current].Name} が考えています";
                 var thinking = wide
-                    ? TextAt(frame, note, LandMarketX, LandMarketY + LandMarketH + 12f, LandMarketW, 32f, 22, Color.white, nameFont, TextAnchor.MiddleRight)
-                    : TextAt(frame, note, 520f, 84f, 532f, 32f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
+                    ? PhotoText(frame, note, LandMarketX, LandMarketY + LandMarketH + 12f, LandMarketW, 32f, 22, TextAnchor.MiddleRight)
+                    : PhotoText(frame, note, 520f, 84f, 532f, 32f, 22, TextAnchor.MiddleRight);
                 thinking.horizontalOverflow = HorizontalWrapMode.Overflow;
             }
             if (!game.Finished) LeaveButton();
@@ -990,7 +1080,7 @@ namespace Quota
 
         IEnumerator AnimateFly(int serial, Vector3 from, Vector3 to, Color color, System.Action arrived)
         {
-            var ring = Portrait.Circle(transform, "flyer", 0f, 0f, 18f, Color.black);
+            var ring = Portrait.Circle(transform, "flyer", 0f, 0f, 18f, Ink);
             var disk = Portrait.Circle(transform, "flyer", 0f, 0f, 16f, color);
             PlaceCenter(ring, from);
             if (disk != null) disk.position = ring.position;
@@ -1109,7 +1199,7 @@ namespace Quota
             bonusMarks.Clear();
             if (reviewMode) ceremonyExpand = 1f;
             var box = CeremonyFrame(ceremonyExpand);
-            var panel = Portrait.Box(frame, "ceremony", box.x, box.y, box.width, box.height, 7f, 1f, Color.white, Color.black, false);
+            var panel = Portrait.Box(frame, "ceremony", box.x, box.y, box.width, box.height, 7f, 1f, Paper, Ink, false);
             if (!reviewMode && ceremonyExpand < 1f) DrawCompactCeremony(panel, box.width, box.height);
             else DrawScoreCeremony(panel, box.width, box.height);
             LayoutCeremonyDots();
@@ -1120,10 +1210,10 @@ namespace Quota
             const float headH = 52f;
             var reasonH = ceremonyReasonShown && !string.IsNullOrEmpty(ceremonyReason) ? 44f : 0f;
             var y = Mathf.Max(12f, (panelH - headH - reasonH) * 0.5f);
-            var head = TextAt(panel, ceremonyHeading, 16f, y, panelW - 32f, headH, 40, Color.black, nameFont, TextAnchor.MiddleCenter);
+            var head = TextAt(panel, ceremonyHeading, 16f, y, panelW - 32f, headH, 40, Ink, nameFont, TextAnchor.MiddleCenter);
             head.horizontalOverflow = HorizontalWrapMode.Overflow;
             if (reasonH <= 0f) return;
-            var reason = TextAt(panel, ceremonyReason, 16f, y + headH, panelW - 32f, reasonH, 28, Color.black, nameFont, TextAnchor.MiddleCenter);
+            var reason = TextAt(panel, ceremonyReason, 16f, y + headH, panelW - 32f, reasonH, 28, Ink, nameFont, TextAnchor.MiddleCenter);
             reason.horizontalOverflow = HorizontalWrapMode.Wrap;
         }
 
@@ -1136,19 +1226,19 @@ namespace Quota
             var overallH = ceremonyOverallSlot ? lineH : 0f;
             var rows = dialogOrder != null ? dialogOrder.Count : 0;
             var y = 16f;
-            var head = TextAt(panel, ceremonyHeading, 16f, y, panelW - 32f, headH, 40, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var head = TextAt(panel, ceremonyHeading, 16f, y, panelW - 32f, headH, 40, Ink, nameFont, TextAnchor.MiddleLeft);
             head.horizontalOverflow = HorizontalWrapMode.Overflow;
             y += headH;
             if (reasonH > 0f)
             {
-                var reason = TextAt(panel, ceremonyReason, 16f, y, panelW - 32f, reasonH, 28, Color.black, nameFont, TextAnchor.MiddleLeft);
+                var reason = TextAt(panel, ceremonyReason, 16f, y, panelW - 32f, reasonH, 28, Ink, nameFont, TextAnchor.MiddleLeft);
                 reason.horizontalOverflow = HorizontalWrapMode.Wrap;
                 y += reasonH;
             }
             if (ceremonyOverallSlot)
             {
                 if (!string.IsNullOrEmpty(ceremonyRankTitle))
-                    TextAt(panel, ceremonyRankTitle, 16f, y, panelW - 32f, lineH, 28, Color.black, nameFont, TextAnchor.MiddleLeft);
+                    TextAt(panel, ceremonyRankTitle, 16f, y, panelW - 32f, lineH, 28, Ink, nameFont, TextAnchor.MiddleLeft);
                 y += lineH;
             }
             var reserved = 96f + (ceremonyWinner ? winnerH : 0f);
@@ -1165,12 +1255,12 @@ namespace Quota
                     if (!ceremonyBlank)
                     {
                         var row = Portrait.Rect(panel, "row" + seat, 16f, y, panelW - 32f, rowH);
-                        var rankLabel = TextAt(row, RankSlotText(r), 0f, 0f, rankW, rowH, font, Color.black, nameFont, TextAnchor.MiddleLeft);
+                        var rankLabel = TextAt(row, RankSlotText(r), 0f, 0f, rankW, rowH, font, Ink, nameFont, TextAnchor.MiddleLeft);
                         rankLabel.gameObject.name = "rank";
                         var mover = Portrait.Rect(row, "mover", rankW, 0f, panelW - 32f - rankW, rowH);
-                        var who = TextAt(mover, match.Game.Players[seat].Name, 0f, 0f, nameW, rowH, font, Color.black, nameFont, TextAnchor.MiddleLeft);
+                        var who = TextAt(mover, match.Game.Players[seat].Name, 0f, 0f, nameW, rowH, font, Ink, nameFont, TextAnchor.MiddleLeft);
                         who.horizontalOverflow = HorizontalWrapMode.Overflow;
-                        var figure = TextAt(mover, FigureText(seat), nameW + 8f, 0f, Mathf.Max(80f, panelW - 32f - rankW - nameW - 8f), rowH, font, Color.black, nameFont, TextAnchor.MiddleRight);
+                        var figure = TextAt(mover, FigureText(seat), nameW + 8f, 0f, Mathf.Max(80f, panelW - 32f - rankW - nameW - 8f), rowH, font, Ink, nameFont, TextAnchor.MiddleRight);
                         figure.gameObject.name = "figure";
                         figure.supportRichText = true;
                         figure.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -1180,7 +1270,7 @@ namespace Quota
             }
             if (ceremonyWinner)
             {
-                var cheer = TextAt(panel, WinnerText(), 16f, y, panelW - 32f, winnerH, 28, Color.black, nameFont, TextAnchor.MiddleLeft);
+                var cheer = TextAt(panel, WinnerText(), 16f, y, panelW - 32f, winnerH, 28, Ink, nameFont, TextAnchor.MiddleLeft);
                 cheer.horizontalOverflow = HorizontalWrapMode.Wrap;
             }
             if (string.IsNullOrEmpty(ceremonyButton)) return;
@@ -1452,7 +1542,7 @@ namespace Quota
             var px = x + Centered(dot.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
             var py = y + Centered(dot.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
             var holder = Portrait.Rect(tray, "cdot-" + dot.Serial, px, py, diameter, diameter);
-            Portrait.Circle(holder, "ring", -1f, -1f, diameter + 2f, Color.black);
+            Portrait.Circle(holder, "ring", -1f, -1f, diameter + 2f, Ink);
             Portrait.Circle(holder, "disk", 0f, 0f, diameter, CoinColor(dot.Kind));
         }
 
@@ -1494,16 +1584,16 @@ namespace Quota
             const float width = 760f;
             var height = 220f + game.Players.Count * 36f;
             var panel = WideScreen()
-                ? Portrait.Box(frame, "round-break", (LandWidth - width) * 0.5f, (LandHeight - height) * 0.5f, width, height, 7f, 1f, Color.white, Color.black, false)
-                : Portrait.Box(frame, "round-break", (ScreenWidth - width) * 0.5f, 640f, width, height, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, $"第{game.RoundIndex}ラウンド終了（{reason}）", 32f, 24f, width - 64f, 48f, 32, Color.black, nameFont, TextAnchor.MiddleLeft);
+                ? Portrait.Box(frame, "round-break", (LandWidth - width) * 0.5f, (LandHeight - height) * 0.5f, width, height, 7f, 1f, Paper, Ink, false)
+                : Portrait.Box(frame, "round-break", (ScreenWidth - width) * 0.5f, 640f, width, height, 7f, 1f, Paper, Ink, false);
+            TextAt(panel, $"第{game.RoundIndex}ラウンド終了（{reason}）", 32f, 24f, width - 64f, 48f, 32, Ink, nameFont, TextAnchor.MiddleLeft);
             var y = 84f;
             foreach (var group in game.Ranking())
             {
                 foreach (var seat in group)
                 {
                     var player = game.Players[seat];
-                    TextAt(panel, $"{player.Name}  {game.FinalScore(player)}点", 32f, y, width - 64f, 36f, 24, Color.black, nameFont, TextAnchor.MiddleLeft);
+                    TextAt(panel, $"{player.Name}  {game.FinalScore(player)}点", 32f, y, width - 64f, 36f, 24, Ink, nameFont, TextAnchor.MiddleLeft);
                     y += 36f;
                 }
             }
@@ -1518,11 +1608,11 @@ namespace Quota
         {
             var mark = TitleSprite(true);
             if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 12f, 320f, 64f);
-            else TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Color.white, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, RoundLabel(game), 28f, 84f, 480f, 32f, 24, Color.white, nameFont, TextAnchor.MiddleLeft);
-            if (game.DoubleStage == 1) TextAt(frame, "ダブル：1回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
-            else if (game.DoubleStage == 2) TextAt(frame, "ダブル：2回目の行動です。", 300f, 28f, 460f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
-            else if (game.Plan == "reshuffle") TextAt(frame, "配り直しました。行動を選んでください。", 280f, 28f, 480f, 36f, 22, Color.white, nameFont, TextAnchor.MiddleRight);
+            else Shade(TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Cream, nameFont, TextAnchor.MiddleLeft));
+            PhotoText(frame, RoundLabel(game), 20f, 80f, 500f, 36f, 24, TextAnchor.MiddleLeft);
+            if (game.DoubleStage == 1) Shade(TextAt(frame, "ダブル：1回目の行動です。", 300f, 28f, 460f, 36f, 22, Cream, nameFont, TextAnchor.MiddleRight));
+            else if (game.DoubleStage == 2) Shade(TextAt(frame, "ダブル：2回目の行動です。", 300f, 28f, 460f, 36f, 22, Cream, nameFont, TextAnchor.MiddleRight));
+            else if (game.Plan == "reshuffle") Shade(TextAt(frame, "配り直しました。行動を選んでください。", 280f, 28f, 480f, 36f, 22, Cream, nameFont, TextAnchor.MiddleRight));
             var me = game.Players[game.Current];
             var hint = $"手番 {game.TurnNumber}  山札 {game.Deck.Count}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
             if (me.Quota != null && me.Quota.Rank != null)
@@ -1530,15 +1620,15 @@ namespace Quota
                 var need = me.Quota.Rank.Value - 1 - me.Collection.Count;
                 if (need > 0) hint = $"あと{need}枚   " + hint;
             }
-            TextAt(frame, hint, 28f, 116f, 1020f, 28f, 20, Color.white, nameFont, TextAnchor.MiddleLeft);
+            PhotoText(frame, hint, 20f, 116f, 1040f, 32f, 20, TextAnchor.MiddleLeft);
         }
 
         void DrawTitleWide(Game game)
         {
             var mark = TitleSprite(true);
             if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 24f, 260f, 52f);
-            else TextAt(frame, "QUOTA", 28f, 28f, 280f, 64f, 48, Color.white, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, RoundLabel(game), 300f, 48f, 280f, 36f, 26, Color.white, nameFont, TextAnchor.MiddleLeft);
+            else Shade(TextAt(frame, "QUOTA", 28f, 28f, 280f, 64f, 48, Cream, nameFont, TextAnchor.MiddleLeft));
+            PhotoText(frame, RoundLabel(game), 292f, 44f, 296f, 40f, 26, TextAnchor.MiddleLeft);
             var note = "";
             if (game.DoubleStage == 1) note = "ダブル：1回目の行動です。  ";
             else if (game.DoubleStage == 2) note = "ダブル：2回目の行動です。  ";
@@ -1550,7 +1640,7 @@ namespace Quota
                 var need = me.Quota.Rank.Value - 1 - me.Collection.Count;
                 if (need > 0) hint = $"あと{need}枚   " + hint;
             }
-            TextAt(frame, note + hint, 600f, 44f, 1000f, 36f, 20, Color.white, nameFont, TextAnchor.MiddleLeft);
+            PhotoText(frame, note + hint, 596f, 44f, 1000f, 40f, 20, TextAnchor.MiddleLeft);
         }
 
         void DrawMarket(Game game, ItemSet theme)
@@ -1632,28 +1722,28 @@ namespace Quota
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, SeatHeight);
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
-            Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
-            Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, NameplateColor(game, index), Color.black, true);
-            var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, NameFontSize(player.Name, 276f, 36), Color.black, nameFont, TextAnchor.MiddleLeft);
+            Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, Plate, Ink, false);
+            Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, NameplateColor(game, index), Ink, true);
+            var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, NameFontSize(player.Name, 276f, 36), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             var quotaTop = 75f;
-            TextAt(seat, "ノルマ", 0f, quotaTop, 122f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
+            TextAt(seat, "ノルマ", 0f, quotaTop, 122f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
             var quotaCards = Portrait.Rect(seat, "quota-cards", 130f, quotaTop, 768f, 145f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
             strip.AddRange(player.Collection);
             LayCards(quotaCards, theme, strip, 6.5f, 55f);
-            TextAt(seat, "実績", 0f, 220f, 122f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
+            TextAt(seat, "実績", 0f, 220f, 122f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
             var achieved = Portrait.Rect(seat, "achieved-cards", 130f, 220f, 405f, 145f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 6.5f, 3f);
-            TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Color.black, nameFont, TextAnchor.UpperRight);
+            TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
             const float trayX = 775f;
             const float trayY = 240f;
             const float trayW = 220f;
             const float trayH = 105f;
-            var tray = Portrait.Box(seat, "chip-tray", trayX, trayY, trayW, trayH, 7f, 1f, Color.white, Color.black, false);
+            var tray = Portrait.Box(seat, "chip-tray", trayX, trayY, trayW, trayH, 7f, 1f, Ecru, Ink, false);
             if (game.Config.TitleRule) DrawTrayTitles(seat, player, trayX, trayY - 42f, trayW, 40f, 16);
             float coinX, coinY, coinW, coinH, coinD;
             CoinSpot(false, out coinX, out coinY, out coinW, out coinH, out coinD);
@@ -1662,7 +1752,7 @@ namespace Quota
             var side = SeatPoints(game, index, player);
             if (!(ceremonyRunning || reviewMode) && game.Config.SpecialActionsRule)
                 side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
-            var score = TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Color.black, nameFont, TextAnchor.UpperLeft);
+            var score = TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Ink, nameFont, TextAnchor.UpperLeft);
             score.gameObject.name = "score";
             score.supportRichText = true;
         }
@@ -1674,14 +1764,14 @@ namespace Quota
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, LandLeft, LandSeatHeight);
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
-            Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, new Color(1f, 1f, 1f, 0.7f), Color.black, false);
-            Portrait.Box(seat, "nameplate", 16f, 6f, 270f, 46f, 4.5f, 1f, NameplateColor(game, index), Color.black, false);
-            var name = TextAt(seat, player.Name, 28f, 6f, 246f, 46f, NameFontSize(player.Name, 246f, 30), Color.black, nameFont, TextAnchor.MiddleLeft);
+            Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, Plate, Ink, false);
+            Portrait.Box(seat, "nameplate", 16f, 6f, 270f, 46f, 4.5f, 1f, NameplateColor(game, index), Ink, false);
+            var name = TextAt(seat, player.Name, 28f, 6f, 246f, 46f, NameFontSize(player.Name, 246f, 30), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             if (game.Config.SpecialActionsRule)
             {
                 var uses = $"ダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}　配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
-                TextAt(seat, uses, 860f, 14f, 320f, 28f, 16, Color.black, nameFont, TextAnchor.MiddleRight);
+                PhotoText(seat, uses, 848f, 8f, 340f, 32f, 16, TextAnchor.MiddleRight);
             }
 
             var titled = game.Config.TitleRule;
@@ -1689,22 +1779,22 @@ namespace Quota
             const float boxW = 176f;
             var boxY = titled ? 88f : 66f;
             var boxH = titled ? 126f : 148f;
-            Portrait.Box(seat, "bonus-box", boxX, boxY, boxW, boxH, 7f, 1f, Color.white, Color.black, false);
+            Portrait.Box(seat, "bonus-box", boxX, boxY, boxW, boxH, 7f, 1f, Ecru, Ink, false);
             if (titled) DrawTrayTitles(seat, player, boxX, boxY - 34f, boxW, 32f, 12);
-            TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
-            var wideScore = TextAt(seat, SeatPoints(game, index, player), 36f, boxY + boxH - 30f, 152f, 24f, 16, Color.black, nameFont, TextAnchor.MiddleLeft);
+            TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
+            var wideScore = TextAt(seat, SeatPoints(game, index, player), 36f, boxY + boxH - 30f, 152f, 24f, 16, Ink, nameFont, TextAnchor.MiddleLeft);
             wideScore.gameObject.name = "score";
             wideScore.supportRichText = true;
 
             const float recordY = 66f;
             const float recordH = 148f;
-            Portrait.Box(seat, "record-box", 216f, recordY, 220f, recordH, 7f, 1f, Color.white, Color.black, false);
-            TextAt(seat, "実績", 224f, recordY + 4f, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
+            Portrait.Box(seat, "record-box", 216f, recordY, 220f, recordH, 7f, 1f, Ecru, Ink, false);
+            TextAt(seat, "実績", 224f, recordY + 4f, 80f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
             var achieved = Portrait.Rect(seat, "achieved-cards", 224f, recordY + 30f, 200f, recordH - 38f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 2f, 3f, 0.62f);
 
-            TextAt(seat, "ノルマ", 452f, recordY, 80f, 24f, 14, Color.black, nameFont, TextAnchor.MiddleLeft);
+            TextAt(seat, "ノルマ", 452f, recordY, 80f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
             var quotaCards = Portrait.Rect(seat, "quota-cards", 452f, recordY + 22f, 730f, CardHeight + 4f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
@@ -1766,7 +1856,7 @@ namespace Quota
 
         void DrawTitleName(Transform parent, string name, string text, float x, float y, float width, float height, int font, bool struck)
         {
-            var color = struck ? Hex("#8a8a8a") : Color.black;
+            var color = struck ? Hex("#8a8a8a") : Ink;
             var label = TextAt(parent, text, x, y, width, height, font, color, nameFont, TextAnchor.MiddleCenter);
             label.gameObject.name = name;
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -1862,7 +1952,7 @@ namespace Quota
         (RectTransform ring, RectTransform disk) DrawCoin(Transform parent, BonusCoin coin, float x, float y, float diameter)
         {
             var color = coin.Kind == CoinKind.Purple ? Hex("#a04bff") : coin.Kind == CoinKind.Blue ? Hex("#3c7dff") : Hex("#3cce3c");
-            var ring = Portrait.Circle(parent, "spot-" + coin.Key, x - 1f, y - 1f, diameter + 2f, Color.black);
+            var ring = Portrait.Circle(parent, "spot-" + coin.Key, x - 1f, y - 1f, diameter + 2f, Ink);
             var disk = Portrait.Circle(parent, "coin", x, y, diameter, color);
             return (ring, disk);
         }
@@ -1960,7 +2050,7 @@ namespace Quota
             var group = host.gameObject.AddComponent<CanvasGroup>();
             group.alpha = dim ? 0.35f : 1f;
             group.blocksRaycasts = onClick != null;
-            Portrait.Box(host, "face", 0f, 0f, width, height, 4.5f * scale, Mathf.Max(1f, scale), Color.white, Color.black, false);
+            Portrait.Box(host, "face", 0f, 0f, width, height, 4.5f * scale, Mathf.Max(1f, scale), Color.white, Ink, false);
             var kind = KindIndex(card);
             var ink = IndicatorColors[kind];
             Portrait.Solid(host, "mark", 0f, (66f + kind * 10f) * scale, 4f * scale, 10f * scale, ink);
@@ -1982,7 +2072,7 @@ namespace Quota
             {
                 Portrait.Circle(host, "suit", iconX, iconY, diameter, ink);
             }
-            Baseline(host, face.Name, 47.5f * scale, 118f * scale, GoodsNameSize * scale, Color.black, roundFont, width - 8f);
+            Baseline(host, face.Name, 47.5f * scale, 118f * scale, GoodsNameSize * scale, Ink, roundFont, width - 8f);
             if (onClick == null) return;
             var hit = host.gameObject.AddComponent<Image>();
             hit.sprite = Portrait.White;
@@ -2038,17 +2128,18 @@ namespace Quota
         void LeaveButton()
         {
             const string caption = "ゲームから抜ける";
-            var width = caption.Length * 28f + 8f;
+            var width = caption.Length * 28f + 36f;
             var x = WideScreen() ? LandWidth - 24f - width : ScreenWidth - 20f - width;
             var y = WideScreen() ? 40f : 18f;
             var host = Portrait.Rect(frame, caption, x, y, width, 40f);
             var hit = host.gameObject.AddComponent<Image>();
-            hit.sprite = Portrait.White;
-            hit.color = new Color(1f, 1f, 1f, 0f);
+            hit.sprite = Portrait.SlicedRound;
+            hit.type = Image.Type.Sliced;
+            hit.color = Ecru;
             var button = host.gameObject.AddComponent<Button>();
             button.targetGraphic = hit;
             button.onClick.AddListener(() => Ask("leave"));
-            var label = TextAt(host, caption, 0f, 0f, width, 40f, 28, Color.black, nameFont, TextAnchor.MiddleRight);
+            var label = TextAt(host, caption, 12f, 0f, width - 20f, 40f, 28, Ink, nameFont, TextAnchor.MiddleRight);
             label.raycastTarget = false;
         }
 
@@ -2096,13 +2187,13 @@ namespace Quota
             const float panelHeight = 280f;
             RectTransform panel;
             if (WideScreen() || (confirm == "leave" && !hasHuman))
-                panel = Portrait.Box(frame, "confirm", ((WideScreen() ? LandWidth : ScreenWidth) - panelWidth) * 0.5f, ((WideScreen() ? LandHeight : ScreenHeight) - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
+                panel = Portrait.Box(frame, "confirm", ((WideScreen() ? LandWidth : ScreenWidth) - panelWidth) * 0.5f, ((WideScreen() ? LandHeight : ScreenHeight) - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Paper, Ink, false);
             else
             {
                 var seat = seatFrames[seatIndex];
-                panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Color.white, Color.black, false);
+                panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Paper, Ink, false);
             }
-            TextAt(panel, message, 24f, 28f, 652f, 80f, 32, Color.black, nameFont, TextAnchor.MiddleCenter);
+            TextAt(panel, message, 24f, 28f, 652f, 80f, 32, Ink, nameFont, TextAnchor.MiddleCenter);
             var yesWidth = yes.Length * 32f + 30f;
             Pill(panel, yes, 40f, 150f, yesWidth, 72f, 32, () =>
             {
@@ -2134,12 +2225,12 @@ namespace Quota
             var veil = Portrait.Rect(frame, "offer", 0f, 0f, veilW, veilH);
             var shade = veil.gameObject.AddComponent<Image>();
             shade.sprite = Portrait.White;
-            shade.color = new Color(0f, 0f, 0f, 0.35f);
+            shade.color = new Color(0.10f, 0.07f, 0.05f, 0.5f);
             shade.raycastTarget = true;
             var offerX = WideScreen() ? (LandWidth - 800f) * 0.5f : 140f;
             var offerY = WideScreen() ? (LandHeight - 340f) * 0.5f : 760f;
-            var panel = Portrait.Box(veil, "offer-card", offerX, offerY, 800f, 340f, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, "シンプルモードをオフにして標準ルールに戻しますか？", 32f, 36f, 736f, 140f, 28, Color.black, nameFont, TextAnchor.MiddleCenter);
+            var panel = Portrait.Box(veil, "offer-card", offerX, offerY, 800f, 340f, 7f, 1f, Paper, Ink, false);
+            TextAt(panel, "シンプルモードをオフにして標準ルールに戻しますか？", 32f, 36f, 736f, 140f, 28, Ink, nameFont, TextAnchor.MiddleCenter);
             Pill(panel, "はい", 48f, 210f, 200f, 72f, 32, () =>
             {
                 simpleMode = false;
@@ -2165,8 +2256,8 @@ namespace Quota
             var resultX = WideScreen() ? (LandWidth - 900f) * 0.5f : 90f;
             var resultY = WideScreen() ? 80f : 430f;
             var resultH = WideScreen() ? 920f : 1100f;
-            var panel = Portrait.Box(frame, "result", resultX, resultY, 900f, resultH, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, game.EndReason == "DECK" ? "ゲーム終了" : "膠着の連続", 32f, 24f, 836f, 56f, 36, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var panel = Portrait.Box(frame, "result", resultX, resultY, 900f, resultH, 7f, 1f, Paper, Ink, false);
+            TextAt(panel, game.EndReason == "DECK" ? "ゲーム終了" : "膠着の連続", 32f, 24f, 836f, 56f, 36, Ink, nameFont, TextAnchor.MiddleLeft);
             var place = 1;
             var y = 96f;
             foreach (var group in game.Ranking())
@@ -2174,11 +2265,11 @@ namespace Quota
                 foreach (var seat in group)
                 {
                     var player = game.Players[seat];
-                    TextAt(panel, $"{place}位 {player.Name} {game.FinalScore(player)}点（達成{player.AchieveCount} / 最高{player.MaxSingleScore}）", 32f, y, 836f, 36f, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
+                    TextAt(panel, $"{place}位 {player.Name} {game.FinalScore(player)}点（達成{player.AchieveCount} / 最高{player.MaxSingleScore}）", 32f, y, 836f, 36f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
                     y += 36f;
                     foreach (var line in Perks(game, player))
                     {
-                        TextAt(panel, line, 48f, y, 820f, 32f, 18, Color.black, nameFont, TextAnchor.MiddleLeft);
+                        TextAt(panel, line, 48f, y, 820f, 32f, 18, Ink, nameFont, TextAnchor.MiddleLeft);
                         y += 30f;
                     }
                 }
@@ -2382,22 +2473,48 @@ namespace Quota
             label.raycastTarget = false;
         }
 
-        void Pill(Transform parent, string caption, float x, float y, float width, float height, int size, UnityAction action)
+        void Pill(Transform parent, string caption, float x, float y, float width, float height, int size, UnityAction action, bool accent = false)
         {
-            var host = Portrait.Box(parent, caption, x, y, width, height, 7f, 1f, Color.white, Color.black, false);
+            var host = Portrait.Box(parent, caption, x, y, width, height, 7f, 1f, accent ? Accent : Ecru, Ink, false);
             var hit = host.GetComponent<Image>();
             hit.raycastTarget = true;
             var button = host.gameObject.AddComponent<Button>();
             button.targetGraphic = hit;
             button.onClick.AddListener(action);
-            TextAt(host, caption, 0f, 0f, width, height, size, Color.black, nameFont, TextAnchor.MiddleCenter);
+            TextAt(host, caption, 8f, 0f, width - 16f, height, size, accent ? Cream : Ink, nameFont, TextAnchor.MiddleCenter);
+        }
+
+        RectTransform SoftPanel(Transform parent, string name, float x, float y, float width, float height, Color fill)
+        {
+            var host = Portrait.Rect(parent, name, x, y, width, height);
+            var image = host.gameObject.AddComponent<Image>();
+            image.sprite = Portrait.SlicedRound;
+            image.type = Image.Type.Sliced;
+            image.color = fill;
+            image.raycastTarget = false;
+            return host;
+        }
+
+        Text PhotoText(Transform parent, string text, float x, float y, float width, float height, int size, TextAnchor anchor)
+        {
+            SoftPanel(parent, "chip", x, y, width, height, Plate);
+            var label = TextAt(parent, text, x + 12f, y, Mathf.Max(8f, width - 20f), height, size, Ink, nameFont, anchor);
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            return label;
+        }
+
+        static void Shade(Text label)
+        {
+            var shadow = label.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0.08f, 0.05f, 0.04f, 0.9f);
+            shadow.effectDistance = new Vector2(1.5f, -1.5f);
         }
 
         void DrawSetupPage(bool wide)
         {
             var screenW = wide ? LandWidth : ScreenWidth;
             var screenH = wide ? LandHeight : ScreenHeight;
-            var veil = Portrait.Solid(frame, "setup-veil", 0f, 0f, screenW, screenH, new Color(0f, 0f, 0f, 0.28f));
+            var veil = Portrait.Solid(frame, "setup-veil", 0f, 0f, screenW, screenH, new Color(0.10f, 0.07f, 0.05f, 0.58f));
             veil.GetComponent<Image>().raycastTarget = true;
             if (setupPage == "settings") DrawSettings(screenW, screenH);
             else DrawGuide(screenW, screenH);
@@ -2407,8 +2524,8 @@ namespace Quota
         {
             const float panelW = 860f;
             const float panelH = 560f;
-            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, "設定", 32f, 24f, panelW - 64f, 48f, 32, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Paper, Ink, false);
+            TextAt(panel, "設定", 32f, 24f, panelW - 64f, 48f, 32, Ink, nameFont, TextAnchor.MiddleLeft);
             Pill(panel, draftSimple ? "シンプルモード　オン" : "シンプルモード　オフ", 32f, 96f, panelW - 64f, 72f, 28, () =>
             {
                 draftSimple = !draftSimple;
@@ -2422,7 +2539,7 @@ namespace Quota
             var cancelW = 240f;
             var buttonGap = 20f;
             var buttonsX = (panelW - decideW - buttonGap - cancelW) * 0.5f;
-            Pill(panel, "決定", buttonsX, panelH - 112f, decideW, 72f, 28, ApplySettings);
+            Pill(panel, "決定", buttonsX, panelH - 112f, decideW, 72f, 28, ApplySettings, true);
             Pill(panel, "キャンセル", buttonsX + decideW + buttonGap, panelH - 112f, cancelW, 72f, 28, () =>
             {
                 setupPage = null;
@@ -2434,8 +2551,8 @@ namespace Quota
         {
             var panelW = Mathf.Min(980f, screenW - 48f);
             var panelH = Mathf.Min(screenH - 80f, screenW > screenH ? 820f : 1400f);
-            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Color.white, Color.black, false);
-            TextAt(panel, GuideCopy.Title(setupPage), 32f, 16f, panelW - 64f, 56f, 40, Color.black, nameFont, TextAnchor.MiddleLeft);
+            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Paper, Ink, false);
+            TextAt(panel, GuideCopy.Title(setupPage), 32f, 16f, panelW - 64f, 56f, 40, Ink, nameFont, TextAnchor.MiddleLeft);
             var viewW = panelW - 64f;
             const float viewTop = 84f;
             var viewH = panelH - viewTop - 100f;
@@ -2445,7 +2562,7 @@ namespace Quota
             hit.color = new Color(1f, 1f, 1f, 0.01f);
             hit.raycastTarget = true;
             var content = Portrait.Rect(viewport, "guide-body", 0f, 0f, viewW, viewH);
-            var text = TextAt(content, GuideCopy.Body(setupPage), 0f, 0f, viewW, viewH, 36, Color.black, nameFont, TextAnchor.UpperLeft);
+            var text = TextAt(content, GuideCopy.Body(setupPage), 0f, 0f, viewW, viewH, 36, Ink, nameFont, TextAnchor.UpperLeft);
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = true;
@@ -2469,8 +2586,8 @@ namespace Quota
 
         InputField DialogField(Transform parent, string caption, string value, float x, float y, float width)
         {
-            TextAt(parent, caption, x, y, width, 28f, 22, Color.black, nameFont, TextAnchor.MiddleLeft);
-            var host = Portrait.Box(parent, caption, x, y + 32f, width, 56f, 4f, 1f, Color.white, Color.black, false);
+            TextAt(parent, caption, x, y, width, 28f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+            var host = Portrait.Box(parent, caption, x, y + 32f, width, 56f, 4f, 1f, Field, Ink, false);
             host.GetComponent<Image>().raycastTarget = true;
             var textGo = new GameObject("text", typeof(RectTransform), typeof(Text));
             textGo.transform.SetParent(host, false);
@@ -2478,7 +2595,7 @@ namespace Quota
             var text = textGo.GetComponent<Text>();
             text.font = nameFont;
             text.fontSize = 28;
-            text.color = Color.black;
+            text.color = Ink;
             text.supportRichText = false;
             var field = host.gameObject.AddComponent<InputField>();
             field.textComponent = text;
@@ -2531,9 +2648,10 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
+            var accent = caption == "対局開始";
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
-            image.color = Color.white;
+            image.color = accent ? Accent : Ecru;
             SizeElement(go.GetComponent<LayoutElement>(), width, height);
             var label = new GameObject("caption", typeof(RectTransform), typeof(Text));
             label.transform.SetParent(go.transform, false);
@@ -2541,7 +2659,7 @@ namespace Quota
             var text = label.GetComponent<Text>();
             text.font = nameFont;
             text.fontSize = fontSize;
-            text.color = Color.black;
+            text.color = accent ? Cream : Ink;
             text.alignment = TextAnchor.MiddleCenter;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
@@ -2566,7 +2684,7 @@ namespace Quota
             var image = go.GetComponent<Image>();
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
-            image.color = Color.white;
+            image.color = Field;
             image.raycastTarget = true;
             SizeElement(go.GetComponent<LayoutElement>(), fieldW, height);
             var textGo = new GameObject("text", typeof(RectTransform), typeof(Text));
@@ -2575,7 +2693,7 @@ namespace Quota
             var text = textGo.GetComponent<Text>();
             text.font = nameFont;
             text.fontSize = fontSize;
-            text.color = Color.black;
+            text.color = Ink;
             text.alignment = TextAnchor.MiddleLeft;
             text.supportRichText = false;
             var field = go.GetComponent<InputField>();
@@ -2586,8 +2704,13 @@ namespace Quota
 
         RectTransform FormRow(RectTransform parent, string caption, float rowW, float height, float labelW, int fontSize)
         {
-            var go = new GameObject(caption, typeof(RectTransform), typeof(LayoutElement), typeof(HorizontalLayoutGroup));
+            var go = new GameObject(caption, typeof(RectTransform), typeof(LayoutElement), typeof(HorizontalLayoutGroup), typeof(Image));
             go.transform.SetParent(parent, false);
+            var plate = go.GetComponent<Image>();
+            plate.sprite = Portrait.SlicedRound;
+            plate.type = Image.Type.Sliced;
+            plate.color = Plate;
+            plate.raycastTarget = false;
             SizeElement(go.GetComponent<LayoutElement>(), rowW, height);
             var layout = go.GetComponent<HorizontalLayoutGroup>();
             layout.spacing = 12f;
@@ -2602,7 +2725,7 @@ namespace Quota
             var text = label.GetComponent<Text>();
             text.font = nameFont;
             text.fontSize = fontSize;
-            text.color = Color.white;
+            text.color = Ink;
             text.alignment = TextAnchor.MiddleLeft;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
@@ -2615,7 +2738,7 @@ namespace Quota
         {
             var width = 0f;
             foreach (var caption in captions) width = Mathf.Max(width, MeasuredTextWidth(caption, fontSize));
-            return width + 8f;
+            return width + 20f;
         }
 
         float MeasuredTextWidth(string value, int fontSize)
