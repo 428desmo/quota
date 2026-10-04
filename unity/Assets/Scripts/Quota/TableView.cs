@@ -754,14 +754,10 @@ namespace Quota
 
         void OpenLobby()
         {
-            if (SharedNetwork)
-            {
-                StartCoroutine(CreateNetworkTable());
-                return;
-            }
             lobbyOpen = true;
             EnsureCast();
             ShowSetup();
+            if (SharedNetwork && !NetworkJoined) StartCoroutine(CreateNetworkTable());
         }
 
         void CloseLobby()
@@ -779,34 +775,46 @@ namespace Quota
             while (SharedNetwork)
             {
                 if (!networkRequest) yield return NetworkGet();
-                yield return new WaitForSeconds(0.7f);
+                yield return new WaitForSeconds(onSetup ? 0.4f : 0.7f);
             }
         }
 
         IEnumerator NetworkGet()
         {
-            networkRequest = true;
-            var request = UnityWebRequest.Get(NetworkBase() + "/api/state");
-            request.SetRequestHeader("X-Quota-Client", NetworkClient());
-            yield return request.SendWebRequest();
-            networkRequest = false;
-            if (request.result == UnityWebRequest.Result.Success)
-                ApplyNetworkState(request.downloadHandler.text);
+            yield return NetworkSend("/api/state", null);
         }
 
         IEnumerator NetworkPost(string path, string json)
         {
+            yield return NetworkSend(path, json);
+        }
+
+        IEnumerator NetworkSend(string path, string json)
+        {
             while (networkRequest) yield return null;
             networkRequest = true;
-            var request = new UnityWebRequest(NetworkBase() + path, UnityWebRequest.kHttpVerbPOST);
-            request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
-            request.downloadHandler = new DownloadHandlerBuffer();
-            request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("X-Quota-Client", NetworkClient());
-            yield return request.SendWebRequest();
+            var posted = json != null;
+            var body = posted ? System.Text.Encoding.UTF8.GetBytes(json) : null;
+            foreach (var root in NetworkRoots())
+            {
+                var request = posted
+                    ? new UnityWebRequest(root + path, UnityWebRequest.kHttpVerbPOST)
+                    : UnityWebRequest.Get(root + path);
+                if (posted)
+                {
+                    request.uploadHandler = new UploadHandlerRaw(body);
+                    request.SetRequestHeader("Content-Type", "application/json");
+                }
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.SetRequestHeader("X-Quota-Client", NetworkClient());
+                yield return request.SendWebRequest();
+                if (request.result == UnityWebRequest.Result.Success)
+                {
+                    ApplyNetworkState(request.downloadHandler.text);
+                    break;
+                }
+            }
             networkRequest = false;
-            if (request.result == UnityWebRequest.Result.Success)
-                ApplyNetworkState(request.downloadHandler.text);
         }
 
         void ApplyNetworkState(string json)
@@ -814,12 +822,12 @@ namespace Quota
             if (string.IsNullOrEmpty(json)) return;
             var next = JsonUtility.FromJson<NetworkSnapshot>(json);
             if (next == null || !string.IsNullOrEmpty(next.error)) return;
+            var wasRecruiting = networkState != null && networkState.phase == "recruiting";
             networkState = next;
             if (next.phase == "hall")
             {
-                networkTables.Clear();
-                if (next.tables != null) networkTables.AddRange(next.tables);
-                lobbyOpen = false;
+                ReadHallTables(json, next);
+                if (wasRecruiting) lobbyOpen = false;
             }
             else if (next.phase == "recruiting")
             {
@@ -833,10 +841,53 @@ namespace Quota
                 NavigateToNetworkGame();
                 return;
             }
-            var signature = json;
+            var signature = next.phase + ":" + (next.table_id ?? "") + ":" + HallSignature();
             if (signature == networkSignature) return;
             networkSignature = signature;
             if (onSetup && frame != null && frame.Find("splash") == null) ShowSetup();
+        }
+
+        void ReadHallTables(string json, NetworkSnapshot next)
+        {
+            networkTables.Clear();
+            if (next.tables != null && next.tables.Length > 0)
+            {
+                networkTables.AddRange(next.tables);
+                return;
+            }
+            var wrapped = JsonUtility.FromJson<NetworkSnapshot>("{\"tables\":" + SliceJsonArray(json, "tables") + "}");
+            if (wrapped != null && wrapped.tables != null) networkTables.AddRange(wrapped.tables);
+        }
+
+        string HallSignature()
+        {
+            var parts = new List<string>();
+            for (var i = 0; i < networkTables.Count; i++)
+            {
+                var table = networkTables[i];
+                parts.Add($"{table.id}:{table.leader}:{table.seated}/{table.players}:{table.status}");
+            }
+            return string.Join("|", parts);
+        }
+
+        static string SliceJsonArray(string json, string name)
+        {
+            var key = "\"" + name + "\"";
+            var at = json.IndexOf(key, System.StringComparison.Ordinal);
+            if (at < 0) return "[]";
+            var start = json.IndexOf('[', at);
+            if (start < 0) return "[]";
+            var depth = 0;
+            for (var i = start; i < json.Length; i++)
+            {
+                if (json[i] == '[') depth++;
+                else if (json[i] == ']')
+                {
+                    depth--;
+                    if (depth == 0) return json.Substring(start, i - start + 1);
+                }
+            }
+            return "[]";
         }
 
         IEnumerator CreateNetworkTable()
@@ -883,14 +934,24 @@ namespace Quota
             StartCoroutine(NetworkPost("/api/leave", "{}"));
         }
 
-        string NetworkBase()
+        IEnumerable<string> NetworkRoots()
         {
+            var seen = new HashSet<string>();
             System.Uri uri;
             if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri))
             {
-                var builder = new System.UriBuilder(uri.Scheme, uri.Host, 8000);
-                return builder.Uri.GetLeftPart(System.UriPartial.Authority);
+                seen.Add(uri.GetLeftPart(System.UriPartial.Authority));
+                seen.Add(new System.UriBuilder(uri.Scheme, uri.Host, 8000).Uri.GetLeftPart(System.UriPartial.Authority));
             }
+            seen.Add("http://127.0.0.1:8000");
+            return seen;
+        }
+
+        string NetworkPlayRoot()
+        {
+            System.Uri uri;
+            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri))
+                return new System.UriBuilder(uri.Scheme, uri.Host, 8000).Uri.GetLeftPart(System.UriPartial.Authority);
             return "http://127.0.0.1:8000";
         }
 
@@ -906,7 +967,7 @@ namespace Quota
 
         void NavigateToNetworkGame()
         {
-            var url = NetworkBase() + "/?client=" + UnityWebRequest.EscapeURL(NetworkClient());
+            var url = NetworkPlayRoot() + "/?client=" + UnityWebRequest.EscapeURL(NetworkClient());
 #if UNITY_WEBGL && !UNITY_EDITOR
             QuotaNavigate(url);
 #else
