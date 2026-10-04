@@ -31,6 +31,7 @@ namespace Quota
         const float SplashFadeSeconds = 0.6f;
         const int AdvancedPromptAfter = 3;
         const string SplashCopy = "港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
+        const string BuildStamp = "UNITY-WEBGL e7a35c2";
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
@@ -362,7 +363,7 @@ namespace Quota
             var splash = Portrait.Rect(frame, "splash", 0f, 0f, width, height);
             splash.gameObject.AddComponent<CanvasGroup>();
             var veil = splash.gameObject.AddComponent<Image>();
-            veil.color = new Color(0.10f, 0.07f, 0.05f, 0.82f);
+            veil.color = new Color(0.10f, 0.07f, 0.05f, 1f);
             veil.raycastTarget = true;
             var panelW = wide ? 1040f : 880f;
             var panelH = 320f;
@@ -372,6 +373,7 @@ namespace Quota
             var copy = TextAt(splash, SplashCopy, panelX + 40f, panelY + 28f, panelW - 80f, panelH - 56f, 34, Ink, nameFont, TextAnchor.MiddleCenter);
             copy.horizontalOverflow = HorizontalWrapMode.Overflow;
             copy.lineSpacing = 1.15f;
+            Shade(TextAt(splash, BuildStamp, 24f, height - 72f, width - 48f, 40f, 28, Cream, nameFont, TextAnchor.MiddleCenter));
             if (Application.isPlaying) splashRun = StartCoroutine(FadeSplash());
         }
 
@@ -594,6 +596,7 @@ namespace Quota
             if (lobbyOpen) DrawLobby(screenW, columnTop, available, showReview);
             else DrawStartMenu(screenW, columnTop, available, showReview);
             if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
+            Shade(TextAt(frame, BuildStamp, 24f, screenH - 56f, screenW - 48f, 40f, 24, Cream, nameFont, TextAnchor.MiddleCenter));
         }
 
         RectTransform SetupColumn(float screenW, float columnTop, float height)
