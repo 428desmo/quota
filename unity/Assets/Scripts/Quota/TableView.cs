@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
@@ -86,6 +87,11 @@ namespace Quota
         bool onSetup = true;
         readonly List<int> lobbyCast = new List<int>();
         readonly System.Random lobbyRng = new System.Random();
+        NetworkSnapshot networkState;
+        readonly List<NetworkTable> networkTables = new List<NetworkTable>();
+        string networkSignature = "";
+        bool networkRequest;
+        bool networkNavigating;
         string draftOk = "5";
         string draftTurn = "120";
         bool draftSimple;
@@ -187,6 +193,8 @@ namespace Quota
             EnsureBackdropGrade();
             Fit();
             LoadRules();
+            if (Application.platform == RuntimePlatform.WebGLPlayer && Application.isPlaying)
+                StartCoroutine(PollNetworkLobby());
             if (Application.platform != RuntimePlatform.WebGLPlayer) ShowSplash();
         }
 
@@ -588,14 +596,13 @@ namespace Quota
             var wide = WideScreen();
             var screenW = wide ? LandWidth : ScreenWidth;
             var screenH = wide ? LandHeight : ScreenHeight;
-            var x = wide ? 96f : 48f;
             var title = TitleSprite(true);
             var catchLine = TitleSprite(false);
-            if (title != null) PlaceSprite(frame, "title-mark", title, x, 24f, 760f, 152f);
-            else Shade(TextAt(frame, "QUOTA", x, 36f, 700f, 72f, 64, Cream, nameFont, TextAnchor.MiddleLeft));
-            if (catchLine != null) PlaceSprite(frame, "title-catch", catchLine, x, 184f, 560f, 56f);
-            else Shade(TextAt(frame, "ノルマは、自分で決めろ。", x, 184f, 700f, 40f, 28, Cream, nameFont, TextAnchor.MiddleLeft));
-            const float columnTop = 260f;
+            if (title != null) PlaceSprite(frame, "title-mark", title, (screenW - 760f) * 0.5f, 24f, 760f, 152f);
+            else Shade(TextAt(frame, "QUOTA", (screenW - 700f) * 0.5f, 36f, 700f, 72f, 64, Cream, nameFont, TextAnchor.MiddleCenter));
+            if (catchLine != null) PlaceSprite(frame, "title-catch", catchLine, (screenW - 560f) * 0.5f, 184f, 560f, 56f);
+            else Shade(TextAt(frame, "ノルマは、自分で決めろ。", (screenW - 700f) * 0.5f, 184f, 700f, 40f, 28, Cream, nameFont, TextAnchor.MiddleCenter));
+            const float columnTop = 384f;
             var showReview = reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0;
             var available = screenH - columnTop - 24f;
             if (lobbyOpen) DrawLobby(screenW, columnTop, available, showReview);
@@ -620,7 +627,8 @@ namespace Quota
         void DrawStartMenu(float screenW, float columnTop, float available, bool showReview)
         {
             const float innerGap = 16f;
-            var buttonH = SetupButtonHeight(available, 10f + (showReview ? 1f : 0f), 2 + (showReview ? 1 : 0));
+            var tableCount = Mathf.Min(3, networkTables.Count);
+            var buttonH = SetupButtonHeight(available, 10f + tableCount + (showReview ? 1f : 0f), 2 + tableCount + (showReview ? 1 : 0));
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
             var column = SetupColumn(screenW, columnTop, available + 24f);
             var guideW = screenW * 0.40f;
@@ -636,6 +644,13 @@ namespace Quota
             var labelW = LabelSlot(font, "あなたの名前：");
             var name = SetupNameRow(column, "あなたの名前：", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName, rowW, buttonH, labelW, rowW - labelW - 12f - font, font);
             name.onValueChanged.AddListener(value => playerName = value);
+            for (var i = 0; i < tableCount; i++)
+            {
+                SetupGap(column, innerGap);
+                var table = networkTables[i];
+                var action = table.status == "募集中" && table.seated < table.players ? "参加" : "観戦";
+                SetupButton(column, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW, buttonH, font);
+            }
             SetupGap(column, section);
             SetupButton(column, "対局開始", OpenLobby, actionW, buttonH * 2f, font * 2);
             if (showReview)
@@ -658,8 +673,13 @@ namespace Quota
             var labelW = LabelSlot(font, "プレイヤーの数：");
             SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
             {
-                playerCount = playerCount == 3 ? 4 : 3;
-                ShowSetup();
+                var next = playerCount == 3 ? 4 : 3;
+                if (NetworkJoined) SetNetworkPlayers(next);
+                else
+                {
+                    playerCount = next;
+                    ShowSetup();
+                }
             });
             SetupGap(column, innerGap);
             var seatNumber = 1;
@@ -669,19 +689,28 @@ namespace Quota
                 seatNumber++;
                 SetupGap(column, innerGap);
             }
-            SetupButton(column, "シャッフル", ShuffleCast, actionW, buttonH, font);
-            SetupGap(column, section);
-            SetupButton(column, sitOut ? "自分は参加しない　オン" : "自分は参加しない　オフ", () =>
+            SetupButton(column, "シャッフル", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, actionW, buttonH, font);
+            if (!NetworkJoined)
             {
-                sitOut = !sitOut;
-                ShowSetup();
-            }, rowW, buttonH, font);
-            SetupGap(column, innerGap);
+                SetupGap(column, section);
+                SetupButton(column, sitOut ? "自分は参加しない　オン" : "自分は参加しない　オフ", () =>
+                {
+                    sitOut = !sitOut;
+                    ShowSetup();
+                }, rowW, buttonH, font);
+                SetupGap(column, innerGap);
+            }
+            else SetupGap(column, section);
             SetupButton(column, "設定", OpenSettings, actionW, buttonH, font);
             SetupGap(column, section);
-            SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
+            if (NetworkJoined)
+            {
+                var leader = networkState.you != null && networkState.you.leader;
+                SetupButton(column, leader ? "ゲーム開始" : "リーダーの開始を待っています", leader ? (UnityAction)StartNetworkMatch : () => { }, actionW, buttonH * 2f, leader ? font * 2 : font);
+            }
+            else SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
             SetupGap(column, innerGap);
-            SetupButton(column, "戻る", CloseLobby, actionW, buttonH, font);
+            SetupButton(column, "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
             if (showReview)
             {
                 SetupGap(column, innerGap);
@@ -691,6 +720,17 @@ namespace Quota
 
         List<KeyValuePair<string, bool>> LobbySeats()
         {
+            if (NetworkJoined)
+            {
+                var networkSeats = new List<KeyValuePair<string, bool>>();
+                if (networkState.seats != null)
+                    foreach (var seat in networkState.seats)
+                        networkSeats.Add(new KeyValuePair<string, bool>(seat.name, false));
+                if (networkState.cpus != null)
+                    foreach (var cpu in networkState.cpus)
+                        networkSeats.Add(new KeyValuePair<string, bool>(cpu, true));
+                return networkSeats;
+            }
             EnsureCast();
             var seats = new List<KeyValuePair<string, bool>>();
             if (!sitOut) seats.Add(new KeyValuePair<string, bool>(HumanName(), false));
@@ -714,6 +754,11 @@ namespace Quota
 
         void OpenLobby()
         {
+            if (SharedNetwork)
+            {
+                StartCoroutine(CreateNetworkTable());
+                return;
+            }
             lobbyOpen = true;
             EnsureCast();
             ShowSetup();
@@ -724,6 +769,155 @@ namespace Quota
             lobbyOpen = false;
             ShowSetup();
         }
+
+        bool SharedNetwork => Application.isPlaying && Application.platform == RuntimePlatform.WebGLPlayer;
+        bool NetworkJoined => networkState != null && networkState.phase == "recruiting" && !string.IsNullOrEmpty(networkState.table_id);
+
+        IEnumerator PollNetworkLobby()
+        {
+            yield return new WaitForSeconds(SplashSeconds + SplashFadeSeconds);
+            while (SharedNetwork)
+            {
+                if (!networkRequest) yield return NetworkGet();
+                yield return new WaitForSeconds(0.7f);
+            }
+        }
+
+        IEnumerator NetworkGet()
+        {
+            networkRequest = true;
+            var request = UnityWebRequest.Get(NetworkBase() + "/api/state");
+            request.SetRequestHeader("X-Quota-Client", NetworkClient());
+            yield return request.SendWebRequest();
+            networkRequest = false;
+            if (request.result == UnityWebRequest.Result.Success)
+                ApplyNetworkState(request.downloadHandler.text);
+        }
+
+        IEnumerator NetworkPost(string path, string json)
+        {
+            while (networkRequest) yield return null;
+            networkRequest = true;
+            var request = new UnityWebRequest(NetworkBase() + path, UnityWebRequest.kHttpVerbPOST);
+            request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.SetRequestHeader("X-Quota-Client", NetworkClient());
+            yield return request.SendWebRequest();
+            networkRequest = false;
+            if (request.result == UnityWebRequest.Result.Success)
+                ApplyNetworkState(request.downloadHandler.text);
+        }
+
+        void ApplyNetworkState(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return;
+            var next = JsonUtility.FromJson<NetworkSnapshot>(json);
+            if (next == null || !string.IsNullOrEmpty(next.error)) return;
+            networkState = next;
+            if (next.phase == "hall")
+            {
+                networkTables.Clear();
+                if (next.tables != null) networkTables.AddRange(next.tables);
+                lobbyOpen = false;
+            }
+            else if (next.phase == "recruiting")
+            {
+                networkTables.Clear();
+                lobbyOpen = true;
+                playerCount = next.players;
+            }
+            else if ((next.phase == "playing" || next.phase == "finished") && !networkNavigating)
+            {
+                networkNavigating = true;
+                NavigateToNetworkGame();
+                return;
+            }
+            var signature = json;
+            if (signature == networkSignature) return;
+            networkSignature = signature;
+            if (onSetup && frame != null && frame.Find("splash") == null) ShowSetup();
+        }
+
+        IEnumerator CreateNetworkTable()
+        {
+            SaveRules();
+            var body = new NetworkCreate
+            {
+                players = playerCount,
+                name = HumanName(),
+                simple = simpleMode,
+                sequence = sequenceRule,
+                title = titleRule,
+                special = specialRule,
+                ok_timeout = okTimeout,
+                ok_timeout_set = true,
+                turn_timeout = turnTimeout,
+            };
+            yield return NetworkPost("/api/table", JsonUtility.ToJson(body));
+        }
+
+        void JoinNetworkTable(string table)
+        {
+            if (!SharedNetwork || string.IsNullOrEmpty(table)) return;
+            StartCoroutine(NetworkPost("/api/join", JsonUtility.ToJson(new NetworkJoin { table = table, name = HumanName() })));
+        }
+
+        void SetNetworkPlayers(int players)
+        {
+            StartCoroutine(NetworkPost("/api/players", JsonUtility.ToJson(new NetworkPlayers { players = players })));
+        }
+
+        void ShuffleNetworkCast()
+        {
+            StartCoroutine(NetworkPost("/api/shuffle", "{}"));
+        }
+
+        void StartNetworkMatch()
+        {
+            StartCoroutine(NetworkPost("/api/start", "{}"));
+        }
+
+        void LeaveNetworkTable()
+        {
+            StartCoroutine(NetworkPost("/api/leave", "{}"));
+        }
+
+        string NetworkBase()
+        {
+            System.Uri uri;
+            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri))
+            {
+                var builder = new System.UriBuilder(uri.Scheme, uri.Host, 8000);
+                return builder.Uri.GetLeftPart(System.UriPartial.Authority);
+            }
+            return "http://127.0.0.1:8000";
+        }
+
+        string NetworkClient()
+        {
+            var id = PlayerPrefs.GetString("quota.network.client", "");
+            if (!string.IsNullOrEmpty(id)) return id;
+            id = System.Guid.NewGuid().ToString("N");
+            PlayerPrefs.SetString("quota.network.client", id);
+            PlayerPrefs.Save();
+            return id;
+        }
+
+        void NavigateToNetworkGame()
+        {
+            var url = NetworkBase() + "/?client=" + UnityWebRequest.EscapeURL(NetworkClient());
+#if UNITY_WEBGL && !UNITY_EDITOR
+            QuotaNavigate(url);
+#else
+            Application.OpenURL(url);
+#endif
+        }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")]
+        static extern void QuotaNavigate(string url);
+#endif
 
         static float SetupButtonHeight(float available, float units, int inners)
         {
@@ -931,6 +1125,69 @@ namespace Quota
             public int Seat;
             public CoinKind Kind;
             public int Serial;
+        }
+
+        [System.Serializable]
+        sealed class NetworkTable
+        {
+            public string id;
+            public string leader;
+            public int players;
+            public int seated;
+            public string status;
+        }
+
+        [System.Serializable]
+        sealed class NetworkSeat
+        {
+            public string name;
+            public bool leader;
+        }
+
+        [System.Serializable]
+        sealed class NetworkYou
+        {
+            public bool leader;
+        }
+
+        [System.Serializable]
+        sealed class NetworkSnapshot
+        {
+            public string phase;
+            public string table_id;
+            public int players;
+            public NetworkTable[] tables;
+            public NetworkSeat[] seats;
+            public string[] cpus;
+            public NetworkYou you;
+            public string error;
+        }
+
+        [System.Serializable]
+        sealed class NetworkCreate
+        {
+            public int players;
+            public string name;
+            public bool simple;
+            public bool sequence;
+            public bool title;
+            public bool special;
+            public float ok_timeout;
+            public bool ok_timeout_set;
+            public float turn_timeout;
+        }
+
+        [System.Serializable]
+        sealed class NetworkJoin
+        {
+            public string table;
+            public string name;
+        }
+
+        [System.Serializable]
+        sealed class NetworkPlayers
+        {
+            public int players;
         }
 
         struct TitleJob

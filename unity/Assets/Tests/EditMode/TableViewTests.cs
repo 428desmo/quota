@@ -120,6 +120,11 @@ namespace Quota.Tests
             Assert.AreEqual(WorldMidX(frame), WorldMidX(guide), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(start), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(nameRow), 2f);
+            var title = host.transform.Find("Root/Frame/title-mark") as RectTransform;
+            var catchLine = host.transform.Find("Root/Frame/title-catch") as RectTransform;
+            Assert.AreEqual(WorldMidX(frame), WorldMidX(title), 2f);
+            Assert.AreEqual(WorldMidX(frame), WorldMidX(catchLine), 2f);
+            Assert.GreaterOrEqual((WorldBottom(catchLine) - WorldTop(guide)) / scaleY, guide.rect.height * 2f - 2f);
 
             Color inkLabel;
             ColorUtility.TryParseHtmlString("#2C221E", out inkLabel);

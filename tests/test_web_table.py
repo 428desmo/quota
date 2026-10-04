@@ -93,6 +93,29 @@ def test_finished_exhibition_is_labeled_on_the_hall():
     assert not _table_expired(table, table.finished_at + 10)
 
 
+def test_another_browser_can_find_and_join_a_recruiting_table():
+    from quota.web import Hall
+
+    hall = Hall()
+    hall.create({"players": 4, "name": "竜二郎", "simple": True}, "owner")
+    public = hall.snapshot("guest")
+    assert public["phase"] == "hall"
+    assert public["tables"] == [{
+        "id": next(iter(hall.tables)),
+        "leader": "竜二郎",
+        "players": 4,
+        "seated": 1,
+        "status": "募集中",
+        "observers": 0,
+    }]
+
+    hall.join({"table": public["tables"][0]["id"], "name": "ともだち"}, "guest")
+    joined = hall.snapshot("guest")
+    assert joined["phase"] == "recruiting"
+    assert [seat["name"] for seat in joined["seats"]] == ["竜二郎", "ともだち"]
+    assert hall.tables[public["tables"][0]["id"]].summary()["seated"] == 2
+
+
 def test_the_lobby_names_the_cpus_that_will_fill_the_open_seats():
     table = Table()
     table.open({"players": 3, "name": "竜二郎", "simple": True}, "human")
