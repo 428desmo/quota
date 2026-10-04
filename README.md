@@ -2,7 +2,15 @@
 
 4種類とワイルドを集めてノルマを達成するカードゲーム。アイテムセットは交易品だけ。対局ごとに27品目から4種類を選び、ワイルドは金貨。
 
-規則の正本は `quota_rule_v1.11.md`。品目は `quota_goods_v1.0.json`。ターミナル版の操作は `quota_cli_spec_v1.1.md`。ブラウザ版は `quota_web_spec_v1.1.md`。
+規則の正本は `quota_rule_v1.11.md`。品目は `quota_goods_v1.0.json`。ターミナル版の操作は `quota_cli_spec_v1.1.md`。ブラウザ版は `quota_web_spec_v1.1.md`。CPUの戦略は `cpu_strategy_v1.0.md`、その強さの記録は `cpu_ranking_v1.0.json`。
+
+## CPUの強さを測る
+
+```bash
+python tools/rate_cpu.py --matches 30000 --seed 2
+```
+
+乱択の対戦でCPUキャラクターの評価点と順位を更新し、`cpu_ranking_v1.0.json` に足す。詳しくは `cpu_strategy_v1.0.md` の第8節。
 
 ## ブラウザで遊ぶ
 

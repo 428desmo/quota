@@ -100,6 +100,24 @@ namespace Quota
             before = rest / TriggerCount;
         }
 
+        /// <summary>The rating key: the strategy dimensions joined with dashes.</summary>
+        public static string KeyOf(int characterId)
+        {
+            Decode(characterId, out var before, out var trigger, out var after, out var stance, out var denial);
+            return $"{before}-{trigger}-{after}-{stance}-{denial}";
+        }
+
+        public static string KeyOf(IList<int> dims)
+        {
+            var text = new System.Text.StringBuilder();
+            for (var index = 0; index < dims.Count; index++)
+            {
+                if (index > 0) text.Append('-');
+                text.Append(dims[index]);
+            }
+            return text.ToString();
+        }
+
         public static string NameOf(int characterId)
         {
             var space = Adjectives.Length * Nouns.Length;
