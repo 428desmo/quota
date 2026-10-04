@@ -739,10 +739,20 @@ namespace Quota.Tests
             Assert.IsNull(match.Game);
             Assert.IsNull(FindText("本当にゲームから抜けますか？"));
             Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNull(host.transform.Find("Root/Frame/seat0"));
+            Assert.IsNull(FindButton("パス"));
+            Assert.IsTrue((bool)typeof(TableView).GetField("onSetup", flags).GetValue(view));
+            typeof(TableView).GetField("laidOutWide", flags).SetValue(view, true);
+            typeof(TableView).GetMethod("Update", flags).Invoke(view, null);
+            Rebuild(host);
+            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNull(host.transform.Find("Root/Frame/seat0"));
+            Assert.IsNull(FindButton("パス"));
             var run = (IEnumerator)typeof(TableView).GetMethod("RunCpus", flags).Invoke(view, new object[] { ticket });
             Drive(run);
             Assert.IsNull(match.Game);
             Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNull(FindButton("パス"));
         }
 
         [Test]

@@ -82,6 +82,7 @@ namespace Quota
         string setupPage;
         bool lobbyOpen;
         bool sitOut;
+        bool onSetup = true;
         readonly List<int> lobbyCast = new List<int>();
         readonly System.Random lobbyRng = new System.Random();
         string draftOk = "5";
@@ -261,8 +262,8 @@ namespace Quota
                 laidOutWide = wide;
                 return;
             }
-            if (match.Game != null) ShowTable();
-            else ShowSetup();
+            if (onSetup || match.Game == null) ShowSetup();
+            else ShowTable();
         }
 
         bool WideScreen()
@@ -543,6 +544,7 @@ namespace Quota
 
         void ShowSetup()
         {
+            onSetup = true;
             busy = false;
             backdropDim = true;
             PresentBackdrop();
@@ -842,6 +844,7 @@ namespace Quota
 
         void ShowTable()
         {
+            onSetup = false;
             backdropDim = false;
             PresentBackdrop();
             coinFrom = SnapshotCardCoins();
@@ -1691,6 +1694,8 @@ namespace Quota
             {
                 var child = transform.GetChild(i);
                 if (child.name != "flyer" && !child.name.StartsWith("cdot-")) continue;
+                child.gameObject.SetActive(false);
+                child.SetParent(null, false);
                 if (Application.isPlaying) Destroy(child.gameObject);
                 else DestroyImmediate(child.gameObject);
             }
@@ -2569,6 +2574,8 @@ namespace Quota
             for (var i = frame.childCount - 1; i >= 0; i--)
             {
                 var child = frame.GetChild(i).gameObject;
+                child.SetActive(false);
+                child.transform.SetParent(null, false);
                 child.name = "retired";
                 if (Application.isPlaying) Destroy(child);
                 else DestroyImmediate(child);
