@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from quota.ai import choose_action
-from quota.characters import assign_seats, bind_replacement
+from quota.characters import assign_seats, bind_replacement, display_name, pick_cast, seat_cast
 from quota.engine import Abandon, Collect, Game, GameConfig, Pass, TakeQuota
 
 ROOT = Path(__file__).resolve().parent.parent / "web"
@@ -42,6 +42,7 @@ class Table:
         self.observers: list[dict] = []
         self.roster: list[dict] = []
         self.capacity = 3
+        self.cpu_picks: list[int] = []
         self.turn_timeout = 120.0
         self.finished_at: float | None = None
         self.turn_deadline: float | None = None
@@ -95,7 +96,48 @@ class Table:
         }]
         self.observers = []
         self.seat_owner = {}
+        self.cpu_picks = pick_cast(max(0, players - 1))
         self._remember_name()
+        self.touch()
+
+    def _require_leader(self, client_id: str) -> None:
+        if self.phase != "recruiting":
+            raise ValueError("募集中ではありません")
+        if self.leader_id() != client_id:
+            raise ValueError("リーダーだけが変えられます")
+
+    def _fit_cast(self) -> None:
+        """Keep one character per seat the leader could still leave to a CPU."""
+        want = max(0, self.capacity - 1)
+        del self.cpu_picks[want:]
+        if len(self.cpu_picks) < want:
+            self.cpu_picks += pick_cast(want - len(self.cpu_picks), used=self.cpu_picks)
+
+    def open_seats(self) -> int:
+        return max(0, self.capacity - len(self.roster))
+
+    def cast_names(self) -> list[str]:
+        self._fit_cast()
+        return [display_name(character) for character in self.cpu_picks[: self.open_seats()]]
+
+    def shuffle_cast(self, client_id: str) -> None:
+        self._require_leader(client_id)
+        self.cpu_picks = pick_cast(max(0, self.capacity - 1))
+        self.event_n += 1
+        self.touch()
+
+    def set_players(self, body: dict, client_id: str) -> None:
+        self._require_leader(client_id)
+        players = int(body.get("players", self.capacity))
+        if players not in (3, 4):
+            raise ValueError("人数は3か4です")
+        if players < len(self.roster):
+            raise ValueError("参加者より少なくはできません")
+        self.capacity = players
+        self._fit_cast()
+        if self.last_options is not None:
+            self.last_options["players"] = players
+        self.event_n += 1
         self.touch()
 
     def begin(self, client_id: str) -> None:
@@ -107,8 +149,10 @@ class Table:
             raise ValueError("参加者がいません")
         players = self.capacity
         humans = len(self.roster)
+        self._fit_cast()
+        cast = list(self.cpu_picks[: players - humans])
         names = [member["name"] for member in self.roster]
-        names += [f"CPU{i + 1}" for i in range(players - humans)]
+        names += [display_name(character) for character in cast]
         seed = self.seed
         self.seed = None
         self.game = Game.start(
@@ -139,7 +183,7 @@ class Table:
         self.refresh_notice_at = None
         self.refresh_released = False
         self.cpu_after = time.monotonic() + 1.0
-        assign_seats(self.game)
+        seat_cast(self.game, cast)
 
     def _present(self, client_id: str) -> bool:
         if any(member["client"] == client_id for member in self.roster):
@@ -628,6 +672,7 @@ class Table:
                 {"name": member["name"], "leader": member["client"] == leader}
                 for member in self.roster
             ],
+            "cpus": self.cast_names(),
             "observers": [obs["name"] for obs in self.observers],
             "you": {
                 "seat": seat,
@@ -805,6 +850,15 @@ class Hall:
     def begin(self, client: str) -> None:
         self._require(client).begin(client)
 
+    def shuffle(self, client: str) -> None:
+        self._require(client).shuffle_cast(client)
+
+    def set_players(self, body: dict, client: str) -> None:
+        table = self._require(client)
+        table.set_players(body, client)
+        if table.last_options:
+            self.last_options = dict(table.last_options)
+
     def act(self, body: dict, client: str) -> None:
         self._require(client).act(body, client)
 
@@ -877,6 +931,10 @@ class Handler(BaseHTTPRequestHandler):
                     HALL.create(body, client)
                 elif self.path == "/api/start":
                     HALL.begin(client)
+                elif self.path == "/api/shuffle":
+                    HALL.shuffle(client)
+                elif self.path == "/api/players":
+                    HALL.set_players(body, client)
                 elif self.path == "/api/action":
                     HALL.act(body, client)
                 elif self.path == "/api/join":

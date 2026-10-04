@@ -93,6 +93,92 @@ def test_finished_exhibition_is_labeled_on_the_hall():
     assert not _table_expired(table, table.finished_at + 10)
 
 
+def test_the_lobby_names_the_cpus_that_will_fill_the_open_seats():
+    table = Table()
+    table.open({"players": 3, "name": "竜二郎", "simple": True}, "human")
+    view = table.snapshot("human")
+    assert view["phase"] == "recruiting"
+    assert len(view["cpus"]) == 2
+    assert all(name.endswith(")") and "(" in name for name in view["cpus"])
+    assert len(set(view["cpus"])) == 2
+
+    table.admit("friend", "ともだち")
+    fewer = table.snapshot("human")["cpus"]
+    assert fewer == view["cpus"][:1]
+    table.leave("friend")
+    assert table.snapshot("human")["cpus"] == view["cpus"]
+
+
+def test_shuffle_picks_other_cpus_and_only_the_leader_may_ask():
+    table = Table()
+    table.open({"players": 4, "name": "竜二郎", "simple": True}, "human")
+    table.admit("friend", "ともだち")
+    before = table.snapshot("human")["cpus"]
+    with pytest.raises(ValueError):
+        table.shuffle_cast("friend")
+    table.shuffle_cast("human")
+    after = table.snapshot("human")["cpus"]
+    assert len(after) == 2
+    assert after != before
+
+
+def test_the_lobby_cpus_take_their_seats_when_the_game_starts():
+    table = Table()
+    table.open({"players": 3, "name": "竜二郎", "simple": True}, "human")
+    cast = table.snapshot("human")["cpus"]
+    table.begin("human")
+    seated = [player.name for player in table.game.players if not player.is_human]
+    assert seated == cast
+
+
+def test_the_leader_changes_the_seat_count_in_the_lobby():
+    table = Table()
+    table.open({"players": 3, "name": "竜二郎", "simple": True}, "human")
+    table.admit("friend", "ともだち")
+    table.set_players({"players": 4}, "human")
+    view = table.snapshot("human")
+    assert view["players"] == 4
+    assert len(view["cpus"]) == 2
+    assert table.last_options["players"] == 4
+    with pytest.raises(ValueError):
+        table.set_players({"players": 5}, "human")
+    with pytest.raises(ValueError):
+        table.set_players({"players": 4}, "friend")
+    table.begin("human")
+    assert len(table.game.players) == 4
+
+
+def test_the_seat_count_cannot_drop_below_the_people_already_in():
+    table = Table()
+    table.open({"players": 4, "name": "竜二郎", "simple": True}, "human")
+    for index in range(3):
+        table.admit(f"friend{index}", f"とも{index}")
+    with pytest.raises(ValueError):
+        table.set_players({"players": 3}, "human")
+    assert table.capacity == 4
+
+
+def test_the_lobby_seat_count_becomes_the_remembered_default():
+    from quota.web import Hall
+
+    hall = Hall()
+    hall.create({"players": 3, "name": "竜二郎", "simple": True}, "human")
+    assert hall.last_options["players"] == 3
+    hall.set_players({"players": 4}, "human")
+    assert hall.last_options["players"] == 4
+    assert hall.snapshot("human")["players"] == 4
+
+
+def test_a_started_table_refuses_the_lobby_controls():
+    table = Table()
+    table.open({"players": 3, "name": "竜二郎", "simple": True}, "human")
+    table.begin("human")
+    with pytest.raises(ValueError):
+        table.shuffle_cast("human")
+    with pytest.raises(ValueError):
+        table.set_players({"players": 4}, "human")
+
+
 def test_finished_table_stays_on_the_hall_for_three_minutes():
     table = Table()
     table.phase = "finished"
