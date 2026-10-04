@@ -31,7 +31,7 @@ namespace Quota
         const float SplashFadeSeconds = 0.6f;
         const int AdvancedPromptAfter = 3;
         const string SplashCopy = "港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
-        const string BuildStamp = "UNITY-WEBGL harbor-fix";
+        const string BuildStamp = "UNITY-WEBGL splash-harbor";
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
@@ -164,7 +164,7 @@ namespace Quota
             if (Application.platform == RuntimePlatform.WebGLPlayer)
             {
                 webAssetsReady = false;
-                if (Application.isPlaying) StartCoroutine(LoadWebAssets());
+                if (Application.isPlaying) StartCoroutine(BootWeb());
             }
             else
             {
@@ -187,7 +187,7 @@ namespace Quota
             EnsureBackdropGrade();
             Fit();
             LoadRules();
-            ShowSplash();
+            if (Application.platform != RuntimePlatform.WebGLPlayer) ShowSplash();
         }
 
         void OnDestroy()
@@ -374,14 +374,17 @@ namespace Quota
             if (Application.isPlaying) splashRun = StartCoroutine(FadeSplash());
         }
 
-        IEnumerator LoadWebAssets()
+        IEnumerator BootWeb()
         {
+            // Harbor first: the splash copy must sit on the town picture, never on a blank field.
             Sprite vertical = null;
             yield return LoadSprite("vertical_base.jpg", sprite => vertical = sprite);
             verticalBackground = vertical;
             Sprite horizontal = null;
             yield return LoadSprite("horizontal_base.jpg", sprite => horizontal = sprite);
             horizontalBackground = horizontal;
+            Fit();
+            ShowSplash();
             string json = null;
             yield return LoadText("quota_goods_v1.0.json", text => json = text);
             if (!string.IsNullOrEmpty(json)) ItemCatalog.LoadJson(json);
@@ -405,6 +408,11 @@ namespace Quota
             if (loadedCatch != null) catchMark = loadedCatch;
             webAssetsReady = true;
             Fit();
+        }
+
+        IEnumerator LoadWebAssets()
+        {
+            yield return BootWeb();
         }
 
         IEnumerator LoadText(string fileName, System.Action<string> done)
