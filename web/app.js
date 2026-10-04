@@ -1248,10 +1248,16 @@ function enterReady(show, now) {
 }
 
 function cashJobs() {
+  const piles = orderFrom(roundLeader()).map((seat) =>
+    (ceremony.coins.get(seat) || []).map((coin) => ({ seat, id: coin.id, kind: coin.kind, done: false, started: false }))
+  );
+  const max = piles.reduce((n, pile) => Math.max(n, pile.length), 0);
   const jobs = [];
-  orderFrom(roundLeader()).forEach((seat) => {
-    for (const coin of ceremony.coins.get(seat) || []) jobs.push({ seat, id: coin.id, kind: coin.kind, done: false, started: false });
-  });
+  for (let wave = 0; wave < max; wave += 1) {
+    for (const pile of piles) {
+      if (wave < pile.length) jobs.push({ ...pile[wave], wave });
+    }
+  }
   return jobs;
 }
 
@@ -1291,6 +1297,7 @@ function launchDueFlights() {
     }
     while (ceremony.cashLaunched < jobs.length) {
       const job = jobs[ceremony.cashLaunched];
+      if (now < ceremony.at + job.wave * 100) break;
       ceremony.cashLaunched += 1;
       if (!job.started) {
         job.started = true;

@@ -1191,34 +1191,49 @@ namespace Quota
 
         IEnumerator FlyScores(int serial)
         {
-            var jobs = new List<CeremonyDot>();
+            var piles = new List<List<CeremonyDot>>();
+            var max = 0;
+            var total = 0;
             foreach (var seat in RoundTurnOrder())
-                for (var i = 0; i < ceremonyTray.Count; i++)
-                    if (ceremonyTray[i].Seat == seat) jobs.Add(ceremonyTray[i]);
-            if (jobs.Count == 0) yield break;
-            ceremonyPending = jobs.Count;
-            for (var i = 0; i < jobs.Count; i++)
             {
-                if (serial != cpuRun) yield break;
-                var dot = jobs[i];
-                var from = TakeDot(dot);
-                var to = ScorePoint(dot.Seat);
-                var seat = dot.Seat;
-                var color = CoinColor(dot.Kind);
-                StartCoroutine(AnimateFly(serial, from, to, color, () =>
-                {
-                    if (scoreOverride != null)
-                    {
-                        if (!scoreOverride.ContainsKey(seat)) scoreOverride[seat] = 0;
-                        scoreOverride[seat] += 1;
-                        RefreshScore(seat);
-                    }
-                    ceremonyPending--;
-                }));
+                var pile = new List<CeremonyDot>();
+                for (var i = 0; i < ceremonyTray.Count; i++)
+                    if (ceremonyTray[i].Seat == seat) pile.Add(ceremonyTray[i]);
+                if (pile.Count == 0) continue;
+                piles.Add(pile);
+                total += pile.Count;
+                if (pile.Count > max) max = pile.Count;
             }
+            if (total == 0) yield break;
+            ceremonyPending = total;
+            var wave = 0;
+            var started = Time.time;
             while (ceremonyPending > 0)
             {
                 if (serial != cpuRun) yield break;
+                while (wave < max && Time.time >= started + wave * 0.1f)
+                {
+                    for (var p = 0; p < piles.Count; p++)
+                    {
+                        if (wave >= piles[p].Count) continue;
+                        var dot = piles[p][wave];
+                        var from = TakeDot(dot);
+                        var to = ScorePoint(dot.Seat);
+                        var seat = dot.Seat;
+                        var color = CoinColor(dot.Kind);
+                        StartCoroutine(AnimateFly(serial, from, to, color, () =>
+                        {
+                            if (scoreOverride != null)
+                            {
+                                if (!scoreOverride.ContainsKey(seat)) scoreOverride[seat] = 0;
+                                scoreOverride[seat] += 1;
+                                RefreshScore(seat);
+                            }
+                            ceremonyPending--;
+                        }));
+                    }
+                    wave++;
+                }
                 yield return null;
             }
         }
