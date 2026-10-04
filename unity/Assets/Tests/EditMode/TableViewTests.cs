@@ -283,7 +283,7 @@ namespace Quota.Tests
             Assert.AreEqual(0.953f, fillColor.r, 0.002f);
             Assert.AreEqual(0.929f, fillColor.g, 0.002f);
             Assert.AreEqual(0.894f, fillColor.b, 0.002f);
-            Assert.AreEqual(0.8f, fillColor.a, 0.001f);
+            Assert.AreEqual(1f, fillColor.a, 0.001f);
             Assert.AreEqual(new Vector2(1f, -1f), fill.anchoredPosition);
             Assert.AreEqual(new Vector2(1028f, 338f), fill.sizeDelta);
 

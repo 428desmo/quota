@@ -40,8 +40,8 @@ namespace Quota
         static readonly Color Cream = Hex("#F6F1E8");
         static readonly Color Ecru = Hex("#F3EDE4");
         static readonly Color Accent = Hex("#8C3D2A");
-        static readonly Color Plate = new Color(0.953f, 0.929f, 0.894f, 0.8f);
-        static readonly Color Paper = new Color(0.965f, 0.945f, 0.910f, 0.96f);
+        static readonly Color Plate = new Color(0.953f, 0.929f, 0.894f, 1f);
+        static readonly Color Paper = new Color(0.965f, 0.945f, 0.910f, 1f);
         static readonly Color Field = Hex("#FFF8F0");
         static readonly Color DimTint = new Color(0.78f, 0.74f, 0.68f, 1f);
 
@@ -177,7 +177,7 @@ namespace Quota
             backdropRect.pivot = new Vector2(0.5f, 0.5f);
             backdropRect.anchoredPosition = Vector2.zero;
             backdrop = backdropRect.gameObject.AddComponent<Image>();
-            backdrop.color = Color.white;
+            backdrop.color = Hex("#1A1410");
             backdrop.raycastTarget = false;
             frame = Portrait.Rect(root, "Frame", 0f, 0f, ScreenWidth, ScreenHeight);
             frame.anchorMin = frame.anchorMax = new Vector2(0.5f, 0.5f);
@@ -353,6 +353,7 @@ namespace Quota
 
         void ShowSplash()
         {
+            onSetup = true;
             Clear();
             UseFrame();
             var wide = WideScreen();
@@ -360,11 +361,14 @@ namespace Quota
             var height = wide ? LandHeight : ScreenHeight;
             var splash = Portrait.Rect(frame, "splash", 0f, 0f, width, height);
             splash.gameObject.AddComponent<CanvasGroup>();
+            var veil = splash.gameObject.AddComponent<Image>();
+            veil.color = new Color(0.10f, 0.07f, 0.05f, 0.82f);
+            veil.raycastTarget = true;
             var panelW = wide ? 1040f : 880f;
             var panelH = 320f;
             var panelX = (width - panelW) * 0.5f;
             var panelY = wide ? (height - panelH) * 0.5f : 800f;
-            SoftPanel(splash, "splash-panel", panelX, panelY, panelW, panelH, Plate);
+            SoftPanel(splash, "splash-panel", panelX, panelY, panelW, panelH, Paper);
             var copy = TextAt(splash, SplashCopy, panelX + 40f, panelY + 28f, panelW - 80f, panelH - 56f, 34, Ink, nameFont, TextAnchor.MiddleCenter);
             copy.horizontalOverflow = HorizontalWrapMode.Overflow;
             copy.lineSpacing = 1.15f;
@@ -1688,19 +1692,6 @@ namespace Quota
             return Hex("#3cce3c");
         }
 
-        void CleanupFlyers()
-        {
-            for (var i = transform.childCount - 1; i >= 0; i--)
-            {
-                var child = transform.GetChild(i);
-                if (child.name != "flyer" && !child.name.StartsWith("cdot-")) continue;
-                child.gameObject.SetActive(false);
-                child.SetParent(null, false);
-                if (Application.isPlaying) Destroy(child.gameObject);
-                else DestroyImmediate(child.gameObject);
-            }
-        }
-
         static int GreenCount(Player player)
         {
             var total = 0;
@@ -2572,13 +2563,17 @@ namespace Quota
         void Clear()
         {
             for (var i = frame.childCount - 1; i >= 0; i--)
+                DestroyImmediate(frame.GetChild(i).gameObject);
+            seatFrames.Clear();
+        }
+
+        void CleanupFlyers()
+        {
+            for (var i = transform.childCount - 1; i >= 0; i--)
             {
-                var child = frame.GetChild(i).gameObject;
-                child.SetActive(false);
-                child.transform.SetParent(null, false);
-                child.name = "retired";
-                if (Application.isPlaying) Destroy(child);
-                else DestroyImmediate(child);
+                var child = transform.GetChild(i);
+                if (child.name != "flyer" && !child.name.StartsWith("cdot-")) continue;
+                DestroyImmediate(child.gameObject);
             }
         }
 
