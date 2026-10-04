@@ -80,6 +80,10 @@ namespace Quota
         string seedText = "";
         string playerName = "あなた";
         string setupPage;
+        bool lobbyOpen;
+        bool sitOut;
+        readonly List<int> lobbyCast = new List<int>();
+        readonly System.Random lobbyRng = new System.Random();
         string draftOk = "5";
         string draftTurn = "120";
         bool draftSimple;
@@ -545,11 +549,16 @@ namespace Quota
             if (catchLine != null) PlaceSprite(frame, "title-catch", catchLine, x, 184f, 560f, 56f);
             else Shade(TextAt(frame, "ノルマは、自分で決めろ。", x, 184f, 700f, 40f, 28, Cream, nameFont, TextAnchor.MiddleLeft));
             const float columnTop = 260f;
-            const float innerGap = 16f;
             var showReview = reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0;
-            var buttonH = SetupButtonHeight(screenH - columnTop - 24f, showReview);
-            var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
-            var column = Portrait.Rect(frame, "setup", 0f, columnTop, screenW, screenH - columnTop);
+            var available = screenH - columnTop - 24f;
+            if (lobbyOpen) DrawLobby(screenW, columnTop, available, showReview);
+            else DrawStartMenu(screenW, columnTop, available, showReview);
+            if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
+        }
+
+        RectTransform SetupColumn(float screenW, float columnTop, float height)
+        {
+            var column = Portrait.Rect(frame, "setup", 0f, columnTop, screenW, height);
             var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.spacing = 0f;
             layout.childAlignment = TextAnchor.UpperCenter;
@@ -557,6 +566,15 @@ namespace Quota
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
+            return column;
+        }
+
+        void DrawStartMenu(float screenW, float columnTop, float available, bool showReview)
+        {
+            const float innerGap = 16f;
+            var buttonH = SetupButtonHeight(available, 10f + (showReview ? 1f : 0f), 2 + (showReview ? 1 : 0));
+            var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
+            var column = SetupColumn(screenW, columnTop, available + 24f);
             var guideW = screenW * 0.40f;
             var rowW = screenW * 0.60f;
             var actionW = screenW * 0.35f;
@@ -567,35 +585,99 @@ namespace Quota
             SetupGap(column, innerGap);
             SetupButton(column, "勝つためのヒント", () => OpenPage("hint"), guideW, buttonH, font);
             SetupGap(column, section);
-            var labelW = LabelSlot(font, "プレイヤーの数：", "あなたの名前：");
-            var fieldW = rowW - labelW - 12f - font;
-            SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, fieldW, font, () =>
-            {
-                playerCount = playerCount == 3 ? 4 : 3;
-                ShowSetup();
-            });
-            SetupGap(column, innerGap);
-            var name = SetupNameRow(column, "あなたの名前：", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName, rowW, buttonH, labelW, fieldW, font);
+            var labelW = LabelSlot(font, "あなたの名前：");
+            var name = SetupNameRow(column, "あなたの名前：", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName, rowW, buttonH, labelW, rowW - labelW - 12f - font, font);
             name.onValueChanged.AddListener(value => playerName = value);
             SetupGap(column, section);
-            SetupButton(column, "設定", OpenSettings, actionW, buttonH, font);
-            SetupGap(column, section);
-            SetupButton(column, "対局開始", () => StartMatch(false), actionW, buttonH * 2f, font * 2);
-            SetupGap(column, innerGap);
-            SetupButton(column, "CPU模擬戦を観戦", () => StartMatch(true), actionW, buttonH, font);
+            SetupButton(column, "対局開始", OpenLobby, actionW, buttonH * 2f, font * 2);
             if (showReview)
             {
                 SetupGap(column, innerGap);
                 SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
             }
-            if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
         }
 
-        static float SetupButtonHeight(float available, bool review)
+        void DrawLobby(float screenW, float columnTop, float available, bool showReview)
         {
-            var units = 15f + (review ? 1f : 0f);
-            var inners = (4 + (review ? 1 : 0)) * 16f;
-            return Mathf.Clamp((available - inners) / units, 40f, 72f);
+            const float innerGap = 16f;
+            var seats = playerCount;
+            var buttonH = SetupButtonHeight(available, 12f + seats + (showReview ? 1f : 0f), seats + 3 + (showReview ? 1 : 0));
+            var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
+            var column = SetupColumn(screenW, columnTop, available + 24f);
+            var rowW = screenW * 0.60f;
+            var actionW = screenW * 0.35f;
+            var section = buttonH * 2f;
+            var labelW = LabelSlot(font, "プレイヤーの数：");
+            SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
+            {
+                playerCount = playerCount == 3 ? 4 : 3;
+                ShowSetup();
+            });
+            SetupGap(column, innerGap);
+            foreach (var seat in LobbySeats())
+            {
+                SetupSeatRow(column, seat.Key, seat.Value, rowW, buttonH, font);
+                SetupGap(column, innerGap);
+            }
+            SetupButton(column, "シャッフル", ShuffleCast, actionW, buttonH, font);
+            SetupGap(column, section);
+            SetupButton(column, sitOut ? "自分は参加しない　オン" : "自分は参加しない　オフ", () =>
+            {
+                sitOut = !sitOut;
+                ShowSetup();
+            }, rowW, buttonH, font);
+            SetupGap(column, innerGap);
+            SetupButton(column, "設定", OpenSettings, actionW, buttonH, font);
+            SetupGap(column, section);
+            SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
+            SetupGap(column, innerGap);
+            SetupButton(column, "戻る", CloseLobby, actionW, buttonH, font);
+            if (showReview)
+            {
+                SetupGap(column, innerGap);
+                SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
+            }
+        }
+
+        List<KeyValuePair<string, bool>> LobbySeats()
+        {
+            EnsureCast();
+            var seats = new List<KeyValuePair<string, bool>>();
+            if (!sitOut) seats.Add(new KeyValuePair<string, bool>(HumanName(), false));
+            for (var i = 0; seats.Count < playerCount && i < lobbyCast.Count; i++)
+                seats.Add(new KeyValuePair<string, bool>(Ranking.DisplayName(lobbyCast[i]), true));
+            return seats;
+        }
+
+        void EnsureCast()
+        {
+            var used = new HashSet<int>(lobbyCast);
+            while (lobbyCast.Count < 4) lobbyCast.Add(Characters.PickFresh(lobbyRng, used));
+        }
+
+        void ShuffleCast()
+        {
+            lobbyCast.Clear();
+            EnsureCast();
+            ShowSetup();
+        }
+
+        void OpenLobby()
+        {
+            lobbyOpen = true;
+            EnsureCast();
+            ShowSetup();
+        }
+
+        void CloseLobby()
+        {
+            lobbyOpen = false;
+            ShowSetup();
+        }
+
+        static float SetupButtonHeight(float available, float units, int inners)
+        {
+            return Mathf.Clamp((available - inners * 16f) / units, 40f, 72f);
         }
 
         void OpenPage(string page)
@@ -635,6 +717,7 @@ namespace Quota
         void StartMatch(bool cpuOnly)
         {
             if (Application.platform == RuntimePlatform.WebGLPlayer && !ItemCatalog.IsLoaded) return;
+            lobbyOpen = false;
             cpuRun++;
             ceremonyRunning = false;
             ceremonyDismissed = false;
@@ -646,8 +729,6 @@ namespace Quota
             if (int.TryParse(seedText, out var number)) parsed = number;
             var names = new List<string>();
             var characters = new List<int>();
-            var used = new HashSet<int>();
-            var rng = new System.Random();
             var firstCpu = cpuOnly ? 0 : 1;
             playerName = HumanName();
             if (Application.isPlaying)
@@ -656,9 +737,11 @@ namespace Quota
                 PlayerPrefs.Save();
             }
             if (!cpuOnly) names.Add(playerName);
+            EnsureCast();
+            var spare = 0;
             for (var i = firstCpu; i < playerCount; i++)
             {
-                var character = Characters.PickFresh(rng, used);
+                var character = spare < lobbyCast.Count ? lobbyCast[spare++] : Characters.PickFresh(lobbyRng, new HashSet<int>(lobbyCast));
                 characters.Add(character);
                 names.Add(Ranking.DisplayName(character));
             }
@@ -975,13 +1058,23 @@ namespace Quota
             }
             else ceremonyButton = "OK";
             RedrawCeremonyPanel();
+            var patience = !ceremonyLast && NoHumanSeats() ? Time.time + Mathf.Max(0f, okTimeout) : float.MaxValue;
             while (!ceremonyOk)
             {
                 if (serial != cpuRun) yield break;
+                if (Time.time >= patience) break;
                 yield return null;
             }
             if (serial != cpuRun) yield break;
             FinishCeremony();
+        }
+
+        bool NoHumanSeats()
+        {
+            if (match.Game == null) return false;
+            foreach (var player in match.Game.Players)
+                if (player.IsHuman) return false;
+            return true;
         }
 
         IEnumerator WaitOr(int serial, float seconds)
@@ -2651,7 +2744,7 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
-            var accent = caption == "対局開始";
+            var accent = caption == "対局開始" || caption == "ゲーム開始";
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
             image.color = accent ? Accent : Ecru;
@@ -2677,6 +2770,26 @@ namespace Quota
         {
             var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
             SetupButton(row, value, action, fieldW, height, fontSize);
+        }
+
+        void SetupSeatRow(RectTransform parent, string seatName, bool cpu, float rowW, float height, int fontSize)
+        {
+            var tagFont = Mathf.Max(14, fontSize - 10);
+            var tagW = cpu ? LabelSlot(tagFont, "CPU") : 0f;
+            var row = FormRow(parent, seatName, rowW, height, rowW - fontSize - tagW - 24f, fontSize);
+            if (!cpu) return;
+            var go = new GameObject("tag", typeof(RectTransform), typeof(Text), typeof(LayoutElement));
+            go.transform.SetParent(row, false);
+            SizeElement(go.GetComponent<LayoutElement>(), tagW, height);
+            var text = go.GetComponent<Text>();
+            text.font = nameFont;
+            text.fontSize = tagFont;
+            text.color = Ink;
+            text.alignment = TextAnchor.MiddleRight;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.text = "CPU";
+            text.raycastTarget = false;
         }
 
         InputField SetupNameRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize)
