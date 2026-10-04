@@ -25,13 +25,13 @@ def test_the_key_is_the_strategy_dimensions():
     assert key_of(decode(character_id)) == key_for(character_id)
 
 
-def test_the_winner_takes_three_and_the_runner_up_two():
+def test_every_place_gets_an_evenly_spaced_zero_sum_award():
     sheet = Table()
     keys = ["0-0-0-0-0", "1-0-1-0-0", "2-0-2-0-0", "3-0-3-0-0"]
     sheet.record(keys, [50, 40, 30, 20])
     points = [sheet.entries[key].points for key in keys]
-    assert points == [3.0, 2.0, 0.0, 0.0]
-    assert [sheet.entries[key].value for key in keys] == [3.0, 2.0, 0.0, 0.0]
+    assert points == [3.0, 1.0, -1.0, -3.0]
+    assert [sheet.entries[key].value for key in keys] == [3.0, 1.0, -1.0, -3.0]
     assert sheet.matches == 1
     for key in keys:
         assert sheet.entries[key].games == 1
@@ -41,11 +41,11 @@ def test_a_tie_shares_the_places_it_fills():
     sheet = Table()
     keys = ["0-0-0-0-0", "1-0-1-0-0", "2-0-2-0-0", "3-0-3-0-0"]
     sheet.record(keys, [40, 40, 30, 20])
-    assert sheet.entries[keys[0]].points == sheet.entries[keys[1]].points == 2.5
-    assert sheet.entries[keys[2]].points == 0.0
+    assert sheet.entries[keys[0]].points == sheet.entries[keys[1]].points == 2.0
+    assert sheet.entries[keys[2]].points == -1.0
     second = Table()
     second.record(keys, [40, 30, 30, 20])
-    assert second.entries[keys[1]].points == second.entries[keys[2]].points == 1.0
+    assert second.entries[keys[1]].points == second.entries[keys[2]].points == 0.0
 
 
 def test_one_match_always_hands_out_the_same_total():
@@ -57,8 +57,9 @@ def test_one_match_always_hands_out_the_same_total():
 
 
 def test_the_award_rule_holds_the_average_still():
-    assert award_slots(4) == [3.0, 2.0, 0.0, 0.0]
-    assert mean_value(4) == 1.25
+    assert award_slots(4) == [3.0, 1.0, -1.0, -3.0]
+    assert award_slots(3) == [2.0, 0.0, -2.0]
+    assert mean_value(4) == 0.0
     sheet = Table()
     sheet.record(["0-0-0-0-0", "1-0-1-0-0", "2-0-2-0-0", "3-0-3-0-0"], [50, 40, 30, 20])
     sheet.record(["0-0-0-0-0", "4-0-4-0-0", "5-0-5-0-0", "6-0-6-0-0"], [10, 40, 30, 20])
@@ -71,7 +72,7 @@ def test_an_unplayed_combination_starts_at_the_average():
     sheet = Table()
     sheet.record(["0-0-0-0-0", "1-0-1-0-0"], [40, 20])
     fresh = sheet.entry_for("2-0-2-0-0")
-    assert fresh.value == sheet.mean() == 1.25
+    assert fresh.value == sheet.mean() == 0.0
     assert fresh.games == 0
 
 
@@ -103,7 +104,7 @@ def test_a_run_can_be_added_to_a_saved_table():
     again.record(["0-0-0-0-0", "2-0-2-0-0"], [10, 30])
     assert again.matches == 2
     assert again.entries["2-0-2-0-0"].games == 1
-    assert again.entries["0-0-0-0-0"].value == 2.5
+    assert again.entries["0-0-0-0-0"].value == 0.0
 
 
 def test_a_file_scored_by_another_rule_is_refused():
@@ -127,7 +128,7 @@ def test_the_shipped_file_covers_the_current_dimensions():
     assert data["dimensions"] == list(DIMENSIONS)
     assert data["sizes"] == list(dimension_sizes())
     assert data["award"] == list(AWARD)
-    assert data["mean"] == 1.25
+    assert data["mean"] == 0.0
     assert data["matches"] > 0
     assert len(data["players"]) == len(sheet.entries)
     places = [row["rank"] for row in data["players"]]

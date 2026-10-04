@@ -5,12 +5,12 @@ not by the packed character id, so the table survives a change to the naming
 words or to how the id is packed. Adding a strategy keeps every stored key
 meaningful as long as the existing numbers keep their meaning.
 
-A match hands out place points: 3 to the winner, 2 to the runner up, nothing
-below. Seats that tie share the points of the places they fill, so one match
-always hands out the same total. The evaluation value is the points a
-combination has taken divided by the matches it has played, which makes the
-average over all combinations a constant. A combination that has never played
-is given that average.
+A match hands out evenly spaced, zero-sum place points. In a four-player match
+the places are worth +3, +1, -1, and -3. Seats that tie share the points of the
+places they fill, so one match always hands out zero in total. The evaluation
+value is the points a combination has taken divided by the matches it has
+played. A combination that has never played is given the constant average of
+zero.
 """
 
 from __future__ import annotations
@@ -29,12 +29,12 @@ from quota.characters import (
 
 FORMAT = "quota-cpu-ranking"
 VERSION = 2
-RANKING_PATH = Path(__file__).resolve().parent.parent / "cpu_ranking_v1.1.json"
+RANKING_PATH = Path(__file__).resolve().parent.parent / "cpu_ranking_v1.2.json"
 
 DIMENSIONS = ("before", "trigger", "after", "stance", "denial")
 
-AWARD = (3.0, 2.0)
 SEATS = 4
+AWARD = tuple(float(SEATS - 1 - place * 2) for place in range(SEATS))
 
 
 def dimension_sizes() -> tuple[int, ...]:
@@ -42,8 +42,8 @@ def dimension_sizes() -> tuple[int, ...]:
 
 
 def award_slots(seats: int) -> list[float]:
-    """The points each place takes, longest first, padded out with zeroes."""
-    return [AWARD[place] if place < len(AWARD) else 0.0 for place in range(seats)]
+    """Evenly spaced, zero-sum points from first through last place."""
+    return [float(seats - 1 - place * 2) for place in range(seats)]
 
 
 def mean_value(seats: int = SEATS) -> float:

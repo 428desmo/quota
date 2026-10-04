@@ -10,7 +10,7 @@ namespace Quota
     /// </summary>
     public static class Ranking
     {
-        public const string FileName = "cpu_ranking_v1.1.json";
+        public const string FileName = "cpu_ranking_v1.2.json";
 
         const string Format = "quota-cpu-ranking";
         const int Version = 2;

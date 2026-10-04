@@ -28,7 +28,7 @@ namespace Quota.Tests
             Ranking.LoadJson(
                 "{\"format\":\"quota-cpu-ranking\",\"version\":2," +
                 "\"dimensions\":[\"before\",\"trigger\",\"after\",\"stance\",\"denial\"]," +
-                "\"award\":[3.0,2.0],\"seats\":4,\"mean\":1.25," +
+                "\"award\":[3.0,1.0,-1.0,-3.0],\"seats\":4,\"mean\":0.0," +
                 "\"provisional\":7,\"players\":[" +
                 "{\"id\":[1,0,1,0,0],\"value\":1.75,\"games\":4,\"points\":7.0,\"rank\":2}]}");
             Assert.IsTrue(Ranking.IsLoaded);
