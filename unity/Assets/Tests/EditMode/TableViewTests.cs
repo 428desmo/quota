@@ -116,6 +116,9 @@ namespace Quota.Tests
             Assert.AreEqual(1080f * 0.60f, countRow.rect.width, 2f);
             Assert.AreEqual(countRow.rect.width, nameRow.rect.width, 1f);
             Assert.AreEqual(WorldLeft(countLabel.rectTransform), WorldLeft(nameLabel.rectTransform), 1f);
+            var scaleX = Mathf.Abs(WorldRight(countRow) - WorldLeft(countRow)) / countRow.rect.width;
+            Assert.AreEqual(countLabel.fontSize, (WorldLeft(countLabel.rectTransform) - WorldLeft(countRow)) / scaleX, 2f);
+            Assert.AreEqual(nameLabel.fontSize, (WorldLeft(nameLabel.rectTransform) - WorldLeft(nameRow)) / scaleX, 2f);
             Assert.AreEqual(WorldLeft(countButton), WorldLeft(nameBox), 1f);
             Assert.AreEqual(countButton.rect.width, nameBox.rect.width, 1f);
             Assert.AreEqual(WorldMidY(countLabel.rectTransform), WorldMidY(countButton), 2f);
