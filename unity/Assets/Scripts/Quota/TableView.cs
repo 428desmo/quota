@@ -377,6 +377,9 @@ namespace Quota
             string json = null;
             yield return LoadText("quota_goods_v1.0.json", text => json = text);
             if (!string.IsNullOrEmpty(json)) ItemCatalog.LoadJson(json);
+            string ranking = null;
+            yield return LoadText(Ranking.FileName, text => ranking = text);
+            Ranking.LoadJson(ranking);
             if (ItemCatalog.IsLoaded)
             {
                 foreach (var file in ItemCatalog.PictureFiles())
@@ -657,7 +660,7 @@ namespace Quota
             {
                 var character = Characters.PickFresh(rng, used);
                 characters.Add(character);
-                names.Add(Characters.NameOf(character));
+                names.Add(Ranking.DisplayName(character));
             }
             orderOverride = null;
             dialogOrder = null;

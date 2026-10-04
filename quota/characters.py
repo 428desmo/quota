@@ -234,6 +234,15 @@ def character_name(character_id: int) -> str:
     return ADJECTIVES[index // len(NOUNS)] + NOUNS[index % len(NOUNS)]
 
 
+def display_name(character_id: int) -> str:
+    """The name with its ranking place, as in 「きまぐれな天秤(125)」."""
+    from quota.ranking import rank_for  # ranking reads this module, so import it here
+
+    name = character_name(character_id)
+    place = rank_for(character_id)
+    return f"{name}({place})" if place else name
+
+
 def pick_character(rng: random.Random) -> int:
     """Consistent characters are more likely than ones that switch."""
     stance = rng.randrange(TITLE_STANCE_COUNT)
@@ -257,7 +266,7 @@ def assign_seats(game: Game, rng: random.Random | None = None) -> None:
         if player.is_human:
             continue
         character_id = _fresh(picker, used)
-        player.name = character_name(character_id)
+        player.name = display_name(character_id)
         bind(player, Mind(character_id))
 
 
