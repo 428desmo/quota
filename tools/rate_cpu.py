@@ -113,8 +113,12 @@ def mirror(path: Path) -> None:
     """Unity reads the same file out of StreamingAssets."""
     if path != RANKING_PATH or not STREAMING.is_dir():
         return
+    text = path.read_text(encoding="utf-8")
     copy = STREAMING / path.name
-    copy.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    copy.write_text(text, encoding="utf-8")
+    built = ROOT / "unity" / "Builds" / "WebGL" / "StreamingAssets"
+    if built.is_dir():
+        (built / path.name).write_text(text, encoding="utf-8")
     meta = STREAMING / f"{path.name}.meta"
     if meta.exists():
         return
