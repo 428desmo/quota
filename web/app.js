@@ -503,6 +503,21 @@ function render() {
         <button type="button" data-guide="rules">ルール</button>
         <button type="button" data-guide="hint">勝つためのヒント</button>
       </p>
+      <section class="panel">
+        <h2>参加できる卓</h2>
+        ${(state.tables || []).length ? (state.tables || []).map((table) => {
+          const ended = table.status === "ゲーム終了";
+          const openSeat = table.status === "募集中" && table.seated < table.players;
+          const label = ended ? "見る" : openSeat ? "参加" : "観戦";
+          const who = ended
+            ? `${escapeText(table.leader)}　ゲーム終了`
+            : `${escapeText(table.leader)}　人間 ${table.seated}/${table.players}`;
+          return `<div class="row table-line">
+          <span>${who}</span>
+          <button type="button" data-join="${escapeAttr(table.id)}">${label}</button>
+        </div>`;
+        }).join("") : `<p class="note">いま参加できる卓はありません。</p>`}
+      </section>
       ${guideHtml()}
       ${settingsHtml()}
       <form class="panel" id="start">
@@ -526,20 +541,7 @@ function render() {
         <p class="submit"><button type="button" id="open-settings">設定</button></p>
         <p class="submit"><button class="primary" type="submit">卓を新設</button></p>
         <p class="submit"><button type="button" id="watch-cpu">CPU模擬戦を観戦</button></p>
-      </form>
-      <section class="panel">
-        <h2>参加できる卓</h2>
-        ${(state.tables || []).length ? (state.tables || []).map((table) => {
-          const ended = table.status === "ゲーム終了";
-          const openSeat = table.status === "募集中" && table.seated < table.players;
-          const label = ended ? "見る" : openSeat ? "参加" : "観戦";
-          const who = ended ? `${escapeText(table.leader)}　ゲーム終了` : `${escapeText(table.leader)}の卓　${table.status}　${table.seated}/${table.players}人${table.observers ? `　観戦${table.observers}` : ""}`;
-          return `<div class="row table-line">
-          <span>${who}</span>
-          <button type="button" data-join="${escapeAttr(table.id)}">${label}</button>
-        </div>`;
-        }).join("") : `<p class="note">いま開ける卓はありません。</p>`}
-      </section>`;
+      </form>`;
     app.querySelectorAll("[data-guide]").forEach((button) => {
       button.onclick = () => {
         guide = button.dataset.guide;
@@ -2150,6 +2152,11 @@ function bundleContaining(cards, ids) {
 }
 
 function clientId() {
+  const supplied = new URLSearchParams(location.search).get("client");
+  if (supplied) {
+    localStorage.setItem("quota_client", supplied);
+    return supplied;
+  }
   let id = localStorage.getItem("quota_client");
   if (!id) {
     id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
