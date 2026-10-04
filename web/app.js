@@ -1289,7 +1289,7 @@ function launchDueFlights() {
       finishCash(now);
       return;
     }
-    while (ceremony.cashLaunched < jobs.length && now >= ceremony.at + ceremony.cashLaunched * 100) {
+    while (ceremony.cashLaunched < jobs.length) {
       const job = jobs[ceremony.cashLaunched];
       ceremony.cashLaunched += 1;
       if (!job.started) {
