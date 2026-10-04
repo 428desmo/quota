@@ -31,7 +31,7 @@ namespace Quota
         const float SplashFadeSeconds = 0.6f;
         const int AdvancedPromptAfter = 3;
         const string SplashCopy = "港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
-        const string BuildStamp = "UNITY-WEBGL e7a35c2";
+        const string BuildStamp = "UNITY-WEBGL harbor-fix";
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
@@ -362,9 +362,6 @@ namespace Quota
             var height = wide ? LandHeight : ScreenHeight;
             var splash = Portrait.Rect(frame, "splash", 0f, 0f, width, height);
             splash.gameObject.AddComponent<CanvasGroup>();
-            var veil = splash.gameObject.AddComponent<Image>();
-            veil.color = new Color(0.10f, 0.07f, 0.05f, 1f);
-            veil.raycastTarget = true;
             var panelW = wide ? 1040f : 880f;
             var panelH = 320f;
             var panelX = (width - panelW) * 0.5f;
