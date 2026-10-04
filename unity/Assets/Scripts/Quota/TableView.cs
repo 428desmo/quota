@@ -1197,30 +1197,28 @@ namespace Quota
                     if (ceremonyTray[i].Seat == seat) jobs.Add(ceremonyTray[i]);
             if (jobs.Count == 0) yield break;
             ceremonyPending = jobs.Count;
-            var launched = 0;
-            var started = Time.time;
+            for (var i = 0; i < jobs.Count; i++)
+            {
+                if (serial != cpuRun) yield break;
+                var dot = jobs[i];
+                var from = TakeDot(dot);
+                var to = ScorePoint(dot.Seat);
+                var seat = dot.Seat;
+                var color = CoinColor(dot.Kind);
+                StartCoroutine(AnimateFly(serial, from, to, color, () =>
+                {
+                    if (scoreOverride != null)
+                    {
+                        if (!scoreOverride.ContainsKey(seat)) scoreOverride[seat] = 0;
+                        scoreOverride[seat] += 1;
+                        RefreshScore(seat);
+                    }
+                    ceremonyPending--;
+                }));
+            }
             while (ceremonyPending > 0)
             {
                 if (serial != cpuRun) yield break;
-                while (launched < jobs.Count && Time.time >= started + launched * 0.1f)
-                {
-                    var dot = jobs[launched];
-                    launched++;
-                    var from = TakeDot(dot);
-                    var to = ScorePoint(dot.Seat);
-                    var seat = dot.Seat;
-                    var color = CoinColor(dot.Kind);
-                    StartCoroutine(AnimateFly(serial, from, to, color, () =>
-                    {
-                        if (scoreOverride != null)
-                        {
-                            if (!scoreOverride.ContainsKey(seat)) scoreOverride[seat] = 0;
-                            scoreOverride[seat] += 1;
-                            RefreshScore(seat);
-                        }
-                        ceremonyPending--;
-                    }));
-                }
                 yield return null;
             }
         }
