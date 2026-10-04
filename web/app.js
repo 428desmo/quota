@@ -33,10 +33,12 @@ let rosterNote = "";
 let standardOffer = false;
 const splash = document.querySelector("#splash");
 if (splash) {
+  document.body.classList.add("booting");
   setTimeout(() => {
     splash.classList.add("out");
     setTimeout(() => {
       splash.remove();
+      document.body.classList.remove("booting");
       document.body.classList.add("dim");
     }, 600);
   }, 3000);

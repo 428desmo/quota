@@ -29,6 +29,7 @@
   white-space: nowrap;
 }
 #splash.out { opacity: 0; }
+body.booting main { visibility: hidden; }
 .standard-offer { z-index: 90; }
 .standard-offer .panel { width: min(28em, 92vw); text-align: center; }
 .standard-offer .ask-buttons { display: flex; gap: 12px; justify-content: center; }
