@@ -1,7 +1,7 @@
 """Keep adding CPU rating matches, and commit the ranking file as it grows.
 
 This runs on its own, so the ranking can get steadier whenever the machine has
-time to spare. Matches are added to `cpu_ranking_v1.1.json` in small batches,
+time to spare. Matches are added to `cpu_ranking_v1.2.json` in small batches,
 each one written through to disk and copied into StreamingAssets, and the two
 ranking files are committed and pushed every so often.
 
