@@ -5,16 +5,14 @@
   --ecru: #f3ede4;
   --field: #fff8f0;
   --accent: #8c3d2a;
-  --plate: rgba(243, 237, 228, 0.8);
-  --paper: rgba(246, 241, 232, 0.96);
+  --plate: #f3ede4;
+  --paper: #f6f1e8;
 }
 #splash {
   position: fixed; inset: 0; z-index: 100;
   display: flex; align-items: center; justify-content: center;
   margin: 0; padding: 48px;
-  background:
-    radial-gradient(ellipse at 50% 40%, rgba(244, 232, 210, 0.42) 0%, rgba(61, 48, 38, 0.18) 46%, rgba(20, 14, 11, 0.72) 100%),
-    #3a3128;
+  background: #1a1410;
   color: var(--ink);
   text-align: center;
   transition: opacity 0.6s ease;
@@ -24,7 +22,7 @@
   max-width: 40rem;
   padding: 28px 36px;
   border-radius: 18px;
-  background: var(--plate);
+  background: #f6f1e8;
   color: var(--ink);
   font-size: min(22px, calc((100vw - 96px) / 26));
   line-height: 1.8; letter-spacing: 0.04em;
