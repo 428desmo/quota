@@ -1,5 +1,6 @@
 using System.IO;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -12,6 +13,7 @@ namespace Quota.EditorTools
 
         public static void Build()
         {
+            HardenWebGlPlayer();
             Directory.CreateDirectory("Assets/Scenes");
             if (!File.Exists(ScenePath))
             {
@@ -38,6 +40,19 @@ namespace Quota.EditorTools
                 Debug.LogError("WebGL export failed: " + report.summary.result);
                 EditorApplication.Exit(1);
             }
+        }
+
+        static void HardenWebGlPlayer()
+        {
+            // Keep Safari / iOS from compiling URP post-process shaders and from
+            // serving a stale IndexedDB copy of an older build.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+            PlayerSettings.WebGL.dataCaching = false;
+            PlayerSettings.WebGL.nameFilesAsHashes = true;
+            PlayerSettings.WebGL.powerPreference = WebGLPowerPreference.Default;
+            PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSize);
+            Debug.Log("WebGL player hardened: gzip fallback on, IndexedDB cache off, hashed names on.");
         }
     }
 }

@@ -214,6 +214,14 @@ namespace Quota
             camera.transform.position = new Vector3(0f, 0f, -10f);
             camera.transform.rotation = Quaternion.identity;
             var extra = camera.GetUniversalAdditionalCameraData();
+            // Safari / iOS WebGL loses the context when URP post-process shaders
+            // are compiled, so the grade stays on the native builds only.
+            if (Application.platform == RuntimePlatform.WebGLPlayer)
+            {
+                extra.renderPostProcessing = false;
+                if (backdropStage != null) backdropStage.enabled = false;
+                return;
+            }
             extra.renderPostProcessing = true;
             extra.volumeLayerMask = ~0;
             if (backdropStage == null)
@@ -322,10 +330,7 @@ namespace Quota
             if (!File.Exists(path)) return null;
             var texture = new Texture2D(2, 2, TextureFormat.RGB24, false);
             if (!texture.LoadImage(File.ReadAllBytes(path))) return null;
-            texture.wrapMode = TextureWrapMode.Clamp;
-            texture.filterMode = FilterMode.Bilinear;
-            texture.hideFlags = HideFlags.HideAndDontSave;
-            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+            return MakeSprite(FitTexture(texture));
         }
 
         Sprite GoodsSprite(string file)
@@ -339,12 +344,7 @@ namespace Quota
             {
                 var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                 if (texture.LoadImage(File.ReadAllBytes(path)))
-                {
-                    texture.wrapMode = TextureWrapMode.Clamp;
-                    texture.filterMode = FilterMode.Bilinear;
-                    texture.hideFlags = HideFlags.HideAndDontSave;
-                    sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
-                }
+                    sprite = MakeSprite(FitTexture(texture));
             }
             goodsSprites[file] = sprite;
             return sprite;
@@ -425,10 +425,7 @@ namespace Quota
             var texture = DownloadHandlerTexture.GetContent(request);
             request.disposeDownloadHandlerOnDispose = false;
             request.Dispose();
-            texture.wrapMode = TextureWrapMode.Clamp;
-            texture.filterMode = FilterMode.Bilinear;
-            texture.hideFlags = HideFlags.HideAndDontSave;
-            done(Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f));
+            done(MakeSprite(FitTexture(texture)));
         }
 
         static string StreamingUrl(string fileName)
@@ -436,6 +433,43 @@ namespace Quota
             var root = Application.streamingAssetsPath;
             if (!root.EndsWith("/")) root += "/";
             return root + fileName;
+        }
+
+        const int WebTextureCap = 2048;
+
+        static Texture2D FitTexture(Texture2D texture)
+        {
+            if (texture == null) return null;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+            texture.hideFlags = HideFlags.HideAndDontSave;
+            if (Application.platform != RuntimePlatform.WebGLPlayer) return texture;
+            var wide = Mathf.Max(texture.width, texture.height);
+            if (wide <= WebTextureCap) return texture;
+            var scale = (float)WebTextureCap / wide;
+            var width = Mathf.Max(1, Mathf.RoundToInt(texture.width * scale));
+            var height = Mathf.Max(1, Mathf.RoundToInt(texture.height * scale));
+            var scaled = new Texture2D(width, height, texture.format, false);
+            scaled.wrapMode = TextureWrapMode.Clamp;
+            scaled.filterMode = FilterMode.Bilinear;
+            scaled.hideFlags = HideFlags.HideAndDontSave;
+            var from = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+            var previous = RenderTexture.active;
+            Graphics.Blit(texture, from);
+            RenderTexture.active = from;
+            scaled.ReadPixels(new Rect(0f, 0f, width, height), 0, 0);
+            scaled.Apply(false, true);
+            RenderTexture.active = previous;
+            RenderTexture.ReleaseTemporary(from);
+            if (Application.isPlaying) Object.Destroy(texture);
+            else Object.DestroyImmediate(texture);
+            return scaled;
+        }
+
+        static Sprite MakeSprite(Texture2D texture)
+        {
+            if (texture == null) return null;
+            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
         IEnumerator FadeSplash()
@@ -2723,10 +2757,7 @@ namespace Quota
             if (!File.Exists(path)) return null;
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             if (!texture.LoadImage(File.ReadAllBytes(path))) return null;
-            texture.wrapMode = TextureWrapMode.Clamp;
-            texture.filterMode = FilterMode.Bilinear;
-            texture.hideFlags = HideFlags.HideAndDontSave;
-            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+            return MakeSprite(FitTexture(texture));
         }
 
         static void PlaceSprite(Transform parent, string name, Sprite sprite, float x, float y, float width, float height)
