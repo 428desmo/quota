@@ -50,6 +50,41 @@ namespace Quota.Tests
             apply.Invoke(view, new object[] { update });
             Assert.AreEqual(turn, match.Game.TurnNumber);
             Assert.AreEqual(1, typeof(TableView).GetField("networkApplied", flags).GetValue(view));
+            Set("networkLeaving", true);
+            match.Clear();
+            apply.Invoke(view, new object[] { update });
+            Assert.IsNull(match.Game, "Late state responses must not restore a match while leaving.");
+        }
+
+        [Test]
+        public void GuestCanConfirmLeavingAfterAcknowledgingARound()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            match.Game.RoundCount = 3;
+            match.Game.AwaitingNextRound = true;
+            Set("acknowledgedRound", match.Game.RoundIndex);
+            Set("confirm", "leave");
+            Show(view);
+            Assert.IsNotNull(ButtonNamed("抜ける"));
+            Assert.IsFalse((bool)typeof(TableView).GetField("ceremonyRunning", flags).GetValue(view));
+            ButtonNamed("抜ける").onClick.Invoke();
+            Assert.IsNull(match.Game);
+        }
+
+        [Test]
+        public void GuestLobbyHidesShuffleAndExplainsWaiting()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var apply = typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic);
+            apply.Invoke(view, new object[] { "{\"phase\":\"recruiting\",\"table_id\":\"test\",\"players\":3,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"CPU\"],\"you\":{\"seat\":1,\"leader\":false}}" });
+            Assert.IsNull(FindText("シャッフル"));
+            Assert.IsNotNull(FindText("リーダーがゲーム開始するのを待っています"));
         }
 
         [Test]
