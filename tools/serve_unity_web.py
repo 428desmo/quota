@@ -180,6 +180,17 @@ class UnityHall:
 
 
 HALL = UnityHall()
+DIAGNOSTICS: list[dict] = []
+
+
+def content_encoding(path: Path) -> str:
+    if path.suffix == ".br":
+        return "br"
+    if path.suffix == ".gz":
+        return "gzip"
+    if path.name.endswith(".unityweb") and path.read_bytes()[:2] == b"\x1f\x8b":
+        return "gzip"
+    return ""
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -205,7 +216,19 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             body = json.loads(raw.decode() or "{}")
             with HALL.lock:
-                if self.command == "GET" and self.path == "/api/state":
+                if self.command == "GET" and self.path == "/api/diagnostic":
+                    payload = {"events": DIAGNOSTICS[-100:]}
+                elif self.command == "POST" and self.path == "/api/diagnostic":
+                    event = {
+                        "at": time.time(),
+                        "client": self.client_address[0],
+                        "user_agent": self.headers.get("User-Agent", ""),
+                        **body,
+                    }
+                    DIAGNOSTICS.append(event)
+                    print("WebGL diagnostic:", json.dumps(event, ensure_ascii=False), flush=True)
+                    payload = {"ok": True}
+                elif self.command == "GET" and self.path == "/api/state":
                     payload = HALL.snapshot(client)
                 elif self.path == "/api/table":
                     payload = HALL.create(body, client)
@@ -236,18 +259,22 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def end_headers(self) -> None:
-        path = Path(self.translate_path(self.path))
-        if path.suffix == ".gz":
-            self.send_header("Content-Encoding", "gzip")
-        elif path.suffix == ".br":
-            self.send_header("Content-Encoding", "br")
-        self.send_header("Cache-Control", "no-cache")
+        path = Path(self.translate_path(self.path.split("?", 1)[0]))
+        if path.is_file():
+            encoding = content_encoding(path)
+            if encoding:
+                self.send_header("Content-Encoding", encoding)
+        self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
     def guess_type(self, path: str) -> str:
         name = Path(path)
-        if name.suffix in (".gz", ".br"):
+        if name.suffix in (".gz", ".br", ".unityweb"):
             name = Path(name.stem)
+        if name.suffix == ".wasm":
+            return "application/wasm"
+        if name.suffix == ".js":
+            return "application/javascript"
         return TYPES.get(name.suffix, "application/octet-stream")
 
     def log_message(self, fmt: str, *args) -> None:
@@ -263,7 +290,7 @@ def main() -> None:
     if not folder.is_dir():
         raise SystemExit(f"WebGL export is not built yet: {folder}")
     server = ThreadingHTTPServer(("0.0.0.0", args.port), lambda *a, **k: Handler(*a, directory=str(folder), **k))
-    print(f"http://127.0.0.1:{args.port}  （Unity WebGL。Python版は 8000 のまま）")
+    print(f"http://127.0.0.1:{args.port}  （Unity WebGL）")
     server.serve_forever()
 
 

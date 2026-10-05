@@ -30,13 +30,7 @@ python tools/serve_unity_web.py
 
 `http://127.0.0.1:8080` を開く。書き出しは `unity/Builds/WebGL`。中身を変えたら WebGL を作り直す。古いタブに IndexedDB の残骸が残っていることがあるので、動かないときはそのタブを閉じて開き直す。
 
-Python の HTML 版（別物）はこうする。
-
-```bash
-python -m quota.web
-```
-
-`http://127.0.0.1:8000` を開く。同じネットワークの他の端末からも、このマシンのアドレスの 8000 番で同じ盤面を操作できる。表示や操作は Unity 版と揃っていない。
+Python の HTML 版と 8000 番ポートは廃止した。ブラウザ版は Unity WebGL の 8080 番だけを使用する。
 
 ## 遊び方
 

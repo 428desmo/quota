@@ -4,6 +4,7 @@ using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace Quota.EditorTools
 {
@@ -28,32 +29,63 @@ namespace Quota.EditorTools
             }
             var dest = System.Environment.GetEnvironmentVariable("QUOTA_WEBGL_OUT");
             if (string.IsNullOrEmpty(dest)) dest = "Builds/WebGL";
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>("Assets/Settings/UniversalRenderer.asset");
+            var oldPost = renderer != null ? renderer.postProcessData : null;
+            var pipelineObject = new SerializedObject(AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>("Assets/Settings/UniversalRenderPipeline.asset"));
+            var hdr = pipelineObject.FindProperty("m_SupportsHDR");
+            var oldHdr = hdr != null && hdr.boolValue;
+            try
             {
-                scenes = new[] { ScenePath },
-                locationPathName = dest,
-                target = BuildTarget.WebGL,
-                options = BuildOptions.None,
-            });
-            if (report.summary.result != BuildResult.Succeeded)
+                if (renderer != null)
+                {
+                    renderer.postProcessData = null;
+                    EditorUtility.SetDirty(renderer);
+                }
+                if (hdr != null)
+                {
+                    hdr.boolValue = false;
+                    pipelineObject.ApplyModifiedPropertiesWithoutUndo();
+                }
+                AssetDatabase.SaveAssets();
+                var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { ScenePath },
+                    locationPathName = dest,
+                    target = BuildTarget.WebGL,
+                    options = BuildOptions.None,
+                });
+                if (report.summary.result != BuildResult.Succeeded)
+                {
+                    Debug.LogError("WebGL export failed: " + report.summary.result);
+                    EditorApplication.Exit(1);
+                }
+            }
+            finally
             {
-                Debug.LogError("WebGL export failed: " + report.summary.result);
-                EditorApplication.Exit(1);
+                if (renderer != null)
+                {
+                    renderer.postProcessData = oldPost;
+                    EditorUtility.SetDirty(renderer);
+                }
+                if (hdr != null)
+                {
+                    hdr.boolValue = oldHdr;
+                    pipelineObject.ApplyModifiedPropertiesWithoutUndo();
+                }
+                AssetDatabase.SaveAssets();
             }
         }
 
         static void HardenWebGlPlayer()
         {
-            // Keep Safari / iOS from compiling URP post-process shaders and from
-            // serving a stale IndexedDB copy of an older build.
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
-            PlayerSettings.WebGL.decompressionFallback = true;
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.decompressionFallback = false;
             PlayerSettings.WebGL.dataCaching = false;
             PlayerSettings.WebGL.nameFilesAsHashes = true;
             PlayerSettings.WebGL.powerPreference = WebGLPowerPreference.Default;
             PlayerSettings.WebGL.initialMemorySize = 128;
             PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSize);
-            Debug.Log("WebGL player hardened: gzip fallback on, IndexedDB cache off, hashed names on.");
+            Debug.Log("WebGL player hardened for iPhone Safari.");
         }
     }
 }
