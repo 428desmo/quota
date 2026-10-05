@@ -68,16 +68,39 @@
         var shortSide = Math.min(window.innerWidth, window.innerHeight) < 520;
         return landscape && (phone || (coarse && shortSide));
       }
+      function quotaPhone() {
+        return /iPhone|iPad|iPod|Android.+Mobile|Windows Phone|webOS/i.test(navigator.userAgent || "");
+      }
       function quotaUpdateOrientation() {
         var gate = document.querySelector("#rotate-gate");
         var host = document.querySelector("#unity-container");
         var blocked = quotaPhoneLandscape();
         if (gate) gate.hidden = !blocked;
         if (host) host.style.visibility = blocked ? "hidden" : "visible";
+        quotaFitMobile();
+      }
+      function quotaFitMobile() {
+        var host = document.querySelector("#unity-container");
+        var box = document.querySelector("#unity-fullscreen-container");
+        if (!host || !host.classList.contains("unity-mobile")) return;
+        var view = window.visualViewport;
+        var width = Math.round((view && view.width) || window.innerWidth || document.documentElement.clientWidth || 0);
+        var height = Math.round((view && view.height) || window.innerHeight || document.documentElement.clientHeight || 0);
+        if (width < 1 || height < 1) return;
+        host.style.width = width + "px";
+        host.style.height = height + "px";
+        if (box) {
+          box.style.width = width + "px";
+          box.style.height = height + "px";
+        }
       }
       quotaUpdateOrientation();
       window.addEventListener("resize", quotaUpdateOrientation);
       window.addEventListener("orientationchange", quotaUpdateOrientation);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", quotaUpdateOrientation);
+        window.visualViewport.addEventListener("scroll", quotaUpdateOrientation);
+      }
 
       let canvas = document.querySelector("#unity-canvas");
       let fullscreenContainer = document.querySelector("#unity-fullscreen-container");
@@ -136,6 +159,7 @@
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
         webglContextAttributes: { alpha: false, preserveDrawingBuffer: false },
+        devicePixelRatio: quotaPhone() ? Math.min(window.devicePixelRatio || 1, 2) : window.devicePixelRatio,
         // errorHandler: function(err, url, line) {
         //    alert("error " + err + " occurred at line " + line);
         //    // Return 'true' if you handled this error and don't want Unity
@@ -169,6 +193,7 @@
         document.getElementsByTagName('head')[0].appendChild(meta);
         document.querySelector("#unity-container").className = "unity-mobile";
         canvas.className = "unity-mobile";
+        quotaFitMobile();
 
 #if SHOW_DIAGNOSTICS
         // position the diagnostics icon in the corner on the canvas
