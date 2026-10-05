@@ -76,7 +76,6 @@
         var host = document.querySelector("#unity-container");
         var blocked = quotaPhoneLandscape();
         if (gate) gate.hidden = !blocked;
-        if (host) host.style.visibility = blocked ? "hidden" : "visible";
         quotaFitMobile();
       }
       function quotaFitMobile() {
@@ -159,7 +158,7 @@
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
         webglContextAttributes: { alpha: false, preserveDrawingBuffer: false },
-        devicePixelRatio: quotaPhone() ? Math.min(window.devicePixelRatio || 1, 2) : window.devicePixelRatio,
+        devicePixelRatio: quotaPhone() ? 1 : Math.min(window.devicePixelRatio || 1, 2),
         // errorHandler: function(err, url, line) {
         //    alert("error " + err + " occurred at line " + line);
         //    // Return 'true' if you handled this error and don't want Unity
@@ -184,7 +183,7 @@
       // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
       // expected to change.
 
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      if (quotaPhone() || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) {
         // Mobile device style: fill the whole browser client area with the game canvas:
 
         var meta = document.createElement('meta');

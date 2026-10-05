@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
@@ -383,7 +382,7 @@ namespace Quota
 
         IEnumerator BootWeb()
         {
-            // Harbor first: the splash copy must sit on the town picture, never on a blank field.
+            ShowSplash();
             Sprite vertical = null;
             yield return LoadSprite("vertical_base.jpg", sprite => vertical = sprite);
             verticalBackground = vertical;
@@ -391,7 +390,6 @@ namespace Quota
             yield return LoadSprite("horizontal_base.jpg", sprite => horizontal = sprite);
             horizontalBackground = horizontal;
             Fit();
-            ShowSplash();
             string json = null;
             yield return LoadText("quota_goods_v1.0.json", text => json = text);
             if (!string.IsNullOrEmpty(json)) ItemCatalog.LoadJson(json);
@@ -433,17 +431,24 @@ namespace Quota
 
         IEnumerator LoadSprite(string fileName, System.Action<Sprite> done)
         {
-            var request = UnityWebRequestTexture.GetTexture(StreamingUrl(fileName));
+            var request = UnityWebRequest.Get(StreamingUrl(fileName));
             yield return request.SendWebRequest();
-            if (request.result != UnityWebRequest.Result.Success)
+            if (request.result != UnityWebRequest.Result.Success || request.downloadHandler.data == null)
             {
                 request.Dispose();
                 done(null);
                 yield break;
             }
-            var texture = DownloadHandlerTexture.GetContent(request);
-            request.disposeDownloadHandlerOnDispose = false;
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            var ok = texture.LoadImage(request.downloadHandler.data);
             request.Dispose();
+            if (!ok)
+            {
+                if (Application.isPlaying) Destroy(texture);
+                else DestroyImmediate(texture);
+                done(null);
+                yield break;
+            }
             done(MakeSprite(FitTexture(texture)));
         }
 
@@ -462,7 +467,7 @@ namespace Quota
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
             texture.hideFlags = HideFlags.HideAndDontSave;
-            if (Application.platform != RuntimePlatform.WebGLPlayer) return texture;
+            if (Application.platform == RuntimePlatform.WebGLPlayer) return texture;
             var wide = Mathf.Max(texture.width, texture.height);
             if (wide <= WebTextureCap) return texture;
             var scale = (float)WebTextureCap / wide;
@@ -834,10 +839,10 @@ namespace Quota
                 lobbyOpen = true;
                 playerCount = next.players;
             }
-            else if ((next.phase == "playing" || next.phase == "finished") && !networkNavigating)
+            else if (next.phase == "playing" && !networkNavigating)
             {
                 networkNavigating = true;
-                NavigateToNetworkGame();
+                if (onSetup) StartMatch(false);
                 return;
             }
             var signature = next.phase + ":" + (next.table_id ?? "") + ":" + HallSignature();
@@ -939,21 +944,9 @@ namespace Quota
             System.Uri uri;
             if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri)
                 && (uri.Scheme == "http" || uri.Scheme == "https"))
-            {
                 seen.Add(uri.GetLeftPart(System.UriPartial.Authority));
-                seen.Add(new System.UriBuilder(uri.Scheme, uri.Host, 8000).Uri.GetLeftPart(System.UriPartial.Authority));
-            }
-            seen.Add("http://127.0.0.1:8000");
+            seen.Add("http://127.0.0.1:8080");
             return seen;
-        }
-
-        string NetworkPlayRoot()
-        {
-            System.Uri uri;
-            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri)
-                && (uri.Scheme == "http" || uri.Scheme == "https"))
-                return new System.UriBuilder(uri.Scheme, uri.Host, 8000).Uri.GetLeftPart(System.UriPartial.Authority);
-            return "http://127.0.0.1:8000";
         }
 
         string NetworkClient()
@@ -965,21 +958,6 @@ namespace Quota
             PlayerPrefs.Save();
             return id;
         }
-
-        void NavigateToNetworkGame()
-        {
-            var url = NetworkPlayRoot() + "/?client=" + UnityWebRequest.EscapeURL(NetworkClient());
-#if UNITY_WEBGL && !UNITY_EDITOR
-            QuotaNavigate(url);
-#else
-            Application.OpenURL(url);
-#endif
-        }
-
-#if UNITY_WEBGL && !UNITY_EDITOR
-        [DllImport("__Internal")]
-        static extern void QuotaNavigate(string url);
-#endif
 
         static float SetupButtonHeight(float available, float units, int inners)
         {
