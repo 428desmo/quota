@@ -182,7 +182,6 @@ namespace Quota
             if (Application.platform == RuntimePlatform.WebGLPlayer)
             {
                 webAssetsReady = false;
-                if (Application.isPlaying) StartCoroutine(BootWeb());
             }
             else
             {
@@ -206,7 +205,11 @@ namespace Quota
             Fit();
             LoadRules();
             if (Application.isPlaying) StartCoroutine(PollNetworkLobby());
-            if (Application.platform != RuntimePlatform.WebGLPlayer) ShowSplash();
+            if (Application.platform == RuntimePlatform.WebGLPlayer)
+            {
+                if (Application.isPlaying) StartCoroutine(BootWeb());
+            }
+            else ShowSplash();
             MarkWeb("Start 完了");
         }
 
