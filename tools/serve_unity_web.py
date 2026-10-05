@@ -50,7 +50,9 @@ class UnityTable:
         self.players = players if players in (3, 4) else 3
         self.phase = "recruiting"
         self.idle_at = time.monotonic()
-        self.humans = [Seat(leader, name or "あなた")]
+        self.host = Seat(leader, name or "あなた")
+        self.members = {leader: self.host}
+        self.humans = [self.host]
         self.cpu_cast = pick_cast(self.players)
         self.seed = secrets.randbelow(2147483647)
         self.options = {}
@@ -65,13 +67,13 @@ class UnityTable:
         return len(self.humans)
 
     def leader_name(self) -> str:
-        return self.humans[0].name if self.humans else ""
+        return self.host.name
 
     def leader_id(self) -> str:
-        return self.humans[0].client if self.humans else ""
+        return self.host.client
 
     def has(self, client: str) -> bool:
-        return any(seat.client == client for seat in self.humans)
+        return client in self.members
 
     def summary(self) -> dict:
         return {
@@ -80,7 +82,7 @@ class UnityTable:
             "players": self.players,
             "seated": self.seated(),
             "status": "募集中" if self.phase == "recruiting" else "対局中",
-            "observers": 0,
+            "observers": len(self.members) - self.seated(),
         }
 
     def recruiting(self, client: str) -> dict:
@@ -99,8 +101,8 @@ class UnityTable:
             ],
             "cpus": [display_name(cid) for cid in self.cpu_cast[:max(0, self.players - self.seated())]],
             "you": {
-                "seat": next((i for i, seat in enumerate(self.humans) if seat.client == client), None),
-                "observer": False,
+                "seat": next((i for i, seat in enumerate(self.humans) if seat.client == client), -1),
+                "observer": not any(seat.client == client for seat in self.humans),
                 "joined": self.has(client),
                 "leader": client == self.leader_id(),
             },
@@ -138,6 +140,8 @@ class UnityHall:
         players = int(body.get("players") or 3)
         table = UnityTable(client, str(body.get("name") or "あなた"), players)
         table.options = {key: body.get(key, default) for key, default in {"simple": True, "sequence": False, "title": False, "special": False, "ok_timeout": 5, "turn_timeout": 120}.items()}
+        if body.get("sit_out"):
+            table.humans.clear()
         self.tables[table.id] = table
         self.where[client] = table.id
         return table.recruiting(client)
@@ -150,7 +154,9 @@ class UnityHall:
         if table.seated() >= table.players:
             raise ValueError("席がありません")
         if not table.has(client):
-            table.humans.append(Seat(client, str(body.get("name") or "あなた")))
+            seat = Seat(client, str(body.get("name") or "あなた"))
+            table.members[client] = seat
+            table.humans.append(seat)
         self.where[client] = table.id
         table.touch()
         return table.recruiting(client)
@@ -169,12 +175,30 @@ class UnityHall:
             for other, loc in list(self.where.items()):
                 if loc == tid: del self.where[other]
             return self.snapshot(client)
+        table.members.pop(client, None)
         table.humans = [seat for seat in table.humans if seat.client != client]
-        if not table.humans:
+        if not table.members:
             self.tables.pop(tid, None)
         else:
+            if table.host.client == client: table.host = next(iter(table.members.values()))
             table.touch()
         return self.snapshot(client)
+
+    def participation(self, body: dict, client: str) -> dict:
+        table = self._require(client)
+        if table.phase != "recruiting":
+            raise ValueError("募集中だけ変更できます")
+        seated = any(seat.client == client for seat in table.humans)
+        if body.get("sit_out"):
+            table.humans = [seat for seat in table.humans if seat.client != client]
+        elif not seated:
+            if table.seated() >= table.players:
+                raise ValueError("席がありません")
+            seat = table.members[client]
+            if client == table.leader_id(): table.humans.insert(0, seat)
+            else: table.humans.append(seat)
+        table.touch()
+        return table.recruiting(client)
 
     def set_players(self, body: dict, client: str) -> dict:
         table = self._require(client)
@@ -335,6 +359,8 @@ class Handler(SimpleHTTPRequestHandler):
                     payload = HALL.join(body, client)
                 elif self.path == "/api/leave":
                     payload = HALL.leave(client)
+                elif self.path == "/api/participation":
+                    payload = HALL.participation(body, client)
                 elif self.path == "/api/players":
                     payload = HALL.set_players(body, client)
                 elif self.path == "/api/action":

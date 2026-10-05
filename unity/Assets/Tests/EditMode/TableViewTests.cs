@@ -19,6 +19,15 @@ namespace Quota.Tests
             if (events != null) Object.DestroyImmediate(events.gameObject);
         }
 
+        [TestCase("quota_goods_v1.0", "quota_goods_v1.0")]
+        [TestCase("quota_goods_v1.0.json", "quota_goods_v1.0")]
+        [TestCase("cpu_ranking_v1.2.json", "cpu_ranking_v1.2")]
+        public void BundledTextKeepsTheVersionInItsResourceName(string name, string expected)
+        {
+            var method = typeof(TableView).GetMethod("BundledTextName", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.AreEqual(expected, method.Invoke(null, new object[] { name }));
+        }
+
         [Test]
         public void NetworkStartKeepsBothHumansAndAppliesSharedActionsOnlyOnce()
         {

@@ -161,6 +161,9 @@ namespace Quota
 
         [System.Runtime.InteropServices.DllImport("__Internal")]
         static extern void QuotaFetch(string method, string url, string body, string client, string target);
+
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void QuotaEditName(string value, string target);
 #endif
 
         static void MarkWeb(string message)
@@ -288,6 +291,9 @@ namespace Quota
 
         void Update()
         {
+            if (TouchScreenKeyboard.visible) return;
+            foreach (var input in GetComponentsInChildren<InputField>())
+                if (input.isFocused) return;
             Fit();
             if (!Application.isPlaying || frame == null) return;
             var wide = WideScreen();
@@ -465,11 +471,16 @@ namespace Quota
             return "QuotaWebGenerated/" + name;
         }
 
-        static string LoadBundledText(string name)
+        static string BundledTextName(string name)
         {
             var extension = Path.GetExtension(name);
-            if (!string.IsNullOrEmpty(extension)) name = name.Substring(0, name.Length - extension.Length);
-            var asset = Resources.Load<TextAsset>(BundledPath(name));
+            if (extension == ".json" || extension == ".txt") name = name.Substring(0, name.Length - extension.Length);
+            return name;
+        }
+
+        static string LoadBundledText(string name)
+        {
+            var asset = Resources.Load<TextAsset>(BundledPath(BundledTextName(name)));
             return asset != null ? asset.text : null;
         }
 
@@ -662,8 +673,13 @@ namespace Quota
             SetupButton(column, "勝つためのヒント", () => OpenPage("hint"), guideW, buttonH, font);
             SetupGap(column, section);
             var labelW = LabelSlot(font, "あなたの名前：");
+#if UNITY_WEBGL && !UNITY_EDITOR
+            SetupChoiceRow(column, "あなたの名前：", HumanName(), rowW, buttonH, labelW, rowW - labelW - 12f - font, font,
+                () => QuotaEditName(HumanName(), gameObject.name));
+#else
             var name = SetupNameRow(column, "あなたの名前：", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName, rowW, buttonH, labelW, rowW - labelW - 12f - font, font);
             name.onValueChanged.AddListener(value => playerName = value);
+#endif
             for (var i = 0; i < tableCount; i++)
             {
                 SetupGap(column, innerGap);
@@ -710,23 +726,25 @@ namespace Quota
                 SetupGap(column, innerGap);
             }
             SetupButton(column, "シャッフル", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, actionW, buttonH, font);
-            if (!NetworkJoined)
             {
                 SetupGap(column, section);
                 SetupButton(column, sitOut ? "自分は参加しない　オン" : "自分は参加しない　オフ", () =>
                 {
-                    sitOut = !sitOut;
-                    ShowSetup();
+                    if (NetworkJoined)
+                    {
+                        StartCoroutine(NetworkPost("/api/participation", JsonUtility.ToJson(new NetworkCreate { sit_out = !sitOut })));
+                    }
+                    else { sitOut = !sitOut; ShowSetup(); }
                 }, rowW, buttonH, font);
                 SetupGap(column, innerGap);
             }
-            else SetupGap(column, section);
             SetupButton(column, "設定", OpenSettings, actionW, buttonH, font);
             SetupGap(column, section);
             if (NetworkJoined)
             {
                 var leader = networkState.you != null && networkState.you.leader;
-                SetupButton(column, leader ? "ゲーム開始" : "リーダーの開始を待っています", leader ? (UnityAction)StartNetworkMatch : () => { }, actionW, buttonH * 2f, leader ? font * 2 : font);
+                if (leader) SetupButton(column, "ゲーム開始", StartNetworkMatch, actionW, buttonH * 2f, font * 2);
+                else SetupNotice(column, "リーダーの開始を待っています", rowW, buttonH, font);
             }
             else SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
             SetupGap(column, innerGap);
@@ -813,6 +831,8 @@ namespace Quota
         {
             while (networkRequest) yield return null;
             networkRequest = true;
+            try
+            {
             var posted = json != null;
 #if UNITY_WEBGL && !UNITY_EDITOR
             webNetworkDone = false;
@@ -861,6 +881,16 @@ namespace Quota
             }
             networkRequest = false;
 #endif
+            }
+            finally { networkRequest = false; }
+        }
+
+        public void OnNameEdited(string value)
+        {
+            playerName = string.IsNullOrWhiteSpace(value) ? "あなた" : value.Trim();
+            PlayerPrefs.SetString("quota.name", playerName);
+            PlayerPrefs.Save();
+            if (onSetup) ShowSetup();
         }
 
         public void OnNetworkResponse(string response)
@@ -888,6 +918,7 @@ namespace Quota
                 networkTables.Clear();
                 lobbyOpen = true;
                 playerCount = next.players;
+                if (next.you != null) sitOut = next.you.observer;
             }
             else if (next.phase == "playing")
             {
@@ -916,6 +947,8 @@ namespace Quota
             }
             var signature = next.phase + ":" + (next.table_id ?? "") + ":" + HallSignature() + ":" + JsonUtility.ToJson(next);
             if (signature == networkSignature) return;
+            foreach (var input in GetComponentsInChildren<InputField>())
+                if (input.isFocused) return;
             networkSignature = signature;
             if (onSetup && frame != null && frame.Find("splash") == null) ShowSetup();
         }
@@ -1021,6 +1054,7 @@ namespace Quota
             {
                 players = playerCount,
                 name = HumanName(),
+                sit_out = sitOut,
                 simple = simpleMode,
                 sequence = sequenceRule,
                 title = titleRule,
@@ -1166,7 +1200,12 @@ namespace Quota
 
         void StartMatch(bool cpuOnly)
         {
-            if (Application.platform == RuntimePlatform.WebGLPlayer && !ItemCatalog.IsLoaded) return;
+            if (Application.platform == RuntimePlatform.WebGLPlayer && !ItemCatalog.IsLoaded)
+            {
+                MarkWeb("対局開始失敗：品目データ未読込");
+                networkNavigating = false;
+                return;
+            }
             lobbyOpen = false;
             cpuRun++;
             ceremonyRunning = false;
@@ -1367,6 +1406,7 @@ namespace Quota
         sealed class NetworkYou
         {
             public int seat;
+            public bool observer;
             public bool leader;
         }
 
@@ -1401,6 +1441,7 @@ namespace Quota
         {
             public int players;
             public string name;
+            public bool sit_out;
             public bool simple;
             public bool sequence;
             public bool title;
@@ -3026,7 +3067,7 @@ namespace Quota
 
         int HumanSeat(Game game)
         {
-            if (NetworkPlaying && networkState.you != null) return networkState.you.seat;
+            if (NetworkPlaying && networkState.you != null && networkState.you.seat >= 0) return networkState.you.seat;
             for (var i = 0; i < game.Players.Count; i++)
                 if (game.Players[i].IsHuman) return i;
             return game.Current;
@@ -3349,6 +3390,20 @@ namespace Quota
             text.raycastTarget = false;
         }
 
+        void SetupNotice(RectTransform parent, string caption, float width, float height, int fontSize)
+        {
+            var go = new GameObject("notice", typeof(RectTransform), typeof(LayoutElement), typeof(Text));
+            go.transform.SetParent(parent, false);
+            SizeElement(go.GetComponent<LayoutElement>(), width, height);
+            var text = go.GetComponent<Text>();
+            text.text = caption;
+            text.font = nameFont;
+            text.fontSize = fontSize;
+            text.color = Ink;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.raycastTarget = false;
+        }
+
         InputField SetupNameRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize)
         {
             var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
@@ -3370,6 +3425,7 @@ namespace Quota
             text.alignment = TextAnchor.MiddleLeft;
             text.supportRichText = false;
             var field = go.GetComponent<InputField>();
+            field.shouldHideMobileInput = false;
             field.textComponent = text;
             field.text = value;
             return field;
