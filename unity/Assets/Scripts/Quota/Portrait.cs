@@ -70,9 +70,6 @@ namespace Quota
         public static RectTransform Box(Transform parent, string name, float x, float y, float width, float height, float radius, float border, Color fill, Color stroke, bool rightCornersOnly)
         {
             var host = Rect(parent, name, x, y, width, height);
-            // Keep borders above subpixel width after the WebGL canvas is scaled.
-            if (border > 0f && Application.platform == RuntimePlatform.WebGLPlayer)
-                border = Mathf.Max(border, 1.5f / Mathf.Max(0.001f, Mathf.Min(Mathf.Abs(host.lossyScale.x), Mathf.Abs(host.lossyScale.y))));
             var strokeImage = host.gameObject.AddComponent<Image>();
             var hollow = border > 0f && fill.a < 1f;
             strokeImage.sprite = hollow
