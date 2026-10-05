@@ -11,10 +11,13 @@ namespace Quota.EditorTools
     public static class WebGlExport
     {
         const string ScenePath = "Assets/Scenes/Main.unity";
+        const string StreamingRoot = "Assets/StreamingAssets";
+        const string ResourceRoot = "Assets/Resources/QuotaWebGenerated";
 
         public static void Build()
         {
             HardenWebGlPlayer();
+            StageWebResources();
             Directory.CreateDirectory("Assets/Scenes");
             if (!File.Exists(ScenePath))
             {
@@ -72,8 +75,34 @@ namespace Quota.EditorTools
                     hdr.boolValue = oldHdr;
                     pipelineObject.ApplyModifiedPropertiesWithoutUndo();
                 }
+                AssetDatabase.DeleteAsset(ResourceRoot);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 AssetDatabase.SaveAssets();
             }
+        }
+
+        static void StageWebResources()
+        {
+            if (AssetDatabase.IsValidFolder(ResourceRoot))
+                AssetDatabase.DeleteAsset(ResourceRoot);
+            Directory.CreateDirectory(ResourceRoot);
+            CopyResource("vertical_base.jpg");
+            CopyResource("horizontal_base.jpg");
+            CopyResource("title1.png");
+            CopyResource("title2.png");
+            CopyResource("quota_goods_v1.0.json");
+            CopyResource("cpu_ranking_v1.2.json");
+            var sourceGoods = Path.Combine(StreamingRoot, "goods");
+            var targetGoods = Path.Combine(ResourceRoot, "goods");
+            Directory.CreateDirectory(targetGoods);
+            foreach (var source in Directory.GetFiles(sourceGoods, "*.png"))
+                File.Copy(source, Path.Combine(targetGoods, Path.GetFileName(source)), true);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        static void CopyResource(string name)
+        {
+            File.Copy(Path.Combine(StreamingRoot, name), Path.Combine(ResourceRoot, name), true);
         }
 
         static void HardenWebGlPlayer()

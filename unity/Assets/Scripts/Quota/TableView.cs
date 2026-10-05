@@ -91,6 +91,8 @@ namespace Quota
         string networkSignature = "";
         bool networkRequest;
         bool networkNavigating;
+        bool webNetworkDone;
+        string webNetworkResponse;
         string draftOk = "5";
         string draftTurn = "120";
         bool draftSimple;
@@ -153,6 +155,9 @@ namespace Quota
 #if UNITY_WEBGL && !UNITY_EDITOR
         [System.Runtime.InteropServices.DllImport("__Internal")]
         static extern void QuotaMarkReady(string message);
+
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void QuotaFetch(string method, string url, string body, string client, string target);
 #endif
 
         static void MarkWeb(string message)
@@ -426,82 +431,49 @@ namespace Quota
 
         IEnumerator BootWeb()
         {
-            MarkWeb("アセット読込開始");
-            Sprite vertical = null;
-            yield return LoadSprite("vertical_base.jpg", sprite => vertical = sprite);
-            verticalBackground = vertical;
-            MarkWeb(vertical != null ? "縦背景読込完了" : "縦背景読込失敗");
-            Sprite horizontal = null;
-            yield return LoadSprite("horizontal_base.jpg", sprite => horizontal = sprite);
-            horizontalBackground = horizontal;
-            MarkWeb(horizontal != null ? "横背景読込完了" : "横背景読込失敗");
-            string json = null;
-            yield return LoadText("quota_goods_v1.0.json", text => json = text);
-            if (!string.IsNullOrEmpty(json)) ItemCatalog.LoadJson(json);
-            Sprite loadedTitle = null;
-            yield return LoadSprite("title1.png", sprite => loadedTitle = sprite);
-            if (loadedTitle != null) titleMark = loadedTitle;
-            Sprite loadedCatch = null;
-            yield return LoadSprite("title2.png", sprite => loadedCatch = sprite);
-            if (loadedCatch != null) catchMark = loadedCatch;
+            MarkWeb("同梱アセット読込開始");
+            verticalBackground = LoadBundledSprite("vertical_base");
+            horizontalBackground = LoadBundledSprite("horizontal_base");
+            titleMark = LoadBundledSprite("title1");
+            catchMark = LoadBundledSprite("title2");
+            var goods = LoadBundledText("quota_goods_v1.0");
+            if (!string.IsNullOrEmpty(goods)) ItemCatalog.LoadJson(goods);
+            Ranking.LoadJson(LoadBundledText(Ranking.FileName));
             webAssetsReady = true;
             Fit();
             ShowSplash();
             MarkWeb("スプラッシュ表示");
 
-            string ranking = null;
-            yield return LoadText(Ranking.FileName, text => ranking = text);
-            Ranking.LoadJson(ranking);
             if (ItemCatalog.IsLoaded)
             {
+                var loaded = 0;
                 foreach (var file in ItemCatalog.PictureFiles())
                 {
-                    Sprite picture = null;
-                    yield return LoadSprite("goods/" + file + ".png", sprite => picture = sprite);
+                    var picture = LoadBundledSprite("goods/" + file);
                     if (picture != null) goodsSprites[file] = picture;
+                    if (++loaded % 8 == 0) yield return null;
                 }
             }
+            MarkWeb("同梱アセット読込完了");
         }
 
-        IEnumerator LoadWebAssets()
+        static string BundledPath(string name)
         {
-            yield return BootWeb();
+            return "QuotaWebGenerated/" + name;
         }
 
-        IEnumerator LoadText(string fileName, System.Action<string> done)
+        static string LoadBundledText(string name)
         {
-            var request = UnityWebRequest.Get(StreamingUrl(fileName));
-            yield return request.SendWebRequest();
-            var text = request.result == UnityWebRequest.Result.Success ? request.downloadHandler.text : null;
-            request.Dispose();
-            done(text);
+            var extension = Path.GetExtension(name);
+            if (!string.IsNullOrEmpty(extension)) name = name.Substring(0, name.Length - extension.Length);
+            var asset = Resources.Load<TextAsset>(BundledPath(name));
+            return asset != null ? asset.text : null;
         }
 
-        IEnumerator LoadSprite(string fileName, System.Action<Sprite> done)
+        static Sprite LoadBundledSprite(string name)
         {
-            var url = StreamingUrl(fileName);
-            MarkWeb("画像要求 " + url);
-            var request = UnityWebRequestTexture.GetTexture(url);
-            request.timeout = 10;
-            yield return request.SendWebRequest();
-            MarkWeb($"画像応答 {fileName} {request.result} {request.responseCode} {request.error}");
-            if (request.result != UnityWebRequest.Result.Success)
-            {
-                request.Dispose();
-                done(null);
-                yield break;
-            }
-            var texture = DownloadHandlerTexture.GetContent(request);
-            request.disposeDownloadHandlerOnDispose = false;
-            request.Dispose();
-            done(MakeSprite(FitTexture(texture)));
-        }
-
-        static string StreamingUrl(string fileName)
-        {
-            var root = Application.streamingAssetsPath;
-            if (!root.EndsWith("/")) root += "/";
-            return root + fileName;
+            var texture = Resources.Load<Texture2D>(BundledPath(name));
+            return MakeSprite(FitTexture(texture));
         }
 
         const int WebTextureCap = 4096;
@@ -839,6 +811,31 @@ namespace Quota
             while (networkRequest) yield return null;
             networkRequest = true;
             var posted = json != null;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            webNetworkDone = false;
+            webNetworkResponse = null;
+            QuotaFetch(
+                posted ? "POST" : "GET",
+                CurrentOrigin() + path,
+                json ?? "",
+                NetworkClient(),
+                gameObject.name);
+            var waited = 0f;
+            while (!webNetworkDone && waited < 15f)
+            {
+                waited += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            if (webNetworkDone)
+            {
+                var response = JsonUtility.FromJson<WebNetworkResult>(webNetworkResponse);
+                if (response != null && response.ok) ApplyNetworkState(response.body);
+                else MarkWeb("ロビー通信失敗 " + (response != null ? response.error : "invalid response"));
+            }
+            else MarkWeb("ロビー通信タイムアウト " + path);
+            networkRequest = false;
+            yield break;
+#else
             var body = posted ? System.Text.Encoding.UTF8.GetBytes(json) : null;
             foreach (var root in NetworkRoots())
             {
@@ -860,6 +857,13 @@ namespace Quota
                 }
             }
             networkRequest = false;
+#endif
+        }
+
+        public void OnNetworkResponse(string response)
+        {
+            webNetworkResponse = response;
+            webNetworkDone = true;
         }
 
         void ApplyNetworkState(string json)
@@ -1039,6 +1043,15 @@ namespace Quota
                 seen.Add(uri.GetLeftPart(System.UriPartial.Authority));
             seen.Add("http://127.0.0.1:8080");
             return seen;
+        }
+
+        static string CurrentOrigin()
+        {
+            System.Uri uri;
+            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri)
+                && (uri.Scheme == "http" || uri.Scheme == "https"))
+                return uri.GetLeftPart(System.UriPartial.Authority);
+            return "http://127.0.0.1:8080";
         }
 
         string NetworkClient()
@@ -1292,6 +1305,15 @@ namespace Quota
             public NetworkSeat[] seats;
             public string[] cpus;
             public NetworkYou you;
+            public string error;
+        }
+
+        [System.Serializable]
+        sealed class WebNetworkResult
+        {
+            public bool ok;
+            public int status;
+            public string body;
             public string error;
         }
 
