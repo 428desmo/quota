@@ -479,24 +479,17 @@ namespace Quota
 
         IEnumerator LoadSprite(string fileName, System.Action<Sprite> done)
         {
-            var request = UnityWebRequest.Get(StreamingUrl(fileName));
+            var request = UnityWebRequestTexture.GetTexture(StreamingUrl(fileName));
             yield return request.SendWebRequest();
-            if (request.result != UnityWebRequest.Result.Success || request.downloadHandler.data == null)
+            if (request.result != UnityWebRequest.Result.Success)
             {
                 request.Dispose();
                 done(null);
                 yield break;
             }
-            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            var ok = texture.LoadImage(request.downloadHandler.data);
+            var texture = DownloadHandlerTexture.GetContent(request);
+            request.disposeDownloadHandlerOnDispose = false;
             request.Dispose();
-            if (!ok)
-            {
-                if (Application.isPlaying) Destroy(texture);
-                else DestroyImmediate(texture);
-                done(null);
-                yield break;
-            }
             done(MakeSprite(FitTexture(texture)));
         }
 
