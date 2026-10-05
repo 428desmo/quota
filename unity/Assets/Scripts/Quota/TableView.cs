@@ -39,10 +39,10 @@ namespace Quota
 
         static readonly Color Ink = Hex("#2C221E");
         static readonly Color Cream = Hex("#F6F1E8");
-        static readonly Color Ecru = Hex("#F3EDE4");
+        static readonly Color Ecru = new Color(0.953f, 0.929f, 0.894f, 0.86f);
         static readonly Color Accent = Hex("#8C3D2A");
-        static readonly Color Plate = new Color(0.953f, 0.929f, 0.894f, 1f);
-        static readonly Color Paper = new Color(0.965f, 0.945f, 0.910f, 1f);
+        static readonly Color Plate = new Color(0.953f, 0.929f, 0.894f, 0.80f);
+        static readonly Color Paper = new Color(0.965f, 0.945f, 0.910f, 0.92f);
         static readonly Color Field = Hex("#FFF8F0");
         static readonly Color DimTint = new Color(0.78f, 0.74f, 0.68f, 1f);
 
@@ -371,6 +371,16 @@ namespace Quota
         {
             if (backdrop == null) return;
             var tint = backdropDim ? DimTint : Color.white;
+            if (backdrop.sprite != null)
+            {
+                Shader.SetGlobalTexture("_QuotaBackdrop", backdrop.sprite.texture);
+                var texture = backdrop.sprite.texture;
+                Shader.SetGlobalVector("_QuotaBackdrop_TexelSize", new Vector4(1f / texture.width, 1f / texture.height, texture.width, texture.height));
+                var corners = new Vector3[4];
+                backdrop.rectTransform.GetWorldCorners(corners);
+                Shader.SetGlobalVector("_QuotaBackdropRect", new Vector4(corners[0].x / Screen.width, corners[0].y / Screen.height, (corners[2].x - corners[0].x) / Screen.width, (corners[2].y - corners[0].y) / Screen.height));
+                Shader.SetGlobalColor("_QuotaBackdropTint", tint);
+            }
             var camera = Camera.main;
             if (backdropStage != null && backdrop.sprite != null && camera != null && camera.orthographic)
             {
@@ -2839,6 +2849,7 @@ namespace Quota
             hit.sprite = Portrait.SlicedRound;
             hit.type = Image.Type.Sliced;
             hit.color = Ecru;
+            Portrait.ApplyGlass(hit);
             var button = host.gameObject.AddComponent<Button>();
             button.targetGraphic = hit;
             button.onClick.AddListener(() => Ask("leave"));
@@ -3205,6 +3216,7 @@ namespace Quota
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
             image.color = fill;
+            Portrait.ApplyGlass(image);
             image.raycastTarget = false;
             return host;
         }

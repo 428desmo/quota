@@ -88,6 +88,21 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void TranslucentPanelsUseBlurWhileWhiteCardsStayOpaque()
+        {
+            host = new GameObject("GlassTest", typeof(RectTransform));
+            var panel = Portrait.Box(host.transform, "panel", 0, 0, 200, 100, 7, 1,
+                new Color(0.953f, 0.929f, 0.894f, 0.8f), Color.black, false);
+            var fill = panel.Find("fill").GetComponent<Image>();
+            Assert.AreEqual("Quota/Glass", fill.material.shader.name);
+            Assert.AreEqual(0.8f, fill.color.a);
+            var card = Portrait.Box(host.transform, "card", 0, 0, 100, 140, 7, 1,
+                Color.white, Color.black, false);
+            Assert.AreNotEqual("Quota/Glass", card.Find("fill").GetComponent<Image>().material.shader.name);
+            Assert.IsTrue(Resources.Load<Shader>("Quota/Glass").isSupported);
+        }
+
+        [Test]
         public void SetupTextStaysInsideThePanelAndIsTallEnoughToRead()
         {
             host = new GameObject("Quota");
@@ -356,7 +371,8 @@ namespace Quota.Tests
             Assert.AreEqual(0.953f, fillColor.r, 0.002f);
             Assert.AreEqual(0.929f, fillColor.g, 0.002f);
             Assert.AreEqual(0.894f, fillColor.b, 0.002f);
-            Assert.AreEqual(1f, fillColor.a, 0.001f);
+            Assert.AreEqual(0.8f, fillColor.a, 0.001f);
+            Assert.AreEqual("Quota/Glass", fill.GetComponent<Image>().material.shader.name);
             Assert.AreEqual(new Vector2(1f, -1f), fill.anchoredPosition);
             Assert.AreEqual(new Vector2(1028f, 338f), fill.sizeDelta);
 
