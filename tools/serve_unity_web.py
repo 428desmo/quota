@@ -1,6 +1,6 @@
 """Serve the Unity WebGL export and the Unity lobby.
 
-Port 8080 is the Unity client. Port 8000 stays the separate Python HTML table.
+Port 8080 serves Unity and its authoritative multiplayer action history.
 """
 
 from __future__ import annotations
@@ -16,6 +16,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DIR = ROOT / "unity" / "Builds" / "WebGL"
 PORT = 8080
+
+import sys
+sys.path.insert(0, str(ROOT))
+from quota.characters import pick_cast, display_name, seat_cast, mind_for
+from quota.engine import Game, GameConfig, TakeQuota, Collect, Abandon, Pass
 
 TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -46,6 +51,12 @@ class UnityTable:
         self.phase = "recruiting"
         self.idle_at = time.monotonic()
         self.humans = [Seat(leader, name or "あなた")]
+        self.cpu_cast = pick_cast(self.players)
+        self.seed = secrets.randbelow(2147483647)
+        self.options = {}
+        self.game = None
+        self.actions = []
+        self.cpu_at = 0.0
 
     def touch(self) -> None:
         self.idle_at = time.monotonic()
@@ -74,7 +85,11 @@ class UnityTable:
 
     def recruiting(self, client: str) -> dict:
         return {
-            "phase": "recruiting",
+            "phase": self.phase,
+            "seed": self.seed,
+            "options": self.options,
+            "actions": self.actions,
+            "cpu_cast": self.cpu_cast[:max(0, self.players - self.seated())],
             "table_id": self.id,
             "event_n": 1,
             "players": self.players,
@@ -82,7 +97,7 @@ class UnityTable:
                 {"name": seat.name, "leader": seat.client == self.leader_id()}
                 for seat in self.humans
             ],
-            "cpus": [f"CPU{n + 1}" for n in range(max(0, self.players - self.seated()))],
+            "cpus": [display_name(cid) for cid in self.cpu_cast[:max(0, self.players - self.seated())]],
             "you": {
                 "seat": next((i for i, seat in enumerate(self.humans) if seat.client == client), None),
                 "observer": False,
@@ -114,14 +129,15 @@ class UnityHall:
             self.where.pop(client, None)
             return {"phase": "hall", "tables": [item.summary() for item in self.tables.values()]}
         table.touch()
-        if table.phase == "recruiting":
-            return table.recruiting(client)
-        return {"phase": "playing", "table_id": table.id}
+        if table.phase == "playing":
+            self.pump_cpu(table)
+        return table.recruiting(client)
 
     def create(self, body: dict, client: str) -> dict:
         self.leave(client)
         players = int(body.get("players") or 3)
         table = UnityTable(client, str(body.get("name") or "あなた"), players)
+        table.options = {key: body.get(key, default) for key, default in {"simple": True, "sequence": False, "title": False, "special": False, "ok_timeout": 5, "turn_timeout": 120}.items()}
         self.tables[table.id] = table
         self.where[client] = table.id
         return table.recruiting(client)
@@ -144,6 +160,15 @@ class UnityHall:
         table = self.tables.get(tid)
         if table is None:
             return self.snapshot(client)
+        if table.phase == "playing" and table.game is not None and table.game.finished:
+            if tid not in self.where.values(): self.tables.pop(tid, None)
+            return self.snapshot(client)
+        if table.phase == "playing":
+            # Closing the table keeps seat indices from shifting under a live game.
+            self.tables.pop(tid, None)
+            for other, loc in list(self.where.items()):
+                if loc == tid: del self.where[other]
+            return self.snapshot(client)
         table.humans = [seat for seat in table.humans if seat.client != client]
         if not table.humans:
             self.tables.pop(tid, None)
@@ -160,17 +185,79 @@ class UnityHall:
             raise ValueError("人数は3か4です")
         if players < table.seated():
             raise ValueError("参加者より少なくはできません")
+        if table.phase != "recruiting":
+            raise ValueError("対局中は人数を変更できません")
         table.players = players
         table.touch()
         return table.recruiting(client)
 
-    def begin(self, client: str) -> dict:
+    def begin(self, client: str, body: dict | None = None) -> dict:
         table = self._require(client)
         if table.leader_id() != client:
             raise ValueError("リーダーだけが開始できます")
+        if table.phase != "recruiting":
+            return table.recruiting(client)
+        if body:
+            table.options.update({k: body[k] for k in table.options if k in body})
+        options = table.options
+        table.game = Game.start(GameConfig(
+            num_players=table.players, seed=table.seed,
+            names=[seat.name for seat in table.humans] + [display_name(cid) for cid in table.cpu_cast[:table.players-table.seated()]],
+            human_seats=list(range(table.seated())),
+            sequence_rule=options["sequence"], title_rule=options["title"],
+            special_actions_rule=options["special"], rounds=1 if options["simple"] else table.players,
+        ))
+        seat_cast(table.game, table.cpu_cast)
+        table.cpu_at = time.monotonic() + 0.7
         table.phase = "playing"
         table.touch()
-        return {"phase": "playing", "table_id": table.id}
+        return table.recruiting(client)
+
+    def action(self, body: dict, client: str) -> dict:
+        table = self._require(client)
+        game = table.game
+        if table.phase != "playing" or game is None:
+            raise ValueError("対局は始まっていません")
+        if body.get("revision") != len(table.actions):
+            raise ValueError("盤面が更新されています")
+        key = str(body.get("key") or "")
+        if key == "next_round":
+            if client != table.leader_id():
+                raise ValueError("リーダーだけがラウンドを進められます")
+        elif game.finished or game.awaiting_next_round or game.current >= table.seated() or table.humans[game.current].client != client:
+            raise ValueError("あなたの手番ではありません")
+        self.apply_action(table, key)
+        table.cpu_at = time.monotonic() + 0.7
+        return table.recruiting(client)
+
+    @staticmethod
+    def apply_action(table, key):
+        game = table.game
+        if key == "double": game.declare_double()
+        elif key == "reshuffle": game.declare_reshuffle()
+        elif key == "cancel_double": game.cancel_double()
+        elif key == "next_round": game.begin_next_round()
+        elif key == "pass": game.step(Pass())
+        elif key == "abandon": game.step(Abandon())
+        elif key.startswith("take:"): game.step(TakeQuota(int(key[5:])))
+        elif key.startswith("collect:"): game.step(Collect(tuple(int(n) for n in key[8:].split(","))))
+        else: raise ValueError("不明な行動です")
+        table.actions.append(key)
+
+    def pump_cpu(self, table):
+        game = table.game
+        if game is None or game.finished or game.awaiting_next_round or game.players[game.current].is_human or time.monotonic() < table.cpu_at:
+            return
+        plan = game.plan
+        action = mind_for(game.players[game.current]).choose(game)
+        if game.plan != plan:
+            table.actions.append(game.plan)
+        if isinstance(action, TakeQuota): key = "take:" + str(action.card_id)
+        elif isinstance(action, Collect): key = "collect:" + ",".join(map(str, action.card_ids))
+        elif isinstance(action, Abandon): key = "abandon"
+        else: key = "pass"
+        self.apply_action(table, key)
+        table.cpu_at = time.monotonic() + 0.7
 
     def _require(self, client: str) -> UnityTable:
         table = self.tables.get(self.where.get(client, ""))
@@ -250,9 +337,15 @@ class Handler(SimpleHTTPRequestHandler):
                     payload = HALL.leave(client)
                 elif self.path == "/api/players":
                     payload = HALL.set_players(body, client)
+                elif self.path == "/api/action":
+                    payload = HALL.action(body, client)
                 elif self.path == "/api/start":
-                    payload = HALL.begin(client)
+                    payload = HALL.begin(client, body)
                 elif self.path == "/api/shuffle":
+                    table = HALL._require(client)
+                    if table.phase != "recruiting" or table.leader_id() != client:
+                        raise ValueError("募集中のリーダーだけが変更できます")
+                    table.cpu_cast = pick_cast(table.players)
                     payload = HALL.snapshot(client)
                 else:
                     self.send_error(404)

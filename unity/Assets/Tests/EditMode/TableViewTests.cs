@@ -20,6 +20,30 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void NetworkStartKeepsBothHumansAndAppliesSharedActionsOnlyOnce()
+        {
+            host = new GameObject("Quota");
+            var view = host.AddComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(TableView).GetMethod("Start", flags).Invoke(view, null);
+            typeof(TableView).GetMethod("DismissSplash", flags).Invoke(view, null);
+            var apply = typeof(TableView).GetMethod("ApplyNetworkState", flags);
+            var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":3,\"seed\":1,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"Test CPU\"],\"cpu_cast\":[0],\"you\":{\"seat\":1,\"leader\":false},\"options\":{\"simple\":true},\"actions\":[]}";
+            apply.Invoke(view, new object[] { json });
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            Assert.AreEqual("A", match.Game.Players[0].Name);
+            Assert.AreEqual("B", match.Game.Players[1].Name);
+            Assert.IsTrue(match.Game.Players[1].IsHuman);
+            Assert.IsFalse(match.Game.Players[2].IsHuman);
+            var update = json.Replace("\"actions\":[]", "\"actions\":[\"pass\"]");
+            apply.Invoke(view, new object[] { update });
+            var turn = match.Game.TurnNumber;
+            apply.Invoke(view, new object[] { update });
+            Assert.AreEqual(turn, match.Game.TurnNumber);
+            Assert.AreEqual(1, typeof(TableView).GetField("networkApplied", flags).GetValue(view));
+        }
+
+        [Test]
         public void SetupTextStaysInsideThePanelAndIsTallEnoughToRead()
         {
             host = new GameObject("Quota");
