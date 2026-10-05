@@ -980,10 +980,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    threading.Thread(target=_cpu_loop, daemon=True).start()
-    server = ThreadingHTTPServer(("0.0.0.0", 8000), Handler)
-    print("http://127.0.0.1:8000  （同じネットワークの他の端末からも開けます）")
-    server.serve_forever()
+    raise SystemExit(
+        "The Python HTML server was retired. "
+        "Run `python tools/serve_unity_web.py` and use port 8080."
+    )
 
 
 if __name__ == "__main__":

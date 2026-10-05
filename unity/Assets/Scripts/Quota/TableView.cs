@@ -150,8 +150,21 @@ namespace Quota
             host.AddComponent<TableView>();
         }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void QuotaMarkReady(string message);
+#endif
+
+        static void MarkWeb(string message)
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            QuotaMarkReady(message);
+#endif
+        }
+
         void Start()
         {
+            MarkWeb("Start 開始");
             nameFont = LoadFont(new[] { "Hiragino Kaku Gothic ProN W6", "HiraginoSans-W6", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic" });
             roundFont = LoadFont(new[] { "FOT-TsukuBRdGothic Std B", "FOT-筑紫B丸ゴシック Std B", "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", "Hiragino Sans" });
             var canvas = gameObject.AddComponent<Canvas>();
@@ -194,6 +207,7 @@ namespace Quota
             LoadRules();
             if (Application.isPlaying) StartCoroutine(PollNetworkLobby());
             if (Application.platform != RuntimePlatform.WebGLPlayer) ShowSplash();
+            MarkWeb("Start 完了");
         }
 
         void OnDestroy()
@@ -203,7 +217,7 @@ namespace Quota
             else DestroyImmediate(gradeProfile);
         }
 
-        void EnsureBackdropGrade()
+        Camera EnsureGameCamera()
         {
             var camera = Camera.main;
             if (camera == null)
@@ -221,15 +235,18 @@ namespace Quota
             camera.farClipPlane = 40f;
             camera.transform.position = new Vector3(0f, 0f, -10f);
             camera.transform.rotation = Quaternion.identity;
-            var extra = camera.GetUniversalAdditionalCameraData();
-            // Safari / iOS WebGL loses the context when URP post-process shaders
-            // are compiled, so the grade stays on the native builds only.
+            return camera;
+        }
+
+        void EnsureBackdropGrade()
+        {
+            var camera = EnsureGameCamera();
             if (Application.platform == RuntimePlatform.WebGLPlayer)
             {
-                extra.renderPostProcessing = false;
                 if (backdropStage != null) backdropStage.enabled = false;
                 return;
             }
+            var extra = camera.GetUniversalAdditionalCameraData();
             extra.renderPostProcessing = true;
             extra.volumeLayerMask = ~0;
             if (backdropStage == null)
@@ -276,7 +293,29 @@ namespace Quota
         bool WideScreen()
         {
             if (!Application.isPlaying) return widePreview;
-            return Screen.width > Screen.height && Screen.height > 0;
+            ViewSize(out var width, out var height);
+            return width > height && height > 0;
+        }
+
+        float viewW;
+        float viewH;
+
+        void ViewSize(out float width, out float height)
+        {
+            width = Screen.width;
+            height = Screen.height;
+            if (width < 2f || height < 2f)
+            {
+                width = Display.main.renderingWidth;
+                height = Display.main.renderingHeight;
+            }
+            if (width < 2f || height < 2f)
+            {
+                width = viewW > 0f ? viewW : 390f;
+                height = viewH > 0f ? viewH : 844f;
+            }
+            viewW = width;
+            viewH = height;
         }
 
         void UseFrame()
@@ -288,14 +327,15 @@ namespace Quota
 
         void Fit()
         {
-            if (frame == null || Screen.width <= 0 || Screen.height <= 0) return;
-            var portrait = Screen.height >= Screen.width;
+            if (frame == null) return;
+            ViewSize(out var viewWidth, out var viewHeight);
+            var portrait = viewHeight >= viewWidth;
             var sprite = portrait ? verticalBackground : horizontalBackground;
             if (sprite == null) sprite = verticalBackground != null ? verticalBackground : horizontalBackground;
             if (backdrop != null && sprite != null)
             {
                 backdrop.sprite = sprite;
-                var cover = Mathf.Max(Screen.width / sprite.rect.width, Screen.height / sprite.rect.height);
+                var cover = Mathf.Max(viewWidth / sprite.rect.width, viewHeight / sprite.rect.height);
                 backdrop.rectTransform.sizeDelta = new Vector2(sprite.rect.width * cover, sprite.rect.height * cover);
                 PresentBackdrop();
             }
@@ -303,7 +343,8 @@ namespace Quota
             var designW = wide ? LandWidth : ScreenWidth;
             var designH = wide ? LandHeight : ScreenHeight;
             frame.sizeDelta = new Vector2(designW, designH);
-            var scale = Mathf.Min(Screen.width / designW, Screen.height / designH);
+            var scale = Mathf.Min(viewWidth / designW, viewHeight / designH);
+            if (scale < 0.01f) scale = 0.01f;
             frame.localScale = new Vector3(scale, scale, 1f);
         }
 
@@ -383,6 +424,7 @@ namespace Quota
         IEnumerator BootWeb()
         {
             ShowSplash();
+            MarkWeb("スプラッシュ表示");
             Sprite vertical = null;
             yield return LoadSprite("vertical_base.jpg", sprite => vertical = sprite);
             verticalBackground = vertical;
@@ -460,6 +502,7 @@ namespace Quota
         }
 
         const int WebTextureCap = 4096;
+        const int PhoneTextureCap = 1024;
 
         static Texture2D FitTexture(Texture2D texture)
         {
@@ -467,12 +510,14 @@ namespace Quota
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
             texture.hideFlags = HideFlags.HideAndDontSave;
-            if (Application.platform == RuntimePlatform.WebGLPlayer) return texture;
+            var cap = Application.platform == RuntimePlatform.WebGLPlayer ? PhoneTextureCap : WebTextureCap;
             var wide = Mathf.Max(texture.width, texture.height);
-            if (wide <= WebTextureCap) return texture;
-            var scale = (float)WebTextureCap / wide;
+            if (wide <= cap) return texture;
+            var scale = (float)cap / wide;
             var width = Mathf.Max(1, Mathf.RoundToInt(texture.width * scale));
             var height = Mathf.Max(1, Mathf.RoundToInt(texture.height * scale));
+            if (Application.platform == RuntimePlatform.WebGLPlayer)
+                return ScaleTextureCpu(texture, width, height);
             var scaled = new Texture2D(width, height, texture.format, false);
             scaled.wrapMode = TextureWrapMode.Clamp;
             scaled.filterMode = FilterMode.Bilinear;
@@ -485,6 +530,32 @@ namespace Quota
             scaled.Apply(false, true);
             RenderTexture.active = previous;
             RenderTexture.ReleaseTemporary(from);
+            if (Application.isPlaying) Object.Destroy(texture);
+            else Object.DestroyImmediate(texture);
+            return scaled;
+        }
+
+        static Texture2D ScaleTextureCpu(Texture2D texture, int width, int height)
+        {
+            var scaled = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            scaled.wrapMode = TextureWrapMode.Clamp;
+            scaled.filterMode = FilterMode.Bilinear;
+            scaled.hideFlags = HideFlags.HideAndDontSave;
+            var source = texture.GetPixels();
+            var dest = new Color[width * height];
+            var srcW = texture.width;
+            var srcH = texture.height;
+            for (var y = 0; y < height; y++)
+            {
+                var srcY = Mathf.Clamp(Mathf.FloorToInt((y + 0.5f) * srcH / height), 0, srcH - 1);
+                for (var x = 0; x < width; x++)
+                {
+                    var srcX = Mathf.Clamp(Mathf.FloorToInt((x + 0.5f) * srcW / width), 0, srcW - 1);
+                    dest[y * width + x] = source[srcY * srcW + srcX];
+                }
+            }
+            scaled.SetPixels(dest);
+            scaled.Apply(false, true);
             if (Application.isPlaying) Object.Destroy(texture);
             else Object.DestroyImmediate(texture);
             return scaled;
@@ -775,11 +846,11 @@ namespace Quota
 
         IEnumerator PollNetworkLobby()
         {
-            yield return new WaitForSeconds(SplashSeconds + SplashFadeSeconds);
+            yield return null;
             while (SharedNetwork)
             {
                 if (!networkRequest) yield return NetworkGet();
-                yield return new WaitForSeconds(onSetup ? 0.4f : 0.7f);
+                yield return new WaitForSeconds(0.4f);
             }
         }
 
@@ -830,7 +901,7 @@ namespace Quota
             networkState = next;
             if (next.phase == "hall")
             {
-                ReadHallTables(json, next);
+                ReadHallTables(json);
                 if (wasRecruiting) lobbyOpen = false;
             }
             else if (next.phase == "recruiting")
@@ -851,16 +922,67 @@ namespace Quota
             if (onSetup && frame != null && frame.Find("splash") == null) ShowSetup();
         }
 
-        void ReadHallTables(string json, NetworkSnapshot next)
+        void ReadHallTables(string json)
         {
             networkTables.Clear();
-            if (next.tables != null && next.tables.Length > 0)
+            var array = SliceJsonArray(json, "tables");
+            var start = 0;
+            while (start < array.Length)
             {
-                networkTables.AddRange(next.tables);
-                return;
+                var open = array.IndexOf('{', start);
+                if (open < 0) break;
+                var depth = 0;
+                var close = -1;
+                for (var i = open; i < array.Length; i++)
+                {
+                    if (array[i] == '{') depth++;
+                    else if (array[i] == '}')
+                    {
+                        depth--;
+                        if (depth == 0)
+                        {
+                            close = i;
+                            break;
+                        }
+                    }
+                }
+                if (close < 0) break;
+                var chunk = array.Substring(open, close - open + 1);
+                var table = new NetworkTable
+                {
+                    id = JsonString(chunk, "id"),
+                    leader = JsonString(chunk, "leader"),
+                    status = JsonString(chunk, "status"),
+                    players = JsonInt(chunk, "players"),
+                    seated = JsonInt(chunk, "seated"),
+                };
+                if (!string.IsNullOrEmpty(table.id)) networkTables.Add(table);
+                start = close + 1;
             }
-            var wrapped = JsonUtility.FromJson<NetworkSnapshot>("{\"tables\":" + SliceJsonArray(json, "tables") + "}");
-            if (wrapped != null && wrapped.tables != null) networkTables.AddRange(wrapped.tables);
+        }
+
+        static string JsonString(string json, string name)
+        {
+            var key = "\"" + name + "\"";
+            var at = json.IndexOf(key, System.StringComparison.Ordinal);
+            if (at < 0) return "";
+            var colon = json.IndexOf(':', at + key.Length);
+            var first = json.IndexOf('"', colon + 1);
+            var last = first < 0 ? -1 : json.IndexOf('"', first + 1);
+            return first < 0 || last < 0 ? "" : json.Substring(first + 1, last - first - 1);
+        }
+
+        static int JsonInt(string json, string name)
+        {
+            var key = "\"" + name + "\"";
+            var at = json.IndexOf(key, System.StringComparison.Ordinal);
+            if (at < 0) return 0;
+            var colon = json.IndexOf(':', at + key.Length);
+            if (colon < 0) return 0;
+            var end = colon + 1;
+            while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '-' || json[end] == ' ')) end++;
+            int.TryParse(json.Substring(colon + 1, end - colon - 1).Trim(), out var value);
+            return value;
         }
 
         string HallSignature()
