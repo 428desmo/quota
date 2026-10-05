@@ -91,6 +91,9 @@ namespace Quota
         string networkSignature = "";
         bool networkRequest;
         bool networkNavigating;
+        int networkApplied;
+        bool NetworkPlaying => networkState != null && networkState.phase == "playing";
+        bool MyHumanTurn => match.IsHumanTurn && (!NetworkPlaying || (networkState.you != null && networkState.you.seat == match.Game.Current));
         bool webNetworkDone;
         string webNetworkResponse;
         string draftOk = "5";
@@ -875,8 +878,10 @@ namespace Quota
             networkState = next;
             if (next.phase == "hall")
             {
+                networkNavigating = false;
                 ReadHallTables(json);
                 if (wasRecruiting) lobbyOpen = false;
+                if (!onSetup && match.Game != null) { match.Clear(); cpuRun++; busy = false; ShowSetup(); }
             }
             else if (next.phase == "recruiting")
             {
@@ -884,13 +889,32 @@ namespace Quota
                 lobbyOpen = true;
                 playerCount = next.players;
             }
-            else if (next.phase == "playing" && !networkNavigating)
+            else if (next.phase == "playing")
             {
-                networkNavigating = true;
-                if (onSetup) StartMatch(false);
+                if (!networkNavigating)
+                {
+                    networkNavigating = true;
+                    networkApplied = 0;
+                    if (onSetup)
+                    {
+                        playerCount = next.players;
+                        seedText = next.seed.ToString();
+                        if (next.options != null)
+                        {
+                            simpleMode = next.options.simple;
+                            sequenceRule = next.options.sequence;
+                            titleRule = next.options.title;
+                            specialRule = next.options.special;
+                            okTimeout = next.options.ok_timeout;
+                            turnTimeout = next.options.turn_timeout;
+                        }
+                        StartMatch(false);
+                    }
+                }
+                ApplyNetworkActions(next.actions);
                 return;
             }
-            var signature = next.phase + ":" + (next.table_id ?? "") + ":" + HallSignature();
+            var signature = next.phase + ":" + (next.table_id ?? "") + ":" + HallSignature() + ":" + JsonUtility.ToJson(next);
             if (signature == networkSignature) return;
             networkSignature = signature;
             if (onSetup && frame != null && frame.Find("splash") == null) ShowSetup();
@@ -1024,9 +1048,46 @@ namespace Quota
             StartCoroutine(NetworkPost("/api/shuffle", "{}"));
         }
 
+        [System.Serializable]
+        sealed class NetworkActionRequest { public string key; public int revision; }
+
+        void SendNetworkAction(string key)
+        {
+            confirm = null;
+            StartCoroutine(NetworkPost("/api/action", JsonUtility.ToJson(new NetworkActionRequest { key = key, revision = networkApplied })));
+        }
+
+        void ApplyNetworkActions(string[] actions)
+        {
+            if (actions == null || match.Game == null) return;
+            var changed = false;
+            while (networkApplied < actions.Length)
+            {
+                var key = actions[networkApplied];
+                var game = match.Game;
+                if (key == "double") game.DeclareDouble();
+                else if (key == "reshuffle") game.DeclareReshuffle();
+                else if (key == "cancel_double") game.CancelDouble();
+                else if (key == "next_round") game.BeginNextRound();
+                else if (key == "pass") game.Step(new Pass());
+                else if (key == "abandon") game.Step(new Abandon());
+                else if (key.StartsWith("take:")) game.Step(new TakeQuota(int.Parse(key.Substring(5))));
+                else if (key.StartsWith("collect:"))
+                {
+                    var ids = new List<int>();
+                    foreach (var id in key.Substring(8).Split(',')) ids.Add(int.Parse(id));
+                    game.Step(new Collect(ids));
+                }
+                networkApplied++;
+                changed = true;
+            }
+            if (changed) { confirm = null; busy = false; ShowTable(); }
+        }
+
         void StartNetworkMatch()
         {
-            StartCoroutine(NetworkPost("/api/start", "{}"));
+            StartCoroutine(NetworkPost("/api/start", JsonUtility.ToJson(new NetworkCreate
+            { simple = simpleMode, sequence = sequenceRule, title = titleRule, special = specialRule, ok_timeout = okTimeout, turn_timeout = turnTimeout })));
         }
 
         void LeaveNetworkTable()
@@ -1125,14 +1186,27 @@ namespace Quota
                 PlayerPrefs.SetString("quota.name", playerName);
                 PlayerPrefs.Save();
             }
-            if (!cpuOnly) names.Add(playerName);
+            var shared = networkState != null && networkState.phase == "playing";
+            var humanSeats = new List<int>();
+            if (shared && networkState.seats != null)
+            {
+                foreach (var seat in networkState.seats)
+                {
+                    humanSeats.Add(names.Count);
+                    names.Add(seat.name);
+                }
+                firstCpu = names.Count;
+            }
+            else if (!cpuOnly) { names.Add(playerName); humanSeats.Add(0); }
             EnsureCast();
             var spare = 0;
             for (var i = firstCpu; i < playerCount; i++)
             {
-                var character = spare < lobbyCast.Count ? lobbyCast[spare++] : Characters.PickFresh(lobbyRng, new HashSet<int>(lobbyCast));
+                var character = shared && networkState.cpu_cast != null
+                    ? networkState.cpu_cast[i - firstCpu]
+                    : spare < lobbyCast.Count ? lobbyCast[spare++] : Characters.PickFresh(lobbyRng, new HashSet<int>(lobbyCast));
                 characters.Add(character);
-                names.Add(Ranking.DisplayName(character));
+                names.Add(shared ? networkState.cpus[i - firstCpu] : Ranking.DisplayName(character));
             }
             orderOverride = null;
             dialogOrder = null;
@@ -1147,12 +1221,12 @@ namespace Quota
                 NumPlayers = playerCount,
                 Seed = parsed,
                 Names = names,
-                HumanSeats = cpuOnly ? new List<int>() : new List<int> { 0 },
+                HumanSeats = humanSeats,
                 SequenceRule = sequenceRule,
                 TitleRule = titleRule,
                 SpecialActionsRule = specialRule,
                 Rounds = simpleMode ? 1 : playerCount,
-            }, pumpCpus: !Application.isPlaying);
+            }, pumpCpus: !Application.isPlaying && !shared);
             Characters.BindInOrder(match.Game, characters);
             confirm = null;
             finishCounted = false;
@@ -1232,7 +1306,7 @@ namespace Quota
             var showCeremony = reviewMode || ceremonyDialog;
             if (showCeremony) DrawCeremonyPanel();
             else if (ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
-            else if (confirm == null && match.IsHumanTurn && !busy && !game.Finished) DrawControls(game);
+            else if (confirm == null && MyHumanTurn && !busy && !game.Finished) DrawControls(game);
             else if (confirm == null && !game.Finished)
             {
                 var note = $"{game.Players[game.Current].Name} が考えています";
@@ -1292,6 +1366,7 @@ namespace Quota
         [System.Serializable]
         sealed class NetworkYou
         {
+            public int seat;
             public bool leader;
         }
 
@@ -1301,6 +1376,10 @@ namespace Quota
             public string phase;
             public string table_id;
             public int players;
+            public int seed;
+            public string[] actions;
+            public int[] cpu_cast;
+            public NetworkCreate options;
             public NetworkTable[] tables;
             public NetworkSeat[] seats;
             public string[] cpus;
@@ -1688,6 +1767,7 @@ namespace Quota
             CleanupFlyers();
             if (last)
             {
+                if (NetworkPlaying) { networkNavigating = false; StartCoroutine(NetworkPost("/api/leave", "{}")); }
                 ceremonyDismissed = true;
                 orderOverride = null;
                 dialogOrder = null;
@@ -1698,6 +1778,7 @@ namespace Quota
             orderOverride = null;
             dialogOrder = null;
             scoreOverride = null;
+            if (NetworkPlaying) { SendNetworkAction("next_round"); return; }
             match.Game.BeginNextRound();
             cpuNotBefore = Time.time + 0.6f;
             StartCoroutine(RunCpus(++cpuRun));
@@ -2159,7 +2240,8 @@ namespace Quota
             }
             Pill(panel, "次のラウンド", 32f, height - 96f, 280f, 72f, 32, () =>
             {
-                match.Game.BeginNextRound();
+                if (NetworkPlaying) { SendNetworkAction("next_round"); return; }
+            match.Game.BeginNextRound();
                 ShowTable();
             });
         }
@@ -2214,7 +2296,7 @@ namespace Quota
             var origin = 20f + (1040f - group) * 0.5f;
             var y = 170f + (210f - cardHeight) * 0.5f;
             var me = game.Players[game.Current];
-            var yours = match.IsHumanTurn && !busy && !game.Finished;
+            var yours = MyHumanTurn && !busy && !game.Finished;
             for (var i = 0; i < game.Market.Count; i++)
             {
                 var card = game.Market[i];
@@ -2244,7 +2326,7 @@ namespace Quota
             var originX = LandMarketX + (LandMarketW - groupW) * 0.5f;
             var originY = LandMarketY + (LandMarketH - groupH) * 0.5f;
             var me = game.Players[game.Current];
-            var yours = match.IsHumanTurn && !busy && !game.Finished;
+            var yours = MyHumanTurn && !busy && !game.Finished;
             for (var i = 0; i < game.Market.Count; i++)
             {
                 var card = game.Market[i];
@@ -2654,18 +2736,21 @@ namespace Quota
             if (canDeclare && me.DoubleActionLeft > 0) entries.Add(Item("ダブル", () =>
             {
                 confirm = null;
+                if (NetworkPlaying) { SendNetworkAction("double"); return; }
                 game.DeclareDouble();
                 ShowTable();
             }));
             else if (game.Plan == "double" && game.DoubleStage == 1 && !game.TurnGain) entries.Add(Item("キャンセル", () =>
             {
                 confirm = null;
+                if (NetworkPlaying) { SendNetworkAction("cancel_double"); return; }
                 game.CancelDouble();
                 ShowTable();
             }));
             if (canDeclare && me.ReshuffleTakeLeft > 0) entries.Add(Item("配り直し", () =>
             {
                 confirm = null;
+                if (NetworkPlaying) { SendNetworkAction("reshuffle"); return; }
                 game.DeclareReshuffle();
                 ShowTable();
             }));
@@ -2847,13 +2932,15 @@ namespace Quota
             ceremonyRunning = false;
             ceremonyDialog = false;
             match.Clear();
+            if (NetworkPlaying) { networkNavigating = false; StartCoroutine(NetworkPost("/api/leave", "{}")); }
             CleanupFlyers();
             ShowSetup();
         }
 
         void Play(GameAction action)
         {
-            if (busy || !match.IsHumanTurn || !match.Game.IsLegal(action)) return;
+            if (busy || !MyHumanTurn || !match.Game.IsLegal(action)) return;
+            if (NetworkPlaying) { SendNetworkAction(action.Key); return; }
             confirm = null;
             var seat = match.Game.Current;
             var turn = match.Game.TurnNumber;
@@ -2865,6 +2952,7 @@ namespace Quota
 
         IEnumerator RunCpus(int ticket)
         {
+            if (NetworkPlaying) { busy = false; ShowTable(); yield break; }
             if (ticket != cpuRun || match.Game == null) yield break;
             busy = true;
             ShowTable();
@@ -2922,6 +3010,7 @@ namespace Quota
                 anchor = i;
                 break;
             }
+            if (NetworkPlaying && networkState.you != null) anchor = networkState.you.seat;
             var start = cycle.IndexOf(anchor);
             if (start < 0) start = 0;
             var rows = new List<int>();
@@ -2935,8 +3024,9 @@ namespace Quota
             return row < 0 ? seat : row;
         }
 
-        static int HumanSeat(Game game)
+        int HumanSeat(Game game)
         {
+            if (NetworkPlaying && networkState.you != null) return networkState.you.seat;
             for (var i = 0; i < game.Players.Count; i++)
                 if (game.Players[i].IsHuman) return i;
             return game.Current;
