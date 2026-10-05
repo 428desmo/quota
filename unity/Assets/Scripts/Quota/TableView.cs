@@ -479,8 +479,12 @@ namespace Quota
 
         IEnumerator LoadSprite(string fileName, System.Action<Sprite> done)
         {
-            var request = UnityWebRequestTexture.GetTexture(StreamingUrl(fileName));
+            var url = StreamingUrl(fileName);
+            MarkWeb("画像要求 " + url);
+            var request = UnityWebRequestTexture.GetTexture(url);
+            request.timeout = 10;
             yield return request.SendWebRequest();
+            MarkWeb($"画像応答 {fileName} {request.result} {request.responseCode} {request.error}");
             if (request.result != UnityWebRequest.Result.Success)
             {
                 request.Dispose();

@@ -202,6 +202,17 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.startswith("/api/"):
             self.api()
             return
+        if self.path.split("?", 1)[0].startswith("/StreamingAssets/"):
+            event = {
+                "at": time.time(),
+                "client": self.client_address[0],
+                "user_agent": self.headers.get("User-Agent", ""),
+                "id": "",
+                "stage": "static-get",
+                "detail": self.path,
+            }
+            DIAGNOSTICS.append(event)
+            print("WebGL diagnostic:", json.dumps(event, ensure_ascii=False), flush=True)
         super().do_GET()
 
     def do_POST(self) -> None:
