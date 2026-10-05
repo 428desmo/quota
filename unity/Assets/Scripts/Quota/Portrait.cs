@@ -8,6 +8,25 @@ namespace Quota
     {
         static readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         static Sprite white;
+        static Material glass;
+
+        public static bool IsGlassFill(Color fill)
+        {
+            return fill.a < 1f && fill.r > 0.9f && fill.g > 0.85f && fill.b > 0.8f;
+        }
+
+        public static void ApplyGlass(Image image)
+        {
+            if (!IsGlassFill(image.color)) return;
+            if (glass == null)
+            {
+                var shader = Resources.Load<Shader>("Quota/Glass");
+                if (shader == null) return;
+                glass = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            }
+            image.material = glass;
+        }
+
 
         public static Sprite SlicedRound
         {
@@ -62,6 +81,7 @@ namespace Quota
             strokeImage.type = Image.Type.Simple;
             strokeImage.color = border > 0 ? stroke : fill;
             strokeImage.raycastTarget = false;
+            if (border <= 0f) ApplyGlass(strokeImage);
             if (border > 0)
             {
                 var inner = radius > border ? radius - border : 0f;
@@ -70,6 +90,7 @@ namespace Quota
                 fillImage.sprite = Rounded(width - border * 2f, height - border * 2f, inner, rightCornersOnly);
                 fillImage.color = fill;
                 fillImage.raycastTarget = false;
+                ApplyGlass(fillImage);
             }
             return host;
         }

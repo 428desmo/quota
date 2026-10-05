@@ -192,7 +192,8 @@
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
         webglContextAttributes: { alpha: false, preserveDrawingBuffer: false },
-        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        // Let Unity track the browser pixel ratio, including Retina DPR 3.
+        matchWebGLToCanvasSize: true,
         // errorHandler: function(err, url, line) {
         //    alert("error " + err + " occurred at line " + line);
         //    // Return 'true' if you handled this error and don't want Unity
