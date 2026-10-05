@@ -51,6 +51,7 @@ namespace Quota.EditorTools
             PlayerSettings.WebGL.dataCaching = false;
             PlayerSettings.WebGL.nameFilesAsHashes = true;
             PlayerSettings.WebGL.powerPreference = WebGLPowerPreference.Default;
+            PlayerSettings.WebGL.initialMemorySize = 128;
             PlayerSettings.SetIl2CppCodeGeneration(NamedBuildTarget.WebGL, Il2CppCodeGeneration.OptimizeSize);
             Debug.Log("WebGL player hardened: gzip fallback on, IndexedDB cache off, hashed names on.");
         }

@@ -193,8 +193,7 @@ namespace Quota
             EnsureBackdropGrade();
             Fit();
             LoadRules();
-            if (Application.platform == RuntimePlatform.WebGLPlayer && Application.isPlaying)
-                StartCoroutine(PollNetworkLobby());
+            if (Application.isPlaying) StartCoroutine(PollNetworkLobby());
             if (Application.platform != RuntimePlatform.WebGLPlayer) ShowSplash();
         }
 
@@ -399,6 +398,14 @@ namespace Quota
             string ranking = null;
             yield return LoadText(Ranking.FileName, text => ranking = text);
             Ranking.LoadJson(ranking);
+            Sprite loadedTitle = null;
+            yield return LoadSprite("title1.png", sprite => loadedTitle = sprite);
+            if (loadedTitle != null) titleMark = loadedTitle;
+            Sprite loadedCatch = null;
+            yield return LoadSprite("title2.png", sprite => loadedCatch = sprite);
+            if (loadedCatch != null) catchMark = loadedCatch;
+            webAssetsReady = true;
+            Fit();
             if (ItemCatalog.IsLoaded)
             {
                 foreach (var file in ItemCatalog.PictureFiles())
@@ -408,14 +415,6 @@ namespace Quota
                     if (picture != null) goodsSprites[file] = picture;
                 }
             }
-            Sprite loadedTitle = null;
-            yield return LoadSprite("title1.png", sprite => loadedTitle = sprite);
-            if (loadedTitle != null) titleMark = loadedTitle;
-            Sprite loadedCatch = null;
-            yield return LoadSprite("title2.png", sprite => loadedCatch = sprite);
-            if (loadedCatch != null) catchMark = loadedCatch;
-            webAssetsReady = true;
-            Fit();
         }
 
         IEnumerator LoadWebAssets()
@@ -766,7 +765,7 @@ namespace Quota
             ShowSetup();
         }
 
-        bool SharedNetwork => Application.isPlaying && Application.platform == RuntimePlatform.WebGLPlayer;
+        bool SharedNetwork => Application.isPlaying;
         bool NetworkJoined => networkState != null && networkState.phase == "recruiting" && !string.IsNullOrEmpty(networkState.table_id);
 
         IEnumerator PollNetworkLobby()
@@ -938,7 +937,8 @@ namespace Quota
         {
             var seen = new HashSet<string>();
             System.Uri uri;
-            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri))
+            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri)
+                && (uri.Scheme == "http" || uri.Scheme == "https"))
             {
                 seen.Add(uri.GetLeftPart(System.UriPartial.Authority));
                 seen.Add(new System.UriBuilder(uri.Scheme, uri.Host, 8000).Uri.GetLeftPart(System.UriPartial.Authority));
@@ -950,7 +950,8 @@ namespace Quota
         string NetworkPlayRoot()
         {
             System.Uri uri;
-            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri))
+            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri)
+                && (uri.Scheme == "http" || uri.Scheme == "https"))
                 return new System.UriBuilder(uri.Scheme, uri.Host, 8000).Uri.GetLeftPart(System.UriPartial.Authority);
             return "http://127.0.0.1:8000";
         }
