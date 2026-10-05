@@ -3,6 +3,14 @@ mergeInto(LibraryManager.library, {
     if (window.quotaReport) window.quotaReport(UTF8ToString(messagePtr));
   },
 
+  QuotaEditName: function (valuePtr, targetPtr) {
+    var target = UTF8ToString(targetPtr);
+    var name = window.prompt("あなたの名前", UTF8ToString(valuePtr));
+    if (name !== null && window.quotaUnityInstance) {
+      window.quotaUnityInstance.SendMessage(target, "OnNameEdited", name);
+    }
+  },
+
   QuotaFetch: function (methodPtr, urlPtr, bodyPtr, clientPtr, targetPtr) {
     var method = UTF8ToString(methodPtr);
     var url = UTF8ToString(urlPtr);

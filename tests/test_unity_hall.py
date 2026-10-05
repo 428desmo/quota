@@ -88,3 +88,21 @@ def test_cpu_moves_are_shared_and_game_finishes(advanced):
         elif key.startswith("collect:"): replay.step(Collect(tuple(map(int, key[8:].split(',')))))
     assert replay.finished
     assert [p.score for p in replay.players] == [p.score for p in table.game.players]
+
+
+def test_host_can_watch_without_losing_leadership_or_cpu_cast():
+    hall = UnityHall()
+    opened = hall.create({"players": 3, "name": "A"}, "a")
+    watched = hall.participation({"sit_out": True}, "a")
+    assert watched["you"]["observer"]
+    assert watched["you"]["leader"]
+    assert watched["you"]["seat"] == -1
+    assert watched["seats"] == []
+    assert len(watched["cpus"]) == 3
+    restored = hall.participation({"sit_out": False}, "a")
+    assert restored["you"]["seat"] == 0
+    assert restored["cpu_cast"] == opened["cpu_cast"]
+    hall.participation({"sit_out": True}, "a")
+    started = hall.begin("a")
+    assert started["phase"] == "playing"
+    assert not any(p.is_human for p in hall.tables[opened["table_id"]].game.players)
