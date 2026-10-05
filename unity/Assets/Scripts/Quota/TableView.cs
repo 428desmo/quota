@@ -112,6 +112,8 @@ namespace Quota
         bool ceremonyRunning;
         bool ceremonyOk;
         bool ceremonyDismissed;
+        int acknowledgedRound;
+        bool networkLeaving;
         bool ceremonyScoreReady;
         bool reviewMode;
         string ceremonyHeading = "";
@@ -725,7 +727,8 @@ namespace Quota
                 seatNumber++;
                 SetupGap(column, innerGap);
             }
-            SetupButton(column, "シャッフル", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, actionW, buttonH, font);
+            if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
+                SetupButton(column, "シャッフル", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, actionW, buttonH, font);
             {
                 SetupGap(column, section);
                 SetupButton(column, sitOut ? "自分は参加しない　オン" : "自分は参加しない　オフ", () =>
@@ -744,7 +747,7 @@ namespace Quota
             {
                 var leader = networkState.you != null && networkState.you.leader;
                 if (leader) SetupButton(column, "ゲーム開始", StartNetworkMatch, actionW, buttonH * 2f, font * 2);
-                else SetupNotice(column, "リーダーの開始を待っています", rowW, buttonH, font);
+                else SetupNotice(column, "リーダーがゲーム開始するのを待っています", rowW, buttonH, font);
             }
             else SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
             SetupGap(column, innerGap);
@@ -908,6 +911,7 @@ namespace Quota
             networkState = next;
             if (next.phase == "hall")
             {
+                networkLeaving = false;
                 networkNavigating = false;
                 ReadHallTables(json);
                 if (wasRecruiting) lobbyOpen = false;
@@ -922,6 +926,7 @@ namespace Quota
             }
             else if (next.phase == "playing")
             {
+                if (networkLeaving) return;
                 if (!networkNavigating)
                 {
                     networkNavigating = true;
@@ -1210,6 +1215,7 @@ namespace Quota
             cpuRun++;
             ceremonyRunning = false;
             ceremonyDismissed = false;
+            acknowledgedRound = 0;
             reviewMode = false;
             reviewOrder = null;
             reviewScores = null;
@@ -1314,7 +1320,7 @@ namespace Quota
             coinFrom = SnapshotCardCoins();
             var game = match.Game;
             var ceremonyBreak = !reviewMode && game != null && (game.AwaitingNextRound || (Application.isPlaying && game.Finished && !ceremonyDismissed));
-            if (ceremonyBreak && Application.isPlaying && !ceremonyRunning)
+            if (ceremonyBreak && Application.isPlaying && !ceremonyRunning && acknowledgedRound != game.RoundIndex)
             {
                 ceremonyRunning = true;
                 PrepareCeremony(game);
@@ -1344,7 +1350,7 @@ namespace Quota
                 ceremonyDialog = false;
             var showCeremony = reviewMode || ceremonyDialog;
             if (showCeremony) DrawCeremonyPanel();
-            else if (ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
+            else if (confirm == null && ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
             else if (confirm == null && MyHumanTurn && !busy && !game.Finished) DrawControls(game);
             else if (confirm == null && !game.Finished)
             {
@@ -1360,7 +1366,7 @@ namespace Quota
                 Result(game);
                 if (offerStandard) DrawStandardOffer();
             }
-            else if (confirm != null && !ceremonyBreak && !reviewMode) Confirm();
+            else if (confirm != null && !ceremonyRunning && !showCeremony && !reviewMode) Confirm();
         }
 
         static string RoundLabel(Game game)
@@ -1798,6 +1804,7 @@ namespace Quota
         void FinishCeremony()
         {
             var last = ceremonyLast;
+            acknowledgedRound = match.Game.RoundIndex;
             ceremonyRunning = false;
             ceremonyDialog = false;
             ceremonyRankTitle = null;
@@ -1808,7 +1815,7 @@ namespace Quota
             CleanupFlyers();
             if (last)
             {
-                if (NetworkPlaying) { networkNavigating = false; StartCoroutine(NetworkPost("/api/leave", "{}")); }
+                if (NetworkPlaying) { networkLeaving = true; StartCoroutine(NetworkPost("/api/leave", "{}")); }
                 ceremonyDismissed = true;
                 orderOverride = null;
                 dialogOrder = null;
@@ -1819,7 +1826,12 @@ namespace Quota
             orderOverride = null;
             dialogOrder = null;
             scoreOverride = null;
-            if (NetworkPlaying) { SendNetworkAction("next_round"); return; }
+            if (NetworkPlaying)
+            {
+                if (networkState.you != null && networkState.you.leader) SendNetworkAction("next_round");
+                else ShowTable();
+                return;
+            }
             match.Game.BeginNextRound();
             cpuNotBefore = Time.time + 0.6f;
             StartCoroutine(RunCpus(++cpuRun));
@@ -2278,6 +2290,11 @@ namespace Quota
                     TextAt(panel, $"{player.Name}  {game.FinalScore(player)}点", 32f, y, width - 64f, 36f, 24, Ink, nameFont, TextAnchor.MiddleLeft);
                     y += 36f;
                 }
+            }
+            if (NetworkPlaying && (networkState.you == null || !networkState.you.leader))
+            {
+                TextAt(panel, "リーダーが次のラウンドを開始するのを待っています", 32f, height - 96f, width - 64f, 72f, 24, Ink, nameFont, TextAnchor.MiddleCenter);
+                return;
             }
             Pill(panel, "次のラウンド", 32f, height - 96f, 280f, 72f, 32, () =>
             {
@@ -2973,7 +2990,7 @@ namespace Quota
             ceremonyRunning = false;
             ceremonyDialog = false;
             match.Clear();
-            if (NetworkPlaying) { networkNavigating = false; StartCoroutine(NetworkPost("/api/leave", "{}")); }
+            if (NetworkPlaying) { networkLeaving = true; StartCoroutine(NetworkPost("/api/leave", "{}")); }
             CleanupFlyers();
             ShowSetup();
         }
