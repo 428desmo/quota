@@ -104,7 +104,6 @@
       function quotaFitMobile() {
         var host = document.querySelector("#unity-container");
         var box = document.querySelector("#unity-fullscreen-container");
-        var canvas = document.querySelector("#unity-canvas");
         if (!host || !host.classList.contains("unity-mobile")) return;
         var view = window.visualViewport;
         var width = Math.round((view && view.width) || window.innerWidth || document.documentElement.clientWidth || 390);
@@ -116,12 +115,6 @@
         if (box) {
           box.style.width = width + "px";
           box.style.height = height + "px";
-        }
-        if (canvas) {
-          canvas.style.width = width + "px";
-          canvas.style.height = height + "px";
-          canvas.width = width;
-          canvas.height = height;
         }
       }
       quotaUpdateOrientation();
@@ -199,7 +192,7 @@
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
         webglContextAttributes: { alpha: false, preserveDrawingBuffer: false },
-        devicePixelRatio: quotaPhone() ? 1 : Math.min(window.devicePixelRatio || 1, 2),
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
         // errorHandler: function(err, url, line) {
         //    alert("error " + err + " occurred at line " + line);
         //    // Return 'true' if you handled this error and don't want Unity
