@@ -426,21 +426,18 @@ namespace Quota
 
         IEnumerator BootWeb()
         {
-            ShowSplash();
-            MarkWeb("スプラッシュ表示");
+            MarkWeb("アセット読込開始");
             Sprite vertical = null;
             yield return LoadSprite("vertical_base.jpg", sprite => vertical = sprite);
             verticalBackground = vertical;
+            MarkWeb(vertical != null ? "縦背景読込完了" : "縦背景読込失敗");
             Sprite horizontal = null;
             yield return LoadSprite("horizontal_base.jpg", sprite => horizontal = sprite);
             horizontalBackground = horizontal;
-            Fit();
+            MarkWeb(horizontal != null ? "横背景読込完了" : "横背景読込失敗");
             string json = null;
             yield return LoadText("quota_goods_v1.0.json", text => json = text);
             if (!string.IsNullOrEmpty(json)) ItemCatalog.LoadJson(json);
-            string ranking = null;
-            yield return LoadText(Ranking.FileName, text => ranking = text);
-            Ranking.LoadJson(ranking);
             Sprite loadedTitle = null;
             yield return LoadSprite("title1.png", sprite => loadedTitle = sprite);
             if (loadedTitle != null) titleMark = loadedTitle;
@@ -449,6 +446,12 @@ namespace Quota
             if (loadedCatch != null) catchMark = loadedCatch;
             webAssetsReady = true;
             Fit();
+            ShowSplash();
+            MarkWeb("スプラッシュ表示");
+
+            string ranking = null;
+            yield return LoadText(Ranking.FileName, text => ranking = text);
+            Ranking.LoadJson(ranking);
             if (ItemCatalog.IsLoaded)
             {
                 foreach (var file in ItemCatalog.PictureFiles())
@@ -505,22 +508,21 @@ namespace Quota
         }
 
         const int WebTextureCap = 4096;
-        const int PhoneTextureCap = 1024;
-
         static Texture2D FitTexture(Texture2D texture)
         {
             if (texture == null) return null;
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
             texture.hideFlags = HideFlags.HideAndDontSave;
-            var cap = Application.platform == RuntimePlatform.WebGLPlayer ? PhoneTextureCap : WebTextureCap;
+            // These source images are at most 2048 px, which iPhone Safari
+            // supports directly. CPU resampling here blocked WebGL startup.
+            if (Application.platform == RuntimePlatform.WebGLPlayer) return texture;
+            var cap = WebTextureCap;
             var wide = Mathf.Max(texture.width, texture.height);
             if (wide <= cap) return texture;
             var scale = (float)cap / wide;
             var width = Mathf.Max(1, Mathf.RoundToInt(texture.width * scale));
             var height = Mathf.Max(1, Mathf.RoundToInt(texture.height * scale));
-            if (Application.platform == RuntimePlatform.WebGLPlayer)
-                return ScaleTextureCpu(texture, width, height);
             var scaled = new Texture2D(width, height, texture.format, false);
             scaled.wrapMode = TextureWrapMode.Clamp;
             scaled.filterMode = FilterMode.Bilinear;
@@ -538,32 +540,6 @@ namespace Quota
             return scaled;
         }
 
-        static Texture2D ScaleTextureCpu(Texture2D texture, int width, int height)
-        {
-            var scaled = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            scaled.wrapMode = TextureWrapMode.Clamp;
-            scaled.filterMode = FilterMode.Bilinear;
-            scaled.hideFlags = HideFlags.HideAndDontSave;
-            var source = texture.GetPixels();
-            var dest = new Color[width * height];
-            var srcW = texture.width;
-            var srcH = texture.height;
-            for (var y = 0; y < height; y++)
-            {
-                var srcY = Mathf.Clamp(Mathf.FloorToInt((y + 0.5f) * srcH / height), 0, srcH - 1);
-                for (var x = 0; x < width; x++)
-                {
-                    var srcX = Mathf.Clamp(Mathf.FloorToInt((x + 0.5f) * srcW / width), 0, srcW - 1);
-                    dest[y * width + x] = source[srcY * srcW + srcX];
-                }
-            }
-            scaled.SetPixels(dest);
-            scaled.Apply(false, true);
-            if (Application.isPlaying) Object.Destroy(texture);
-            else Object.DestroyImmediate(texture);
-            return scaled;
-        }
-
         static Sprite MakeSprite(Texture2D texture)
         {
             if (texture == null) return null;
@@ -573,12 +549,6 @@ namespace Quota
         IEnumerator FadeSplash()
         {
             yield return new WaitForSeconds(SplashSeconds);
-            var extra = 0f;
-            while (!webAssetsReady && extra < 17f)
-            {
-                extra += Time.deltaTime;
-                yield return null;
-            }
             var splash = frame.Find("splash");
             var group = splash != null ? splash.GetComponent<CanvasGroup>() : null;
             var elapsed = 0f;

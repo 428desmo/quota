@@ -181,6 +181,7 @@ class UnityHall:
 
 HALL = UnityHall()
 DIAGNOSTICS: list[dict] = []
+CLIENT_STATES: dict[str, str] = {}
 
 
 def content_encoding(path: Path) -> str:
@@ -245,6 +246,21 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     self.send_error(404)
                     return
+                if self.path != "/api/diagnostic":
+                    signature = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                    changed = CLIENT_STATES.get(client) != signature
+                    if self.command == "POST" or changed:
+                        CLIENT_STATES[client] = signature
+                        event = {
+                            "at": time.time(),
+                            "client": self.client_address[0],
+                            "user_agent": self.headers.get("User-Agent", ""),
+                            "id": client,
+                            "stage": f"api-{self.command.lower()} {self.path}",
+                            "detail": signature,
+                        }
+                        DIAGNOSTICS.append(event)
+                        print("WebGL diagnostic:", json.dumps(event, ensure_ascii=False), flush=True)
             self.json(payload)
         except (ValueError, KeyError, json.JSONDecodeError) as error:
             self.json({"error": str(error)}, status=400)
