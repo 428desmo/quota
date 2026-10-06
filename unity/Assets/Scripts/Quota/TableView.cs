@@ -2972,12 +2972,12 @@ namespace Quota
             var host = transform.Find("leave-button") as RectTransform;
             if (host != null)
             {
-                host.position = frame.TransformPoint(new Vector3(x, -y, 0f));
+                host.position = frame.TransformPoint(new Vector3(x - frame.rect.width * frame.pivot.x, frame.rect.height * (1f - frame.pivot.y) - y, 0f));
                 host.localScale = frame.localScale;
                 return;
             }
             host = Portrait.Rect(transform, "leave-button", 0f, 0f, width, 40f);
-            host.position = frame.TransformPoint(new Vector3(x, -y, 0f));
+            host.position = frame.TransformPoint(new Vector3(x - frame.rect.width * frame.pivot.x, frame.rect.height * (1f - frame.pivot.y) - y, 0f));
             host.localScale = frame.localScale;
             var hit = host.gameObject.AddComponent<Image>();
             hit.sprite = Portrait.SlicedRound;
@@ -3302,6 +3302,8 @@ namespace Quota
 
         void Clear()
         {
+            if (splashRun != null) StopCoroutine(splashRun);
+            splashRun = null;
             for (var i = frame.childCount - 1; i >= 0; i--)
                 DestroyImmediate(frame.GetChild(i).gameObject);
             seatFrames.Clear();
