@@ -19,6 +19,53 @@ namespace Quota.Tests
             if (events != null) Object.DestroyImmediate(events.gameObject);
         }
 
+        [TestCase(0)]
+        [TestCase(1)]
+        public void RoundPanelStartsWithEachNetworkViewersOwnPlayerAndNoScores(int viewer)
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":3,\"seed\":1,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"CPU\"],\"cpu_cast\":[0],\"you\":{\"seat\":" + viewer + ",\"leader\":false},\"options\":{\"simple\":true},\"actions\":[]}";
+            typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            typeof(TableView).GetMethod("PrepareCeremony", flags).Invoke(view, new object[] { game });
+            var order = (List<int>)typeof(TableView).GetField("dialogOrder", flags).GetValue(view);
+            Assert.AreEqual(viewer, order[0]);
+            var displayed = (List<int>)typeof(TableView).GetMethod("DisplayRows", flags).Invoke(view, new object[] { game });
+            CollectionAssert.AreEqual(displayed, order);
+            var figure = typeof(TableView).GetMethod("FigureText", flags);
+            foreach (var seat in order) Assert.AreEqual("", figure.Invoke(view, new object[] { seat }));
+            Set("ceremonyNamesOnly", false);
+            foreach (var seat in order) Assert.AreEqual("0点", figure.Invoke(view, new object[] { seat }));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PlayingScoreSitsBelowAchievementsAndSpecialCardsShowTheirUsedSide(bool wide)
+        {
+            host = Open();
+            Set("widePreview", wide);
+            Set("seedText", "0");
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            game.Config.SpecialActionsRule = true;
+            game.Players[0].DoubleActionLeft = 1;
+            game.Players[0].ReshuffleTakeLeft = 0;
+            Show(view);
+            var seat = host.transform.Find("Root/Frame/seat0");
+            var score = seat.Find("score").GetComponent<Text>();
+            Assert.AreEqual("0", score.text);
+            Assert.GreaterOrEqual(score.fontSize, 30);
+            Assert.AreEqual("ダブル", seat.Find("double-card").GetComponentInChildren<Text>().text);
+            Assert.AreEqual("USED", seat.Find("reshuffle-card").GetComponentInChildren<Text>().text);
+            var label = System.Array.Find(seat.GetComponentsInChildren<Text>(), t => t.text == "実績");
+            Assert.Less(((RectTransform)score.transform).anchoredPosition.y, ((RectTransform)label.transform).anchoredPosition.y);
+            Assert.Less(((RectTransform)score.transform).anchoredPosition.x, wide ? 290f : 130f);
+        }
+
         [Test]
         public void ActionNoticeIsOpaqueBorderedAndContainsOnlyTheAction()
         {
@@ -842,7 +889,7 @@ namespace Quota.Tests
             game.AwaitingNextRound = true;
             game.RoundEndReason = "DECK";
             var leader = game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
-            var orderStart = game.TurnOrder.IndexOf(leader);
+            var orderStart = game.TurnOrder.IndexOf(0);
             var expected = new List<int>();
             for (var i = 0; i < game.TurnOrder.Count; i++) expected.Add(game.TurnOrder[(orderStart + i) % game.TurnOrder.Count]);
             AwardThree(game.Players[expected[0]]);

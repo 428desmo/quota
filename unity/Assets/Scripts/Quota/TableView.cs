@@ -129,6 +129,7 @@ namespace Quota
         bool ceremonyOverall;
         bool ceremonyOverallSlot;
         bool ceremonyBlank;
+        bool ceremonyNamesOnly;
         bool ceremonyWinner;
         bool ceremonyDialog;
         string ceremonyRankTitle;
@@ -1613,7 +1614,8 @@ namespace Quota
                 cycle = new List<int>();
                 for (var i = 0; i < count; i++) cycle.Add(i);
             }
-            dialogOrder = Rotate(cycle, roundLeaderSeat);
+            dialogOrder = DisplayRows(game);
+            ceremonyNamesOnly = true;
             for (var seat = 0; seat < count; seat++)
             {
                 var player = game.Players[seat];
@@ -1661,10 +1663,12 @@ namespace Quota
             ShowTable();
             yield return new WaitForSeconds(1f);
             if (serial != cpuRun || match.Game == null) yield break;
-            yield return FlyTitles(serial);
-            if (serial != cpuRun) yield break;
             yield return ExpandCeremony(serial);
             if (serial != cpuRun) yield break;
+            yield return new WaitForSeconds(0.5f);
+            if (serial != cpuRun) yield break;
+            ceremonyNamesOnly = false;
+            RedrawCeremonyPanel();
             yield return new WaitForSeconds(0.5f);
             if (serial != cpuRun) yield break;
             dialogOrder = SortBy(scoreOverride);
@@ -1672,6 +1676,8 @@ namespace Quota
             CaptureRankSlots();
             RedrawCeremonyPanel();
             yield return new WaitForSeconds(0.5f);
+            if (serial != cpuRun) yield break;
+            yield return FlyTitles(serial);
             if (serial != cpuRun) yield break;
             yield return FlyScores(serial);
             if (serial != cpuRun) yield break;
@@ -2147,6 +2153,7 @@ namespace Quota
 
         string FigureText(int seat)
         {
+            if (ceremonyNamesOnly && !reviewMode) return "";
             var score = scoreOverride != null && scoreOverride.TryGetValue(seat, out var shown) ? shown : 0;
             var round = roundScores != null && roundScores.TryGetValue(seat, out var gained) ? gained : 0;
             var prev = previousScores != null && previousScores.TryGetValue(seat, out var before) ? before : 0;
@@ -2218,9 +2225,9 @@ namespace Quota
 
         string SeatPoints(Game game, int index, Player player)
         {
-            if (ceremonyRunning || reviewMode) return BaseScore(player) + "点";
+            if (ceremonyRunning || reviewMode) return BaseScore(player).ToString();
             var points = game.AwaitingNextRound || game.Finished ? game.FinalScore(player) : BaseScore(player);
-            return points + "点";
+            return points.ToString();
         }
 
         void RefreshScore(int seat)
@@ -2554,12 +2561,13 @@ namespace Quota
             CoinSpot(false, out coinX, out coinY, out coinW, out coinH, out coinD);
             Portrait.Rect(tray, "coin-area", coinX, coinY, coinW, coinH);
             PlaceBonus(game, player, quotaCards, tray, coinX, coinY, coinW, coinH, coinD, 1f);
-            var side = SeatPoints(game, index, player);
-            if (!(ceremonyRunning || reviewMode) && game.Config.SpecialActionsRule)
-                side += $"\nダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}\n配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
-            var score = TextAt(seat, side, 898f, quotaTop, 170f, 140f, 20, Ink, nameFont, TextAnchor.UpperLeft);
+            var score = TextAt(seat, SeatPoints(game, index, player), 0f, 262f, 122f, 60f, 40, Ink, nameFont, TextAnchor.UpperRight);
             score.gameObject.name = "score";
-            score.supportRichText = true;
+            if (game.Config.SpecialActionsRule)
+            {
+                DrawSpecialCard(seat, "double-card", "ダブル", player.DoubleActionLeft > 0, 900f, 75f, 148f, 38f, Hex("#cfe9f5"));
+                DrawSpecialCard(seat, "reshuffle-card", "配り直し", player.ReshuffleTakeLeft > 0, 900f, 121f, 148f, 38f, Hex("#d9edcf"));
+            }
         }
 
         void DrawPlayerWide(Game game, ItemSet theme, int index, int row)
@@ -2575,8 +2583,8 @@ namespace Quota
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             if (game.Config.SpecialActionsRule)
             {
-                var uses = $"ダブル {(player.DoubleActionLeft > 0 ? "残1" : "済")}　配り直し {(player.ReshuffleTakeLeft > 0 ? "残1" : "済")}";
-                PhotoText(seat, uses, 848f, 8f, 340f, 32f, 16, TextAnchor.MiddleRight);
+                DrawSpecialCard(seat, "double-card", "ダブル", player.DoubleActionLeft > 0, 848f, 8f, 156f, 34f, Hex("#cfe9f5"));
+                DrawSpecialCard(seat, "reshuffle-card", "配り直し", player.ReshuffleTakeLeft > 0, 1022f, 8f, 156f, 34f, Hex("#d9edcf"));
             }
 
             var titled = game.Config.TitleRule;
@@ -2587,15 +2595,15 @@ namespace Quota
             Portrait.Box(seat, "bonus-box", boxX, boxY, boxW, boxH, 7f, 1f, Ecru, Ink, false);
             if (titled) DrawTrayTitles(seat, player, boxX, boxY - 34f, boxW, 32f, 12);
             TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
-            var wideScore = TextAt(seat, SeatPoints(game, index, player), 36f, boxY + boxH - 30f, 152f, 24f, 16, Ink, nameFont, TextAnchor.MiddleLeft);
-            wideScore.gameObject.name = "score";
-            wideScore.supportRichText = true;
+
 
             const float recordY = 66f;
             const float recordH = 148f;
             Portrait.Box(seat, "record-box", 216f, recordY, 220f, recordH, 7f, 1f, Ecru, Ink, false);
             TextAt(seat, "実績", 224f, recordY + 4f, 80f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
-            var achieved = Portrait.Rect(seat, "achieved-cards", 224f, recordY + 30f, 200f, recordH - 38f);
+            var score = TextAt(seat, SeatPoints(game, index, player), 224f, recordY + 30f, 60f, 46f, 30, Ink, nameFont, TextAnchor.UpperLeft);
+            score.gameObject.name = "score";
+            var achieved = Portrait.Rect(seat, "achieved-cards", 290f, recordY + 30f, 134f, recordH - 38f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 2f, 3f, 0.62f);
 
@@ -2618,6 +2626,12 @@ namespace Quota
             coinH = Mathf.Max(24f, boxH - coinY - 34f);
             Portrait.Rect(bonusBox, "coin-area", coinX, coinY, coinW, coinH);
             PlaceBonus(game, player, quotaCards, bonusBox, coinX, coinY, coinW, coinH, coinD, 1f);
+        }
+
+        void DrawSpecialCard(Transform parent, string name, string caption, bool available, float x, float y, float width, float height, Color face)
+        {
+            var card = Portrait.Box(parent, name, x, y, width, height, 3f, 1f, available ? face : Hex("#ababab"), Ink, false);
+            TextAt(card, available ? caption : "USED", 4f, 0f, width - 8f, height, 20, Ink, nameFont, TextAnchor.MiddleCenter);
         }
 
         static void CoinSpot(bool wide, out float x, out float y, out float width, out float height, out float diameter)
