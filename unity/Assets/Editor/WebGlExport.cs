@@ -90,6 +90,8 @@ namespace Quota.EditorTools
             CopyResource("horizontal_base.jpg");
             CopyResource("title1.png");
             CopyResource("title2.png");
+            File.Copy(Path.GetFullPath("../visual/card_back.png"), Path.Combine(StreamingRoot, "card_back.png"), true);
+            CopyResource("card_back.png");
             CopyResource("quota_goods_v1.0.json");
             CopyResource("cpu_ranking_v1.2.json");
             var sourceGoods = Path.Combine(StreamingRoot, "goods");

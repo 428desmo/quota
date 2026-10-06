@@ -78,7 +78,7 @@ namespace Quota.Tests
             var corners = new Vector3[4];
             frame.GetWorldCorners(corners);
             var buttonRect = (RectTransform)button.transform;
-            var expected = corners[1] + new Vector3(frame.rect.width - 20f - buttonRect.rect.width, -18f, 0f) * frame.localScale.x;
+            var expected = corners[1] + new Vector3(frame.rect.width - 20f - buttonRect.rect.width, -362f, 0f) * frame.localScale.x;
             Assert.Less(Vector3.Distance(expected, buttonRect.position), 0.1f);
             Show(view);
             Assert.AreSame(button, ButtonNamed("ゲームから抜ける"));
@@ -126,6 +126,56 @@ namespace Quota.Tests
             var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":3,\"seed\":1,\"seats\":[{\"name\":\"A\"}],\"cpus\":[\"CPU1\",\"CPU2\"],\"cpu_cast\":[0,1],\"you\":{\"seat\":" + seat + ",\"observer\":" + (observer ? "true" : "false") + "},\"options\":{\"simple\":true},\"actions\":[]}";
             typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
             Assert.AreEqual(expected, typeof(TableView).GetProperty("IsSpectating", flags).GetValue(view));
+        }
+
+        [Test]
+        public void PortraitMarketUsesTheSuppliedCardDimensionsAndDeckPosition()
+        {
+            host = Open(); Set("seedText", "0"); Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            var frame = host.transform.Find("Root/Frame");
+            var card = frame.Find("card" + game.Market[0].Id) as RectTransform;
+            Assert.AreEqual(144f, card.rect.width, 0.01f);
+            Assert.AreEqual(200f, card.rect.height, 0.01f);
+            Assert.AreEqual(new Vector2(24f, -158f), card.anchoredPosition);
+            Assert.AreEqual(112f, ((RectTransform)card.Find("suit")).rect.width, 0.01f);
+            var stroke = card.Find("face").GetComponent<Image>();
+            Assert.AreEqual(0f, stroke.sprite.texture.GetPixel(4, 4).a, 0.01f);
+            var deck = frame.Find("deck") as RectTransform;
+            Assert.AreEqual(new Vector2(912f, 68f), deck.anchoredPosition);
+            Assert.IsNotNull(deck.Find("lower")); Assert.IsNotNull(deck.Find("upper").GetComponent<Image>().sprite);
+            game.Deck.Clear(); game.Deck.Add(new Card(9999, Suit.H, 2)); Show(view);
+            deck = host.transform.Find("Root/Frame/deck") as RectTransform;
+            Assert.IsNull(deck.Find("lower")); Assert.IsNotNull(deck.Find("upper"));
+            game.Deck.Clear(); Show(view);
+            deck = host.transform.Find("Root/Frame/deck") as RectTransform;
+            Assert.IsNull(deck.Find("upper")); Assert.AreEqual("0", deck.Find("remaining").GetComponent<Text>().text);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void CompletedQuotaHasAPresentationOnlyFullCollectionStage(bool rankOne)
+        {
+            var game = Game.Start(new GameConfig { NumPlayers = 3, Seed = 0 });
+            var seat = game.Current;
+            var player = game.Players[seat];
+            var card = new Card(9910, Suit.H, rankOne ? 1 : 4);
+            game.Market.Clear(); game.Market.Add(card);
+            if (!rankOne) { player.Quota = new Card(9911, Suit.H, 3); player.Collection.Add(new Card(9912, Suit.H, 2)); }
+            var type = typeof(TableView).GetNestedType("BoardFrame", BindingFlags.NonPublic);
+            var capture = type.GetMethod("Capture", BindingFlags.Static | BindingFlags.Public);
+            var before = capture.Invoke(null, new object[] { game });
+            game.Step(rankOne ? (GameAction)new TakeQuota(card.Id) : new Collect(new[] { card.Id }));
+            var after = capture.Invoke(null, new object[] { game });
+            var stage = typeof(TableView).GetMethod("CollectionStage", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { before, after, seat });
+            var stagedPlayer = ((Player[])type.GetField("Players").GetValue(stage))[seat];
+            var progress = typeof(TableView).GetMethod("QuotaProgress", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.AreEqual(rankOne ? "1/1" : "3/3", progress.Invoke(null, new object[] { stagedPlayer }));
+            Assert.AreEqual(0, stagedPlayer.Achieved.Count);
+            Assert.AreEqual(rankOne ? 1 : 3, game.Players[seat].Achieved.Count);
+            Assert.IsNull(game.Players[seat].Quota, "The stage must not modify the game state.");
         }
 
         [Test]
@@ -603,7 +653,7 @@ namespace Quota.Tests
             }
             Assert.IsNotNull(icon);
             Assert.Greater(icon.rectTransform.rect.width, 70f);
-            Assert.Less(icon.rectTransform.rect.width, 100f);
+            Assert.LessOrEqual(icon.rectTransform.rect.width, 112f);
         }
 
         [Test]
@@ -698,7 +748,7 @@ namespace Quota.Tests
             {
                 var card = quota.GetChild(0) as RectTransform;
                 Assert.AreEqual(95f, card.sizeDelta.x, 0.01f);
-                Assert.AreEqual(132f, card.sizeDelta.y, 0.01f);
+                Assert.AreEqual(95f * 200f / 144f, card.sizeDelta.y, 0.01f);
             }
 
             var tray = host.transform.Find("Root/Frame/market-tray") as RectTransform;
@@ -713,8 +763,8 @@ namespace Quota.Tests
                 break;
             }
             Assert.IsNotNull(marketCard);
-            Assert.AreEqual(95f, marketCard.sizeDelta.x, 0.01f);
-            Assert.AreEqual(132f, marketCard.sizeDelta.y, 0.01f);
+            Assert.AreEqual(144f, marketCard.sizeDelta.x, 0.01f);
+            Assert.AreEqual(200f, marketCard.sizeDelta.y, 0.01f);
             Assert.Greater(marketCard.anchoredPosition.x, 1220f);
 
             var controls = host.transform.Find("Root/Frame/controls");
@@ -977,8 +1027,8 @@ namespace Quota.Tests
             var panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
             Assert.IsNotNull(panel);
             Assert.AreEqual(460f, panel.sizeDelta.x, 0.1f);
-            Assert.AreEqual(189f, panel.sizeDelta.y, 0.1f);
-            Assert.AreEqual(180.5f, -panel.anchoredPosition.y, 0.1f);
+            Assert.AreEqual(180f, panel.sizeDelta.y, 0.1f);
+            Assert.AreEqual(168f, -panel.anchoredPosition.y, 0.1f);
             Assert.LessOrEqual(panel.anchoredPosition.x + panel.sizeDelta.x, 770f);
             var compactLeft = panel.anchoredPosition.x;
             var compactRight = panel.anchoredPosition.x + panel.sizeDelta.x;

@@ -10,7 +10,7 @@ using UnityEngine.UI;
 
 namespace Quota
 {
-    public sealed class TableView : MonoBehaviour
+    public sealed partial class TableView : MonoBehaviour
     {
         const float ScreenWidth = 1080f;
         const float ScreenHeight = 1920f;
@@ -32,10 +32,10 @@ namespace Quota
         const int AdvancedPromptAfter = 3;
         const string SplashCopy = "あなたは港で働く仲買人だ。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
         const string BuildStamp = "UNITY-WEBGL splash-harbor";
-        const float MarketScale = 1.35f;
+        const float MarketScale = 144f / 95f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
-        const float GoodsNameSize = 14f;
+        const float GoodsNameSize = 21f;
 
         static readonly Color Ink = Hex("#2C221E");
         static readonly Color Cream = Hex("#F6F1E8");
@@ -372,6 +372,9 @@ namespace Quota
             var scale = Mathf.Min(viewWidth / designW, viewHeight / designH);
             if (scale < 0.01f) scale = 0.01f;
             frame.localScale = new Vector3(scale, scale, 1f);
+            // The playing board starts at the top edge so the deck extends off screen.
+            frame.anchoredPosition = !onSetup && !wide
+                ? new Vector2(0f, (viewHeight - designH * scale) * 0.5f) : Vector2.zero;
         }
 
         void PresentBackdrop()
@@ -596,7 +599,7 @@ namespace Quota
         void QueueNotice(int seat, string key, bool gained)
         {
             var caption = NoticeFor(key, gained);
-            if (caption == null || !Application.isPlaying) return;
+            if (caption == null || !Application.isPlaying || catchingUpCards) return;
             actionNotices.Enqueue(new KeyValuePair<int, string>(seat, caption));
             if (noticeRun == null) noticeRun = StartCoroutine(ShowNotices());
         }
@@ -679,6 +682,7 @@ namespace Quota
 
         void ShowSetup()
         {
+            ResetCardMotion();
             RemoveLeaveButton();
             actionNotices.Clear();
             if (noticeRun != null) StopCoroutine(noticeRun);
@@ -1035,6 +1039,7 @@ namespace Quota
             else if (next.phase == "playing")
             {
                 if (networkLeaving) return;
+                catchingUpCards = !networkNavigating && next.actions != null && next.actions.Length > 0;
                 if (!networkNavigating)
                 {
                     networkNavigating = true;
@@ -1056,6 +1061,7 @@ namespace Quota
                     }
                 }
                 ApplyNetworkActions(next.actions);
+                catchingUpCards = false;
                 return;
             }
             var signature = next.phase + ":" + (next.table_id ?? "") + ":" + HallSignature() + ":" + JsonUtility.ToJson(next);
@@ -1212,6 +1218,7 @@ namespace Quota
             {
                 var key = actions[networkApplied];
                 var game = match.Game;
+                var beforeCards = BoardFrame.Capture(game);
                 if (game.Current != HumanSeat(game)) QueueNotice(game.Current, key, game.TurnGain || game.DoubleGained);
                 if (key == "double") game.DeclareDouble();
                 else if (key == "reshuffle") game.DeclareReshuffle();
@@ -1226,6 +1233,7 @@ namespace Quota
                     foreach (var id in key.Substring(8).Split(',')) ids.Add(int.Parse(id));
                     game.Step(new Collect(ids));
                 }
+                TrackCardChange(beforeCards);
                 networkApplied++;
                 changed = true;
             }
@@ -1382,6 +1390,7 @@ namespace Quota
                 Rounds = simpleMode ? 1 : playerCount,
             }, pumpCpus: !Application.isPlaying && !shared);
             Characters.BindInOrder(match.Game, characters);
+            BeginCardPresentation();
             confirm = null;
             finishCounted = false;
             offerStandard = false;
@@ -1429,7 +1438,7 @@ namespace Quota
             coinFrom = SnapshotCardCoins();
             var game = match.Game;
             var ceremonyBreak = !reviewMode && game != null && (game.AwaitingNextRound || (Application.isPlaying && game.Finished && !ceremonyDismissed));
-            if (ceremonyBreak && Application.isPlaying && !ceremonyRunning && acknowledgedRound != game.RoundIndex)
+            if (ceremonyBreak && Application.isPlaying && !CardsAnimating && !ceremonyRunning && acknowledgedRound != game.RoundIndex)
             {
                 ceremonyRunning = true;
                 PrepareCeremony(game);
@@ -1449,18 +1458,19 @@ namespace Quota
             }
             var marketWash = Plate;
             if (wide) Portrait.Box(frame, "market-tray", LandMarketX, LandMarketY, LandMarketW, LandMarketH, 7f, 0f, marketWash, Color.white, false);
-            else Portrait.Box(frame, "market-tray", 20f, 170f, 1040f, 210f, 7f, 0f, marketWash, Color.white, false);
+            // Portrait market cards sit directly on the photo, as in the supplied layout.
             if (wide) DrawMarketWide(game, theme);
             else DrawMarket(game, theme);
             if (wide) DrawTitleWide(game);
             else DrawTitle(game);
+            DrawDeck(game);
             if (ceremonyRunning) LayoutCeremonyDots();
             if (!reviewMode && !game.AwaitingNextRound && !(Application.isPlaying && game.Finished && !ceremonyDismissed))
                 ceremonyDialog = false;
             var showCeremony = reviewMode || ceremonyDialog;
             if (showCeremony) DrawCeremonyPanel();
             else if (confirm == null && ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
-            else if (confirm == null && MyHumanTurn && !busy && !game.Finished) DrawControls(game);
+            else if (confirm == null && MyHumanTurn && !busy && !CardsAnimating && !game.Finished) DrawControls(game);
             else if (confirm == null && !game.Finished)
             {
                 var note = $"{game.Players[game.Current].Name} が考えています";
@@ -1471,7 +1481,7 @@ namespace Quota
             }
             if (!game.Finished) LeaveButton();
             else RemoveLeaveButton();
-            if (!showCeremony && game.Finished && !ceremonyBreak)
+            if (!showCeremony && game.Finished && !ceremonyBreak && !CardsAnimating)
             {
                 Result(game);
                 if (offerStandard) DrawStandardOffer();
@@ -1949,7 +1959,9 @@ namespace Quota
                 else ShowTable();
                 return;
             }
+            var beforeCards = BoardFrame.Capture(match.Game);
             match.Game.BeginNextRound();
+            TrackCardChange(beforeCards);
             cpuNotBefore = Time.time + 0.6f;
             StartCoroutine(RunCpus(++cpuRun));
         }
@@ -1969,9 +1981,9 @@ namespace Quota
             var wide = WideScreen();
             var screenH = wide ? LandHeight : ScreenHeight;
             var marketX = wide ? LandMarketX : 20f;
-            var marketY = wide ? LandMarketY : 170f;
+            var marketY = wide ? LandMarketY : 158f;
             var marketW = wide ? LandMarketW : 1040f;
-            var marketH = wide ? LandMarketH : 210f;
+            var marketH = wide ? LandMarketH : 200f;
             var compactW = wide ? 520f : 460f;
             var compactH = marketH * 0.9f;
             var compactX = marketX + (marketW - compactW) * 0.5f;
@@ -2411,28 +2423,32 @@ namespace Quota
             Pill(panel, "次のラウンド", 32f, height - 96f, 280f, 72f, 32, () =>
             {
                 if (NetworkPlaying) { SendNetworkAction("next_round"); return; }
-            match.Game.BeginNextRound();
+                var beforeCards = BoardFrame.Capture(match.Game);
+                match.Game.BeginNextRound();
+                TrackCardChange(beforeCards);
                 ShowTable();
             });
         }
 
+        Material logoInk;
+
         void DrawTitle(Game game)
         {
             var mark = TitleSprite(true);
-            if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 12f, 320f, 64f);
-            else Shade(TextAt(frame, "QUOTA", 28f, 16f, 640f, 68f, 56, Cream, nameFont, TextAnchor.MiddleLeft));
-            PhotoText(frame, RoundLabel(game), 20f, 80f, 500f, 36f, 24, TextAnchor.MiddleLeft);
-            if (game.DoubleStage == 1) Shade(TextAt(frame, "ダブル：1回目の行動です。", 300f, 28f, 460f, 36f, 22, Cream, nameFont, TextAnchor.MiddleRight));
-            else if (game.DoubleStage == 2) Shade(TextAt(frame, "ダブル：2回目の行動です。", 300f, 28f, 460f, 36f, 22, Cream, nameFont, TextAnchor.MiddleRight));
-            else if (game.Plan == "reshuffle") Shade(TextAt(frame, "配り直しました。行動を選んでください。", 280f, 28f, 480f, 36f, 22, Cream, nameFont, TextAnchor.MiddleRight));
-            var me = game.Players[game.Current];
-            var hint = $"手番 {game.TurnNumber}  山札 {game.Deck.Count}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
-            if (me.Quota != null && me.Quota.Rank != null)
+            if (mark != null)
             {
-                var need = me.Quota.Rank.Value - 1 - me.Collection.Count;
-                if (need > 0) hint = $"あと{need}枚   " + hint;
+                PlaceSprite(frame, "title-mark", mark, 24f, 28f, 680f, 116f);
+                var image = frame.Find("title-mark").GetComponent<Image>();
+                image.color = Cream;
+                if (logoInk == null) logoInk = new Material(Resources.Load<Shader>("Quota/LogoInk")) { hideFlags = HideFlags.HideAndDontSave };
+                image.material = logoInk;
             }
-            PhotoText(frame, hint, 20f, 116f, 1040f, 32f, 20, TextAnchor.MiddleLeft);
+            else Shade(TextAt(frame, "QUOTA", 24f, 28f, 680f, 116f, 76, Cream, nameFont, TextAnchor.MiddleLeft));
+            var note = game.DoubleStage == 1 ? "ダブル：1回目の行動です。" : game.DoubleStage == 2 ? "ダブル：2回目の行動です。" : game.Plan == "reshuffle" ? "配り直しました。行動を選んでください。" : "";
+            if (note.Length > 0) Shade(TextAt(frame, note, 340f, 134f, 560f, 24f, 16, Cream, nameFont, TextAnchor.MiddleRight));
+            PhotoText(frame, RoundLabel(game), 24f, 364f, 310f, 28f, 20, TextAnchor.MiddleLeft);
+            var hint = $"手番 {game.TurnNumber}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
+            PhotoText(frame, hint, 340f, 364f, 330f, 28f, 18, TextAnchor.MiddleLeft);
         }
 
         void DrawTitleWide(Game game)
@@ -2446,7 +2462,7 @@ namespace Quota
             else if (game.DoubleStage == 2) note = "ダブル：2回目の行動です。  ";
             else if (game.Plan == "reshuffle") note = "配り直しました。行動を選んでください。  ";
             var me = game.Players[game.Current];
-            var hint = $"手番 {game.TurnNumber}  山札 {game.Deck.Count}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
+            var hint = $"手番 {game.TurnNumber}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
             if (me.Quota != null && me.Quota.Rank != null)
             {
                 var need = me.Quota.Rank.Value - 1 - me.Collection.Count;
@@ -2457,22 +2473,22 @@ namespace Quota
 
         void DrawMarket(Game game, ItemSet theme)
         {
-            var slots = Mathf.Max(game.MarketSize(), game.Market.Count);
+            var market = ShownMarket(game);
+            var slots = Mathf.Max(game.MarketSize(), market.Count);
             if (slots == 0) return;
             var cardWidth = CardWidth * MarketScale;
-            var cardHeight = CardHeight * MarketScale;
-            var gap = 16f;
+            var gap = 4f;
             var group = slots * cardWidth + (slots - 1) * gap;
-            var origin = 20f + (1040f - group) * 0.5f;
-            var y = 170f + (210f - cardHeight) * 0.5f;
+            var origin = (1080f - group) * 0.5f;
+            var y = 158f;
             var me = game.Players[game.Current];
             var yours = MyHumanTurn && !game.Finished;
-            for (var i = 0; i < game.Market.Count; i++)
+            for (var i = 0; i < market.Count; i++)
             {
-                var card = game.Market[i];
+                var card = market[i];
                 if (card == null) continue;
                 var legal = CanPlay(card, me);
-                var playable = yours && !busy && legal;
+                var playable = yours && !busy && !CardsAnimating && legal;
                 var cardId = card.Id;
                 var takingQuota = me.Quota == null;
                 var x = origin + i * (cardWidth + gap);
@@ -2487,28 +2503,29 @@ namespace Quota
         void DrawMarketWide(Game game, ItemSet theme)
         {
             const int columns = 4;
-            var slots = Mathf.Max(game.MarketSize(), game.Market.Count);
+            var market = ShownMarket(game);
+            var slots = Mathf.Max(game.MarketSize(), market.Count);
             if (slots == 0) return;
-            var gapX = 18f;
-            var gapY = 16f;
+            var gapX = 10f;
+            var gapY = 12f;
             var rows = Mathf.CeilToInt(slots / (float)columns);
-            var groupW = columns * CardWidth + (columns - 1) * gapX;
-            var groupH = rows * CardHeight + (rows - 1) * gapY;
+            var groupW = columns * CardWidth * MarketScale + (columns - 1) * gapX;
+            var groupH = rows * 200f + (rows - 1) * gapY;
             var originX = LandMarketX + (LandMarketW - groupW) * 0.5f;
             var originY = LandMarketY + (LandMarketH - groupH) * 0.5f;
             var me = game.Players[game.Current];
             var yours = MyHumanTurn && !game.Finished;
-            for (var i = 0; i < game.Market.Count; i++)
+            for (var i = 0; i < market.Count; i++)
             {
-                var card = game.Market[i];
+                var card = market[i];
                 if (card == null) continue;
                 var legal = CanPlay(card, me);
-                var playable = yours && !busy && legal;
+                var playable = yours && !busy && !CardsAnimating && legal;
                 var cardId = card.Id;
                 var takingQuota = me.Quota == null;
-                var x = originX + (i % columns) * (CardWidth + gapX);
-                var y = originY + (i / columns) * (CardHeight + gapY);
-                DrawCard(frame, theme, card, x, y, 1f, playable ? () =>
+                var x = originX + (i % columns) * (CardWidth * MarketScale + gapX);
+                var y = originY + (i / columns) * (200f + gapY);
+                DrawCard(frame, theme, card, x, y, MarketScale, playable ? () =>
                 {
                     if (takingQuota) Play(new TakeQuota(cardId));
                     else Play(new Collect(new[] { cardId }));
@@ -2531,7 +2548,7 @@ namespace Quota
 
         void DrawPlayer(Game game, ItemSet theme, int index, int row)
         {
-            var player = game.Players[index];
+            var player = ShownPlayer(game, index);
             var top = SeatTop + row * SeatHeight;
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, ScreenWidth, SeatHeight);
             while (seatFrames.Count <= index) seatFrames.Add(null);
@@ -2541,13 +2558,14 @@ namespace Quota
             var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, NameFontSize(player.Name, 276f, 36), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             var quotaTop = 75f;
-            TextAt(seat, "ノルマ", 0f, quotaTop, 122f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
-            var quotaCards = Portrait.Rect(seat, "quota-cards", 130f, quotaTop, 768f, 145f);
+            TextAt(seat, "ノルマ", 0f, quotaTop, 174f, 40f, 28, Ink, nameFont, TextAnchor.MiddleCenter);
+            DrawQuotaProgress(seat, player, 12f, 120f, 164f, 62f, 48);
+            var quotaCards = Portrait.Rect(seat, "quota-cards", 186f, quotaTop, 712f, 145f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
             strip.AddRange(player.Collection);
-            LayCards(quotaCards, theme, strip, 6.5f, 55f);
+            LayCards(quotaCards, theme, strip, 6.5f, 47.5f);
             TextAt(seat, "実績", 0f, 220f, 122f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
             var achieved = Portrait.Rect(seat, "achieved-cards", 130f, 220f, 405f, 145f);
             achieved.gameObject.AddComponent<RectMask2D>();
@@ -2574,7 +2592,7 @@ namespace Quota
 
         void DrawPlayerWide(Game game, ItemSet theme, int index, int row)
         {
-            var player = game.Players[index];
+            var player = ShownPlayer(game, index);
             var top = LandHeader + row * LandSeatHeight;
             var seat = Portrait.Rect(frame, "seat" + index, 0f, top, LandLeft, LandSeatHeight);
             while (seatFrames.Count <= index) seatFrames.Add(null);
@@ -2610,7 +2628,8 @@ namespace Quota
             LayCards(achieved, theme, player.Achieved, 2f, 3f, 0.62f);
 
             TextAt(seat, "ノルマ", 452f, recordY, 80f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
-            var quotaCards = Portrait.Rect(seat, "quota-cards", 452f, recordY + 22f, 730f, CardHeight + 4f);
+            DrawQuotaProgress(seat, player, 452f, recordY + 24f, 104f, 50f, 32);
+            var quotaCards = Portrait.Rect(seat, "quota-cards", 564f, recordY + 22f, 618f, CardHeight + 4f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
@@ -2619,7 +2638,7 @@ namespace Quota
             if (strip.Count > 1)
             {
                 var need = CardWidth + (strip.Count - 1) * stride;
-                if (need > 730f) stride = (730f - CardWidth) / (strip.Count - 1);
+                if (need > 618f) stride = (618f - CardWidth) / (strip.Count - 1);
             }
             LayCards(quotaCards, theme, strip, 0f, stride, 1f);
             var bonusBox = seat.Find("bonus-box");
@@ -2880,20 +2899,21 @@ namespace Quota
         void DrawCard(Transform parent, ItemSet theme, Card card, float x, float y, float scale, UnityAction onClick, bool dim)
         {
             var width = CardWidth * scale;
-            var height = CardHeight * scale;
+            var height = width * 200f / 144f;
+            var designScale = width / 144f;
             var host = Portrait.Rect(parent, "card" + card.Id, x, y, width, height);
             var group = host.gameObject.AddComponent<CanvasGroup>();
-            group.alpha = dim ? 0.75f : 1f;
+            group.alpha = hiddenCards.Contains(card.Id) && parent != transform ? 0f : dim ? 0.75f : 1f;
             group.blocksRaycasts = onClick != null;
-            Portrait.Box(host, "face", 0f, 0f, width, height, 4.5f * scale, Mathf.Max(1f, scale), Color.white, Ink, false);
+            Portrait.Box(host, "face", 0f, 0f, width, height, 20f * designScale, Mathf.Max(1f, designScale), Color.white, Ink, false);
             var kind = KindIndex(card);
             var ink = IndicatorColors[kind];
-            Portrait.Solid(host, "mark", 0f, (66f + kind * 10f) * scale, 4f * scale, 10f * scale, ink);
+            Portrait.Solid(host, "mark", 0f, (120f + kind * 10f) * designScale, 6f * designScale, 15f * designScale, ink);
             var face = theme.FaceFor(card);
-            Baseline(host, theme.RankLabel(card), 20f * scale, 30f * scale, 24f * scale, Hex(face.Color), roundFont, 70f * scale);
-            var diameter = 72f * scale;
-            var iconX = 47.5f * scale - diameter * 0.5f;
-            var iconY = 66f * scale - diameter * 0.5f;
+            TextAt(host, theme.RankLabel(card), 10f * designScale, 9f * designScale, 112f * designScale, 42f * designScale, Mathf.RoundToInt(36f * designScale), Hex(face.Color), roundFont, TextAnchor.UpperLeft);
+            var diameter = 112f * designScale;
+            var iconX = 16f * designScale;
+            var iconY = 44f * designScale;
             var sprite = GoodsSprite(face.File);
             if (sprite != null)
             {
@@ -2907,7 +2927,7 @@ namespace Quota
             {
                 Portrait.Circle(host, "suit", iconX, iconY, diameter, ink);
             }
-            Baseline(host, face.Name, 47.5f * scale, 118f * scale, GoodsNameSize * scale, Ink, roundFont, width - 8f);
+            Baseline(host, face.Name, width * 0.5f, 180f * designScale, GoodsNameSize * designScale, Ink, roundFont, width - 8f * designScale);
             if (onClick == null) return;
             var hit = host.gameObject.AddComponent<Image>();
             hit.sprite = Portrait.White;
@@ -2944,7 +2964,9 @@ namespace Quota
             {
                 confirm = null;
                 if (NetworkPlaying) { SendNetworkAction("reshuffle"); return; }
+                var beforeCards = BoardFrame.Capture(game);
                 game.DeclareReshuffle();
+                TrackCardChange(beforeCards);
                 ShowTable();
             }));
             if (me.Quota != null) entries.Add(Item("放棄", () => Ask("abandon")));
@@ -2968,7 +2990,7 @@ namespace Quota
             const string caption = "ゲームから抜ける";
             var width = caption.Length * 28f + 36f;
             var x = WideScreen() ? LandWidth - 24f - width : ScreenWidth - 20f - width;
-            var y = WideScreen() ? 40f : 18f;
+            var y = WideScreen() ? 164f : 362f;
             var host = transform.Find("leave-button") as RectTransform;
             if (host != null)
             {
@@ -3157,13 +3179,15 @@ namespace Quota
 
         void Play(GameAction action)
         {
-            if (busy || !MyHumanTurn || !match.Game.IsLegal(action)) return;
+            if (busy || CardsAnimating || !MyHumanTurn || !match.Game.IsLegal(action)) return;
             if (NetworkPlaying) { SendNetworkAction(action.Key); return; }
             confirm = null;
             var seat = match.Game.Current;
             var turn = match.Game.TurnNumber;
+            var beforeCards = BoardFrame.Capture(match.Game);
             Characters.Observe(match.Game, action);
             match.Game.Step(action);
+            TrackCardChange(beforeCards);
             Characters.CommitIfTurnEnded(match.Game, seat, turn);
             StartCoroutine(RunCpus(++cpuRun));
         }
@@ -3188,7 +3212,17 @@ namespace Quota
                 yield return WaitConfirm(ticket);
                 if (ticket != cpuRun || match.Game == null) yield break;
                 if (match.Game.Finished || match.IsHumanTurn) break;
-                if (!match.StepOneCpu((name, key, gained) => QueueNotice(match.Game.Current, key, gained))) break;
+                var beforeCards = BoardFrame.Capture(match.Game);
+                if (!match.StepOneCpu((name, key, gained) =>
+                {
+                    QueueNotice(match.Game.Current, key, gained);
+                    if (key == "reshuffle" || key == "double")
+                    {
+                        TrackCardChange(beforeCards);
+                        beforeCards = BoardFrame.Capture(match.Game);
+                    }
+                })) break;
+                TrackCardChange(beforeCards);
                 ShowTable();
                 yield return WaitForCoins();
                 yield return new WaitForSeconds(0.35f);
@@ -3209,7 +3243,7 @@ namespace Quota
 
         IEnumerator WaitForCoins()
         {
-            while (coinMotion > 0) yield return null;
+            while (coinMotion > 0 || CardsAnimating) yield return null;
         }
 
         List<int> DisplayRows(Game game)
