@@ -19,6 +19,19 @@ namespace Quota.Tests
             if (events != null) Object.DestroyImmediate(events.gameObject);
         }
 
+        [Test]
+        public void ActionNoticeIsOpaqueBorderedAndContainsOnlyTheAction()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var root = (RectTransform)typeof(TableView).GetMethod("DrawActionNotice", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, new object[] { "ダブル" });
+            Assert.AreEqual("ダブル", root.GetComponentInChildren<Text>().text);
+            Assert.AreEqual(1f, root.GetComponent<CanvasGroup>().alpha);
+            Assert.IsFalse(root.GetComponent<CanvasGroup>().blocksRaycasts);
+            Assert.IsNotNull(root.Find("panel"));
+        }
+
         [TestCase("pass", false, "パス")]
         [TestCase("pass", true, null)]
         [TestCase("abandon", false, "放棄")]

@@ -293,7 +293,7 @@ namespace Quota
         }
 
         bool splashDismissed;
-        readonly Queue<string> actionNotices = new Queue<string>();
+        readonly Queue<KeyValuePair<int, string>> actionNotices = new Queue<KeyValuePair<int, string>>();
         Coroutine noticeRun;
 
         void Update()
@@ -592,11 +592,11 @@ namespace Quota
             return null;
         }
 
-        void QueueNotice(string name, string key, bool gained)
+        void QueueNotice(int seat, string key, bool gained)
         {
             var caption = NoticeFor(key, gained);
             if (caption == null || !Application.isPlaying) return;
-            actionNotices.Enqueue(name + "：" + caption);
+            actionNotices.Enqueue(new KeyValuePair<int, string>(seat, caption));
             if (noticeRun == null) noticeRun = StartCoroutine(ShowNotices());
         }
 
@@ -605,26 +605,35 @@ namespace Quota
             // Outside Frame: rebuilding the table must not interrupt notifications.
             while (actionNotices.Count > 0)
             {
-                var root = Portrait.Rect(transform, "action-notice", 0f, 0f, 640f, 90f);
-                root.anchorMin = root.anchorMax = new Vector2(0.5f, 0.5f);
-                root.pivot = new Vector2(0.5f, 0.5f);
-                root.anchoredPosition = Vector2.zero;
-                root.localScale = frame.localScale;
-                SoftPanel(root, "panel", 0f, 0f, 640f, 90f, Paper);
-                TextAt(root, actionNotices.Dequeue(), 12f, 8f, 616f, 74f, 32, Ink, nameFont, TextAnchor.MiddleCenter);
-                var group = root.gameObject.AddComponent<CanvasGroup>();
-                group.blocksRaycasts = false;
-                yield return new WaitForSeconds(0.5f);
+                var notice = actionNotices.Dequeue();
+                var root = DrawActionNotice(notice.Value);
                 var elapsed = 0f;
                 while (elapsed < 0.5f)
                 {
+                    // Resolve the rebuilt seat every frame, including orientation changes.
+                    if (notice.Key >= 0 && notice.Key < seatFrames.Count && seatFrames[notice.Key] != null)
+                    {
+                        var seat = seatFrames[notice.Key];
+                        root.position = seat.TransformPoint(new Vector3(seat.rect.width - 350f, -100f, 0f));
+                        root.localScale = frame.localScale;
+                    }
                     elapsed += Time.deltaTime;
-                    group.alpha = 1f - Mathf.Clamp01(elapsed / 0.5f);
                     yield return null;
                 }
                 Destroy(root.gameObject);
             }
             noticeRun = null;
+        }
+
+        RectTransform DrawActionNotice(string caption)
+        {
+            var root = Portrait.Rect(transform, "action-notice", 0f, 0f, 320f, 70f);
+            var fill = Paper;
+            fill.a = 1f;
+            Portrait.Box(root, "panel", 0f, 0f, 320f, 70f, 7f, 1f, fill, Ink, false);
+            TextAt(root, caption, 12f, 8f, 296f, 54f, 28, Ink, nameFont, TextAnchor.MiddleCenter);
+            root.gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false;
+            return root;
         }
 
         void ApplyMode()
@@ -1201,7 +1210,7 @@ namespace Quota
             {
                 var key = actions[networkApplied];
                 var game = match.Game;
-                if (game.Current != HumanSeat(game)) QueueNotice(game.Players[game.Current].Name, key, game.TurnGain || game.DoubleGained);
+                if (game.Current != HumanSeat(game)) QueueNotice(game.Current, key, game.TurnGain || game.DoubleGained);
                 if (key == "double") game.DeclareDouble();
                 else if (key == "reshuffle") game.DeclareReshuffle();
                 else if (key == "cancel_double") game.CancelDouble();
@@ -3139,7 +3148,7 @@ namespace Quota
                 yield return WaitConfirm(ticket);
                 if (ticket != cpuRun || match.Game == null) yield break;
                 if (match.Game.Finished || match.IsHumanTurn) break;
-                if (!match.StepOneCpu((name, key, gained) => QueueNotice(name, key, gained))) break;
+                if (!match.StepOneCpu((name, key, gained) => QueueNotice(match.Game.Current, key, gained))) break;
                 ShowTable();
                 yield return WaitForCoins();
                 yield return new WaitForSeconds(0.35f);
