@@ -2590,7 +2590,7 @@ namespace Quota
             var quotaTop = 75f;
             Bold(TextAt(seat, "ノルマ", 32f, quotaTop, 142f, 40f, 24, Ink, nameFont, TextAnchor.MiddleLeft));
             DrawQuotaProgress(seat, player, 32f, 120f, 142f, 62f, 48);
-            var quotaCards = Portrait.Rect(seat, "quota-cards", 186f, quotaTop, 712f, 145f);
+            var quotaCards = Portrait.Rect(seat, "quota-cards", 130f, quotaTop, 768f, 145f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
