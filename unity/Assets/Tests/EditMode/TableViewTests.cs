@@ -91,6 +91,17 @@ namespace Quota.Tests
             Assert.AreEqual(40f, third.anchoredPosition.x - second.anchoredPosition.x);
             Assert.AreEqual("87+", seat.Find("previous-score").GetComponent<Text>().text);
             Assert.AreEqual("0", seat.Find("score").GetComponent<Text>().text);
+            var score = seat.Find("score").GetComponent<Text>();
+            var previous = seat.Find("previous-score").GetComponent<Text>();
+            var progress = seat.Find("quota-progress").GetComponent<Text>();
+            Assert.AreEqual(48, score.fontSize); Assert.AreEqual(21, previous.fontSize);
+            Assert.AreEqual(48, progress.fontSize); Assert.IsTrue(progress.text.Contains("<size=21>/13</size>"));
+            foreach (var text in new[] { score, previous, progress }) Assert.AreEqual(FontStyle.Bold, text.fontStyle);
+            Assert.AreEqual(((RectTransform)score.transform).anchoredPosition.x, ((RectTransform)previous.transform).anchoredPosition.x);
+            Assert.AreEqual(400f, ((RectTransform)seat.Find("nameplate")).rect.width);
+            var caption = typeof(TableView).GetMethod("PlayerCaption", BindingFlags.Static | BindingFlags.NonPublic);
+            var leader = game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
+            Assert.AreEqual("①" + game.Players[leader].Name, caption.Invoke(null, new object[] { game, leader }));
             Assert.IsNotNull(FindText("ラウンド 2/3"));
             var frame = host.transform.Find("Root/Frame");
             Assert.AreEqual(new Color32(255,211,38,255), (Color32)frame.Find("stall-dot-0").GetComponent<Image>().color);
@@ -833,7 +844,7 @@ namespace Quota.Tests
         }
 
         [Test]
-        public void TheCurrentNameplateIsPaleYellowAndTheScoreHasNoMarker()
+        public void TheCurrentNameplatePulsesFromWhiteToCreamAndTheScoreHasNoMarker()
         {
             host = Open();
             Set("seedText", "0");
@@ -842,9 +853,11 @@ namespace Quota.Tests
             var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
             var current = match.Game.Current;
             var plate = host.transform.Find("Root/Frame/seat" + current + "/nameplate/fill").GetComponent<Image>();
-            Assert.AreEqual(1f, plate.color.r, 0.02f);
-            Assert.AreEqual(243f / 255f, plate.color.g, 0.02f);
-            Assert.AreEqual(214f / 255f, plate.color.b, 0.02f);
+            Assert.AreEqual(Color.white, plate.color);
+            var pulse = typeof(TableView).GetMethod("TurnPulse", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.AreEqual(Color.white, pulse.Invoke(null, new object[] { 0f }));
+            Assert.AreEqual(new Color32(255,230,173,255), (Color32)(Color)pulse.Invoke(null, new object[] { 1f }));
+            Assert.AreEqual(Color.white, pulse.Invoke(null, new object[] { 2f }));
             var other = (current + 1) % match.Game.Players.Count;
             var plain = host.transform.Find("Root/Frame/seat" + other + "/nameplate/fill").GetComponent<Image>();
             Assert.AreEqual(Color.white, plain.color);
