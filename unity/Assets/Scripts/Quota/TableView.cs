@@ -641,10 +641,9 @@ namespace Quota
         RectTransform DrawActionNotice(string caption)
         {
             var root = Portrait.Rect(transform, "action-notice", 0f, 0f, 320f, 70f);
-            var fill = Paper;
-            fill.a = 1f;
+            var fill = Hex("#D6B98C");
             Portrait.Box(root, "panel", 0f, 0f, 320f, 70f, 7f, 1f, fill, Ink, false);
-            TextAt(root, caption, 12f, 8f, 296f, 54f, 28, Ink, nameFont, TextAnchor.MiddleCenter);
+            Bold(TextAt(root, caption, 12f, 8f, 296f, 54f, 26, Ink, nameFont, TextAnchor.MiddleCenter));
             root.gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false;
             return root;
         }
@@ -764,7 +763,7 @@ namespace Quota
         {
             const float innerGap = 16f;
             var tableCount = Mathf.Min(3, networkTables.Count);
-            var buttonH = SetupButtonHeight(available, 11f + tableCount + (showReview ? 1f : 0f), 3 + tableCount + (showReview ? 1 : 0));
+            var buttonH = SetupButtonHeight(available, 12f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f), 4 + Mathf.Max(1, tableCount) + (showReview ? 1 : 0));
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
             var column = SetupColumn(screenW, columnTop, available + 24f);
             var guideW = screenW * 0.40f;
@@ -785,16 +784,35 @@ namespace Quota
             var name = SetupNameRow(column, "あなたの名前：", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName, rowW, buttonH, labelW, rowW - labelW - 12f - font, font);
             name.onValueChanged.AddListener(value => playerName = value);
 #endif
+            SetupGap(column, section);
+            SetupButton(column, "新規ゲーム卓の準備", OpenLobby, rowW, buttonH * 2f, Mathf.RoundToInt(font * 1.3f));
+            SetupGap(column, innerGap);
+            var tablePanel = new GameObject("table-list", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(VerticalLayoutGroup));
+            tablePanel.transform.SetParent(column, false);
+            SizeElement(tablePanel.GetComponent<LayoutElement>(), rowW, buttonH * (Mathf.Max(1, tableCount) + 1) + 32f + Mathf.Max(1, tableCount) * 12f);
+            var panelFill = tablePanel.GetComponent<Image>();
+            panelFill.sprite = Portrait.SlicedRound;
+            panelFill.type = Image.Type.Sliced;
+            panelFill.color = Paper;
+            panelFill.raycastTarget = false;
+            var layout = tablePanel.GetComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(20, 20, 16, 16);
+            layout.spacing = 12f;
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+            var tableRoot = tablePanel.GetComponent<RectTransform>();
+            SetupNotice(tableRoot, "参加・観戦できるゲーム卓", rowW - 40f, buttonH, font);
             for (var i = 0; i < tableCount; i++)
             {
-                SetupGap(column, innerGap);
                 var table = networkTables[i];
                 var action = table.status == "募集中" && table.seated < table.players ? "参加" : "観戦";
-                SetupButton(column, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW, buttonH, font);
+                SetupButton(tableRoot, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
             }
+            if (tableCount == 0) SetupNotice(tableRoot, "現在、卓はありません", rowW - 40f, buttonH, font);
             SetupGap(column, section);
-            SetupButton(column, "対局開始", OpenLobby, actionW, buttonH * 2f, font * 2);
-            SetupGap(column, innerGap);
             SetupButton(column, "実装テスト", () => OpenPage("tests"), actionW, buttonH, font);
             if (showReview)
             {
@@ -2440,7 +2458,7 @@ namespace Quota
             var mark = TitleSprite(true);
             if (mark != null)
             {
-                PlaceSprite(frame, "title-mark", mark, 24f, 28f, 640f, 116f);
+                PlaceSprite(frame, "title-mark", mark, 24f, 28f, 640f - Mathf.Max(0, game.Config.ResolvedStallThreshold() * 2 - 6) * 22f, 116f);
                 var image = frame.Find("title-mark").GetComponent<Image>();
                 image.color = Cream;
                 if (logoInk == null) logoInk = new Material(Resources.Load<Shader>("Quota/LogoInk")) { hideFlags = HideFlags.HideAndDontSave };
@@ -2462,13 +2480,13 @@ namespace Quota
 
         void DrawBoardStatus(Game game)
         {
-            var x = (WideScreen() ? LandWidth : ScreenWidth) - 412f;
-            TextAt(frame, RoundLabel(game), x + 8f, 84f, 236f, 30f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
-            TextAt(frame, "膠着:", x + 8f, 116f, 70f, 28f, 20, Ink, nameFont, TextAnchor.MiddleLeft);
             var threshold = game.Config.ResolvedStallThreshold();
+            var x = (WideScreen() ? LandWidth : ScreenWidth) - 412f - Mathf.Max(0, threshold * 2 - 6) * 22f;
+            TextAt(frame, RoundLabel(game), x + 8f, 72f, 236f, 30f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+            TextAt(frame, "膠着:", x + 8f, 104f, 70f, 28f, 20, Ink, nameFont, TextAnchor.MiddleLeft);
             var filled = Mathf.Clamp((game.StallFlag ? threshold : 0) + game.NoGainStreak, 0, threshold * 2);
             for (var i = 0; i < threshold * 2; i++)
-                Portrait.Circle(frame, "stall-dot-" + i, x + 80f + i * Mathf.Min(22f, 144f / Mathf.Max(1, threshold * 2 - 1)), 119f, 19f,
+                Portrait.Circle(frame, "stall-dot-" + i, x + 80f + i * 22f, 107f, 19f,
                     i >= filled ? Hex("#E8E8E8") : i < threshold ? Hex("#FFD326") : Hex("#E64235"));
         }
 
@@ -2583,9 +2601,10 @@ namespace Quota
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, Plate, Ink, false);
-            Portrait.Box(seat, "nameplate", 0f, 10f, 400f, 50f, 4.5f, 1f, NameplateColor(game, index), Ink, true);
-            var name = TextAt(seat, PlayerCaption(game, index), 12f, 10f, 376f, 50f, NameFontSize(PlayerCaption(game, index), 376f, 36), Ink, nameFont, TextAnchor.MiddleLeft);
+            Portrait.Box(seat, "nameplate", 0f, 10f, ScreenWidth * 0.5f, 50f, 4.5f, 1f, NameplateColor(game, index), Ink, true);
+            var name = TextAt(seat, PlayerCaption(game, index), 12f, 10f, ScreenWidth * 0.5f - 24f, 50f, NameFontSize(PlayerCaption(game, index), ScreenWidth * 0.5f - 24f, 36), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
+            name.fontStyle = FontStyle.Bold;
             var quotaTop = 75f;
             Bold(TextAt(seat, "ノルマ", 32f, quotaTop, 142f, 40f, 24, Ink, nameFont, TextAnchor.MiddleLeft));
             DrawQuotaProgress(seat, player, 32f, 120f, 142f, 62f, 48);
@@ -2599,7 +2618,7 @@ namespace Quota
             var achieved = Portrait.Rect(seat, "achieved-cards", 130f, 220f, 405f, 145f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 6.5f, 3f);
-            TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
+            Bold(TextAt(seat, "ボーナス", 535f, 220f, 212f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight));
             const float trayX = 775f;
             const float trayY = 240f;
             const float trayW = 220f;
@@ -2630,13 +2649,14 @@ namespace Quota
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, Plate, Ink, false);
-            Portrait.Box(seat, "nameplate", 16f, 6f, 400f, 46f, 4.5f, 1f, NameplateColor(game, index), Ink, false);
-            var name = TextAt(seat, PlayerCaption(game, index), 28f, 6f, 376f, 46f, NameFontSize(PlayerCaption(game, index), 376f, 30), Ink, nameFont, TextAnchor.MiddleLeft);
+            Portrait.Box(seat, "nameplate", 16f, 6f, LandWidth * 0.5f, 46f, 4.5f, 1f, NameplateColor(game, index), Ink, false);
+            var name = TextAt(seat, PlayerCaption(game, index), 28f, 6f, LandWidth * 0.5f - 24f, 46f, NameFontSize(PlayerCaption(game, index), LandWidth * 0.5f - 24f, 30), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
+            name.fontStyle = FontStyle.Bold;
             if (game.Config.SpecialActionsRule)
             {
-                DrawSpecialCard(seat, "double-card", "ダブル", player.DoubleActionLeft > 0, 848f, 8f, 156f, 34f, Hex("#cfe9f5"));
-                DrawSpecialCard(seat, "reshuffle-card", "配り直し", player.ReshuffleTakeLeft > 0, 1022f, 8f, 156f, 34f, Hex("#d9edcf"));
+                DrawSpecialCard(seat, "double-card", "ダブル", player.DoubleActionLeft > 0, 976f, 8f, 110f, 34f, Hex("#cfe9f5"));
+                DrawSpecialCard(seat, "reshuffle-card", "配り直し", player.ReshuffleTakeLeft > 0, 1094f, 8f, 110f, 34f, Hex("#d9edcf"));
             }
 
             var titled = game.Config.TitleRule;
@@ -2646,7 +2666,7 @@ namespace Quota
             var boxH = titled ? 126f : 148f;
             Portrait.Box(seat, "bonus-box", boxX, boxY, boxW, boxH, 7f, 1f, Ecru, Ink, false);
             if (titled) DrawTrayTitles(seat, player, boxX, boxY - 34f, boxW, 32f, 12);
-            TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
+            Bold(TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft));
 
 
             const float recordY = 66f;
@@ -3032,7 +3052,10 @@ namespace Quota
             for (var i = 0; i < entries.Count; i++)
             {
                 var width = entries[i].Key.Length * 48f + 30f;
-                Pill(controls, entries[i].Key, edge - width, y + i * ActionStride, width, 72f, 48, entries[i].Value);
+                Pill(controls, entries[i].Key, edge - width, y + i * ActionStride, width, 72f, 40, entries[i].Value);
+                var actionButton = controls.Find(entries[i].Key);
+                actionButton.GetComponent<Image>().color = Hex("#D6B98C");
+                foreach (var label in actionButton.GetComponentsInChildren<Text>()) label.fontStyle = FontStyle.Bold;
             }
         }
 
@@ -3658,7 +3681,7 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
-            var accent = caption == "対局開始" || caption == "ゲーム開始";
+            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || parent.name == "table-list";
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
             image.color = accent ? Accent : Ecru;

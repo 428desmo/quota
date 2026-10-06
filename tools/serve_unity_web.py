@@ -79,13 +79,14 @@ class UnityTable:
         return client in self.members
 
     def summary(self) -> dict:
+        active_humans = {seat.client for seat in self.humans if not seat.cpu}
         return {
             "id": self.id,
             "leader": self.leader_name(),
             "players": self.players,
-            "seated": self.seated(),
+            "seated": len(active_humans),
             "status": "募集中" if self.phase == "recruiting" else "対局中",
-            "observers": len(self.members) - self.seated(),
+            "observers": len(set(self.members) - active_humans),
         }
 
     def recruiting(self, client: str) -> dict:
@@ -152,14 +153,13 @@ class UnityHall:
     def join(self, body: dict, client: str) -> dict:
         self.sweep()
         table = self.tables.get(str(body.get("table") or ""))
-        if table is None or table.phase != "recruiting":
+        if table is None or table.phase not in ("recruiting", "playing"):
             raise ValueError("その卓はありません")
-        if table.seated() >= table.players:
-            raise ValueError("席がありません")
         if not table.has(client):
             seat = Seat(client, str(body.get("name") or "あなた"))
             table.members[client] = seat
-            table.humans.append(seat)
+            if table.phase == "recruiting" and table.seated() < table.players:
+                table.humans.append(seat)
         self.where[client] = table.id
         table.touch()
         return table.recruiting(client)

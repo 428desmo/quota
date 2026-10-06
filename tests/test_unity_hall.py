@@ -190,3 +190,18 @@ def test_all_humans_replaced_can_advance_remaining_rounds():
     assert not table.game.awaiting_next_round
     assert table.actions[-1] == 'next_round'
     assert all(not p.is_human for p in table.game.players)
+
+
+@pytest.mark.parametrize('started', [False, True])
+def test_table_list_can_join_full_or_playing_table_as_observer(started):
+    hall, table = playing_pair()
+    if not started:
+        table.phase = 'recruiting'
+        hall.join({'table': table.id, 'name': 'C'}, 'c')
+    seats = [s.name for s in table.humans]
+    result = hall.join({'table': table.id, 'name': 'Watcher'}, 'watcher')
+    assert result['you']['observer'] and result['you']['seat'] == -1
+    assert result['you']['joined']
+    assert [s.name for s in table.humans] == seats
+    hall.leave('watcher')
+    assert hall.snapshot('a')['phase'] == ('playing' if started else 'recruiting')
