@@ -56,6 +56,53 @@ namespace Quota
                 }
             }
         }
+        public static Chip GameChip(CoinKind kind, int seed, bool onCard = false)
+        {
+            var random = new System.Random(seed);
+            ColorUtility.TryParseHtmlString(kind == CoinKind.Purple ? "#ff17e2" : kind == CoinKind.Blue ? "#2ea3ff" : "#00e749", out var color);
+            return new Chip {
+                Color = color, Sides = kind == CoinKind.Purple ? 4 : kind == CoinKind.Blue ? 32 : 6,
+                Size = kind == CoinKind.Blue ? 22 : 26, Thickness = 4,
+                Aspect = kind == CoinKind.Purple ? 0.70f : 1f,
+                Rotation = Quaternion.Euler((float)random.NextDouble()*6-3, (float)random.NextDouble()*6-3,
+                    onCard ? (float)random.NextDouble()*24-12 : (float)random.NextDouble()*360),
+                Born = float.NegativeInfinity
+            };
+        }
+
+        static void Vertices(Chip chip, out Vector3[] top, out Vector3[] bottom)
+        {
+            top = new Vector3[chip.Sides]; bottom = new Vector3[chip.Sides];
+            for (var i=0; i<chip.Sides; i++)
+            {
+                var angle=2*Mathf.PI*i/chip.Sides+(chip.Sides==4?Mathf.PI/4:0);
+                var radius=chip.Size/2*(chip.Sides==4?Mathf.Sqrt(2):1);
+                var v=new Vector3(Mathf.Cos(angle)*radius,Mathf.Sin(angle)*radius*chip.Aspect,0);
+                bottom[i]=chip.Rotation*v; top[i]=chip.Rotation*(v+Vector3.forward*chip.Thickness);
+            }
+        }
+
+        public static Rect ChipBounds(Chip chip)
+        {
+            Vertices(chip,out var top,out var bottom);
+            var min = new Vector2(float.MaxValue,float.MaxValue);
+            var max = new Vector2(float.MinValue,float.MinValue);
+            foreach (var ring in new[]{top,bottom}) foreach(var point in ring)
+            { var p=ProjectChipPoint(point); min=Vector2.Min(min,p); max=Vector2.Max(max,p); }
+            return Rect.MinMaxRect(min.x,min.y,max.x,max.y);
+        }
+
+        public static RectTransform DrawGameChip(Transform parent, string name, Chip chip, float x, float y, float scale = 1f)
+        {
+            var bounds=ChipBounds(chip);
+            var host=Portrait.Rect(parent,name,x,y,bounds.width,bounds.height);
+            host.localScale=Vector3.one*scale;
+            chip.Position=new Vector2(-bounds.xMin,bounds.yMax);
+            var draw=host.gameObject.AddComponent<BonusChipLab>();
+            draw.state=new State(); draw.state.Chips.Add(chip); draw.raycastTarget=false;
+            return host;
+        }
+
         State state;
         int first;
         readonly List<Face> faces = new List<Face>();
@@ -176,14 +223,7 @@ namespace Quota
                 if(Time.unscaledTime<chip.Born)continue;
                 var drop=(1-t)*(1-t)*55f;
                 var center=new Vector2(chip.Position.x, -chip.Position.y+drop+Mathf.Sin(t*Mathf.PI*3)*(1-t)*5);
-                var top=new Vector3[chip.Sides];var bottom=new Vector3[chip.Sides];
-                for(var i=0;i<chip.Sides;i++)
-                {
-                    var angle=2*Mathf.PI*i/chip.Sides+(chip.Sides==4?Mathf.PI/4:0);
-                    var radius=chip.Size/2*(chip.Sides==4?Mathf.Sqrt(2):1);
-                    var v=new Vector3(Mathf.Cos(angle)*radius,Mathf.Sin(angle)*radius*chip.Aspect,0);
-                    bottom[i]=chip.Rotation*v;top[i]=chip.Rotation*(v+Vector3.forward*chip.Thickness);
-                }
+                Vertices(chip,out var top,out var bottom);
                 faces.Clear();
                 AddFace(top,chip.Rotation*Vector3.forward,chip.Color);
                 for(var i=0;i<chip.Sides;i++)
