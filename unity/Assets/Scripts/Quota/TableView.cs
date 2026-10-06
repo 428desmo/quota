@@ -1741,7 +1741,7 @@ namespace Quota
                     var to = TrayPoint(job.Seat);
                     var lineIndex = job.Line;
                     var seat = job.Seat;
-                    StartCoroutine(AnimateFly(serial, from, to, Hex("#3c7dff"), () =>
+                    StartCoroutine(AnimateFly(serial, from, to, CoinKind.Blue, () =>
                     {
                         var dot = new CeremonyDot { Seat = seat, Kind = CoinKind.Blue, Serial = ++dotSerial };
                         ceremonyTray.Add(dot);
@@ -1787,8 +1787,7 @@ namespace Quota
                         var from = TakeDot(dot);
                         var to = ScorePoint(dot.Seat);
                         var seat = dot.Seat;
-                        var color = CoinColor(dot.Kind);
-                        StartCoroutine(AnimateFly(serial, from, to, color, () =>
+                        StartCoroutine(AnimateFly(serial, from, to, dot.Kind, () =>
                         {
                             if (scoreOverride != null)
                             {
@@ -1805,10 +1804,13 @@ namespace Quota
             }
         }
 
-        IEnumerator AnimateFly(int serial, Vector3 from, Vector3 to, Color color, System.Action arrived)
+        IEnumerator AnimateFly(int serial, Vector3 from, Vector3 to, CoinKind kind, System.Action arrived)
         {
-            var ring = Portrait.Circle(transform, "flyer", 0f, 0f, 18f, Ink);
-            var disk = Portrait.Circle(transform, "flyer", 0f, 0f, 16f, color);
+            var chip = BonusChipLab.GameChip(kind, serial + dotSerial);
+            var bounds = BonusChipLab.ChipBounds(chip);
+            var scale = frame != null ? frame.lossyScale.x : 1f;
+            var ring = Portrait.Rect(transform, "flyer", 0f, 0f, bounds.width * scale, bounds.height * scale);
+            var disk = BonusChipLab.DrawGameChip(transform, "flyer", chip, 0f, 0f, scale);
             PlaceCenter(ring, from);
             if (disk != null) disk.position = ring.position;
             var start = Time.time;
@@ -2274,18 +2276,12 @@ namespace Quota
 
         void DrawStoredDot(Transform tray, CeremonyDot dot, float x, float y, float width, float height, float diameter)
         {
-            var px = x + Centered(dot.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
-            var py = y + Centered(dot.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
-            var holder = Portrait.Rect(tray, "cdot-" + dot.Serial, px, py, diameter, diameter);
-            Portrait.Circle(holder, "ring", -1f, -1f, diameter + 2f, Ink);
-            Portrait.Circle(holder, "disk", 0f, 0f, diameter, CoinColor(dot.Kind));
-        }
-
-        static Color CoinColor(CoinKind kind)
-        {
-            if (kind == CoinKind.Purple) return Hex("#a04bff");
-            if (kind == CoinKind.Blue) return Hex("#3c7dff");
-            return Hex("#3cce3c");
+            var chip = BonusChipLab.GameChip(dot.Kind, dot.Serial);
+            var bounds = BonusChipLab.ChipBounds(chip);
+            var px = x + Centered(dot.Serial * 2 + 1) * Mathf.Max(0f, width - bounds.width);
+            var py = y + Centered(dot.Serial * 2 + 5) * Mathf.Max(0f, height - bounds.height);
+            var holder = Portrait.Rect(tray, "cdot-" + dot.Serial, px, py, bounds.width, bounds.height);
+            BonusChipLab.DrawGameChip(holder, "disk", chip, 0f, 0f);
         }
 
         static int GreenCount(Player player)
@@ -2624,9 +2620,19 @@ namespace Quota
             {
                 var host = quotaArea.Find("card" + pair.Key);
                 if (host == null) continue;
-                var step = (diameter + 1f) * cardScale;
-                for (var i = 0; i < pair.Value.Count; i++)
-                    DrawCoin(host, pair.Value[i], 4f * cardScale, (28f * cardScale) + i * step, diameter * cardScale);
+                var count = pair.Value.Count;
+                var maxHeight = 0f;
+                foreach (var bonus in pair.Value)
+                    maxHeight = Mathf.Max(maxHeight, BonusChipLab.ChipBounds(BonusChipLab.GameChip(bonus.Kind, ChipSeed(bonus), true)).height);
+                var step = count > 1 ? Mathf.Min(28f, (CardHeight - 42f - maxHeight) / (count-1)) : 0f;
+                for (var i = 0; i < count; i++)
+                {
+                    var bonus=pair.Value[i];
+                    var bounds=BonusChipLab.ChipBounds(BonusChipLab.GameChip(bonus.Kind,ChipSeed(bonus),true));
+                    var px=1f+Centered(ChipSeed(bonus)+11)*Mathf.Max(0,CardWidth/3f-bounds.width-2f);
+                    var py=40f+i*step+Centered(ChipSeed(bonus)+17)*2f;
+                    DrawCoin(host,bonus,px*cardScale,py*cardScale,cardScale,true);
+                }
             }
             if (ceremonyRunning)
             {
@@ -2646,9 +2652,10 @@ namespace Quota
             for (var i = 0; i < bank.Count; i++)
             {
                 var coin = bank[i];
-                var px = x + Centered(coin.Serial * 2 + 1) * Mathf.Max(0f, width - diameter);
-                var py = y + Centered(coin.Serial * 2 + 5) * Mathf.Max(0f, height - diameter);
-                var drawn = DrawCoin(tray, coin, px, py, diameter);
+                var bounds = BonusChipLab.ChipBounds(BonusChipLab.GameChip(coin.Kind,ChipSeed(coin)));
+                var px = x + Centered(coin.Serial * 2 + 1) * Mathf.Max(0f, width - bounds.width);
+                var py = y + Centered(coin.Serial * 2 + 5) * Mathf.Max(0f, height - bounds.height);
+                var drawn = DrawCoin(tray, coin, px, py);
                 var spot = "spot-" + coin.Key;
                 if (!Application.isPlaying || !coinFrom.TryGetValue(spot, out var fromRing)) continue;
                 slides.Add(new CoinSlide
@@ -2679,12 +2686,15 @@ namespace Quota
             StartCoroutine(SlideCoins(slides));
         }
 
-        (RectTransform ring, RectTransform disk) DrawCoin(Transform parent, BonusCoin coin, float x, float y, float diameter)
+        static int ChipSeed(BonusCoin coin) => unchecked(coin.CardId * 397 ^ (int)coin.Kind * 37 ^ coin.Index * 101);
+
+        (RectTransform ring, RectTransform disk) DrawCoin(Transform parent, BonusCoin coin, float x, float y, float scale = 1f, bool onCard = false)
         {
-            var color = coin.Kind == CoinKind.Purple ? Hex("#a04bff") : coin.Kind == CoinKind.Blue ? Hex("#3c7dff") : Hex("#3cce3c");
-            var ring = Portrait.Circle(parent, "spot-" + coin.Key, x - 1f, y - 1f, diameter + 2f, Ink);
-            var disk = Portrait.Circle(parent, "coin", x, y, diameter, color);
-            return (ring, disk);
+            var chip=BonusChipLab.GameChip(coin.Kind,ChipSeed(coin),onCard);
+            var bounds=BonusChipLab.ChipBounds(chip);
+            var ring=Portrait.Rect(parent,"spot-"+coin.Key,x,y,bounds.width*scale,bounds.height*scale);
+            var disk=BonusChipLab.DrawGameChip(parent,"coin",chip,x,y,scale);
+            return (ring,disk);
         }
 
         Dictionary<string, Vector3> SnapshotCardCoins()

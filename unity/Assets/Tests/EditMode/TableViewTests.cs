@@ -153,6 +153,47 @@ namespace Quota.Tests
                 Assert.AreEqual(Vector3.one*scale,panel.Find("chip-tray-"+scale).localScale);
         }
 
+        [TestCase(CoinKind.Purple, "FF17E2", 4, 26f, 0.70f)]
+        [TestCase(CoinKind.Green, "00E749", 6, 26f, 1f)]
+        [TestCase(CoinKind.Blue, "2EA3FF", 32, 22f, 1f)]
+        public void GameChipUsesTheApprovedStyle(CoinKind kind, string rgb, int sides, float size, float aspect)
+        {
+            for (var seed=0;seed<100;seed++)
+            {
+                var chip=BonusChipLab.GameChip(kind,seed,true);
+                Assert.AreEqual(rgb,ColorUtility.ToHtmlStringRGB(chip.Color));
+                Assert.AreEqual(sides,chip.Sides);
+                Assert.AreEqual(size,chip.Size);
+                Assert.AreEqual(4f,chip.Thickness);
+                Assert.AreEqual(aspect,chip.Aspect);
+                Assert.Less(BonusChipLab.ChipBounds(chip).width,95f/3f-2f);
+                Assert.AreEqual(chip.Rotation,BonusChipLab.GameChip(kind,seed,true).Rotation);
+            }
+        }
+
+        [Test]
+        public void SixCardChipsStayBelowTheNumberAndInsideTheLeftThird()
+        {
+            host = Open();
+            Set("seedText", "1"); Begin();
+            var view=host.GetComponent<TableView>();
+            var match=(OfflineMatch)typeof(TableView).GetField("match",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(view);
+            match.Game.Players[0].Quota=new Card(9100,Suit.H,13);
+            match.Game.Players[0].Collection.Clear();
+            Show(view);
+            var card=host.transform.Find("Root/Frame/seat0/quota-cards/card9100");
+            var chips=card.GetComponentsInChildren<BonusChipLab>();
+            Assert.AreEqual(6,chips.Length);
+            foreach(var chip in chips)
+            {
+                var rect=chip.rectTransform;
+                Assert.GreaterOrEqual(-rect.anchoredPosition.y,40f);
+                Assert.LessOrEqual(-rect.anchoredPosition.y+rect.rect.height,132f);
+                Assert.GreaterOrEqual(rect.anchoredPosition.x,0f);
+                Assert.LessOrEqual(rect.anchoredPosition.x+rect.rect.width,95f/3f);
+            }
+        }
+
         [Test]
         public void ChipViewShowsTheFrontEdgeFromSlightlyAboveTheTable()
         {
