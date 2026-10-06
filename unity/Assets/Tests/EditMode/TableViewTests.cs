@@ -103,6 +103,31 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void ChipTestCreatesRenderersForInitialAndAdditionalBatches()
+        {
+            host = new GameObject("ChipCanvas", typeof(RectTransform), typeof(Canvas));
+            host.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            var state = new BonusChipLab.State();
+            BonusChipLab.Open(host.transform, 1920, 1080, true, false,
+                Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"), Color.white, Color.black, state, () => {});
+            var initial = host.GetComponentInChildren<BonusChipLab>();
+            Assert.IsNotNull(initial.GetComponent<CanvasRenderer>());
+            // Cross the mesh-batch boundary through the actual UI callback.
+            state.Add(400, 176, 148, -10);
+            foreach (var button in host.GetComponentsInChildren<Button>())
+                if (button.name == "＋1") { button.onClick.Invoke(); break; }
+            var batches = host.GetComponentsInChildren<BonusChipLab>();
+            Assert.AreEqual(2, batches.Length);
+            foreach (var batch in batches)
+            {
+                Assert.IsNotNull(batch.GetComponent<CanvasRenderer>());
+                batch.Rebuild(CanvasUpdate.PreRender);
+            }
+            foreach (var mask in host.GetComponentsInChildren<RectMask2D>()) mask.PerformClipping();
+            Canvas.ForceUpdateCanvases();
+        }
+
+        [Test]
         public void ChipTestKeepsEarlierColorsAndAddsTheRequestedCount()
         {
             var state = new BonusChipLab.State { Shape = 2, Sides = 8, ColorIndex = 0 };
