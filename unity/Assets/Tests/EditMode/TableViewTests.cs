@@ -311,7 +311,7 @@ namespace Quota.Tests
             var view = host.GetComponent<TableView>();
             var apply = typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic);
             apply.Invoke(view, new object[] { "{\"phase\":\"recruiting\",\"table_id\":\"test\",\"players\":3,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"CPU\"],\"you\":{\"seat\":1,\"leader\":false}}" });
-            Assert.IsNull(FindText("シャッフル"));
+            Assert.IsNull(FindText("CPUプレイヤー入れ替え"));
             Assert.IsNotNull(FindText("リーダーがゲーム開始するのを待っています"));
         }
 
@@ -638,7 +638,7 @@ namespace Quota.Tests
             Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(before[0])));
             Assert.IsNotNull(FindText("1. あなた"));
             Assert.IsNotNull(FindTextContaining("2. "));
-            Click("シャッフル");
+            Click("CPUプレイヤー入れ替え");
             CollectionAssert.AreNotEqual(before, cast);
             Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(cast[0])));
 
@@ -653,8 +653,8 @@ namespace Quota.Tests
             Click("キャンセル");
             Assert.IsNull(FindButton("シンプルモード　オン"));
 
-            Click("自分は参加しない　オフ");
-            Assert.IsNotNull(ButtonNamed("自分は参加しない　オン"));
+            Click("参加せずに観戦");
+            Assert.IsNotNull(FindText("✓ 参加せずに観戦"));
             Assert.IsNull(FindText("1. あなた"));
             Assert.AreEqual(4, CountText("CPU"));
             Assert.IsNotNull(FindTextContaining("1. "));
@@ -683,7 +683,7 @@ namespace Quota.Tests
             Click("EXIT");
             Click("抜ける");
             Click("対局開始");
-            Click("自分は参加しない　オフ");
+            Click("参加せずに観戦");
             Click("ゲーム開始");
             Assert.IsTrue((bool)noHuman.Invoke(view, null));
             Assert.AreEqual(5f, (float)typeof(TableView).GetField("okTimeout", flags).GetValue(view));
