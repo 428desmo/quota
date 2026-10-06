@@ -153,6 +153,18 @@ namespace Quota.Tests
                 Assert.AreEqual(Vector3.one*scale,panel.Find("chip-tray-"+scale).localScale);
         }
 
+        [Test]
+        public void ChipViewShowsTheFrontEdgeFromSlightlyAboveTheTable()
+        {
+            var top = BonusChipLab.ProjectChipPoint(new Vector3(0, 10, 0));
+            Assert.AreEqual(8.660254f, top.y, 0.0001f);
+            var raised = BonusChipLab.ProjectChipPoint(new Vector3(0, 0, 4));
+            Assert.AreEqual(2f, raised.y);
+            Assert.IsTrue(BonusChipLab.FaceVisible(Vector3.down));
+            Assert.IsFalse(BonusChipLab.FaceVisible(Vector3.up));
+            Assert.IsTrue(BonusChipLab.FaceVisible(Vector3.forward));
+        }
+
         [TestCase("#00ff00", "#00FF00")]
         [TestCase("123abc", "#123ABC")]
         public void ChipRgbAcceptsSixDigitColors(string value, string expected)
