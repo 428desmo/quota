@@ -2451,7 +2451,7 @@ namespace Quota
         void DrawBoardStatus(Game game)
         {
             var x = (WideScreen() ? LandWidth : ScreenWidth) - 412f;
-            PhotoText(frame, RoundLabel(game), x, 84f, 244f, 30f, 22, TextAnchor.MiddleLeft);
+            TextAt(frame, RoundLabel(game), x + 8f, 84f, 236f, 30f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
             TextAt(frame, "膠着:", x + 8f, 116f, 70f, 28f, 20, Ink, nameFont, TextAnchor.MiddleLeft);
             var threshold = game.Config.ResolvedStallThreshold();
             var filled = Mathf.Clamp((game.StallFlag ? threshold : 0) + game.NoGainStreak, 0, threshold * 2);
