@@ -1471,14 +1471,6 @@ namespace Quota
             if (showCeremony) DrawCeremonyPanel();
             else if (confirm == null && ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
             else if (confirm == null && MyHumanTurn && !busy && !CardsAnimating && !game.Finished) DrawControls(game);
-            else if (confirm == null && !game.Finished)
-            {
-                var note = $"{game.Players[game.Current].Name} が考えています";
-                var thinking = wide
-                    ? PhotoText(frame, note, LandMarketX, LandMarketY + LandMarketH + 12f, LandMarketW, 32f, 22, TextAnchor.MiddleRight)
-                    : PhotoText(frame, note, 520f, 84f, 532f, 32f, 22, TextAnchor.MiddleRight);
-                thinking.horizontalOverflow = HorizontalWrapMode.Overflow;
-            }
             if (!game.Finished) LeaveButton();
             else RemoveLeaveButton();
             if (!showCeremony && game.Finished && !ceremonyBreak && !CardsAnimating)
@@ -1491,8 +1483,7 @@ namespace Quota
 
         static string RoundLabel(Game game)
         {
-            if (game.RoundCount <= 1) return "揃えて、達成。";
-            return $"第{game.RoundIndex}ラウンド / {game.RoundCount}";
+            return $"ラウンド {game.RoundIndex}/{game.RoundCount}";
         }
 
         sealed class CeremonyLine
@@ -2239,9 +2230,7 @@ namespace Quota
 
         string SeatPoints(Game game, int index, Player player)
         {
-            if (ceremonyRunning || reviewMode) return BaseScore(player).ToString();
-            var points = game.AwaitingNextRound || game.Finished ? game.FinalScore(player) : BaseScore(player);
-            return points.ToString();
+            return BaseScore(player).ToString();
         }
 
         void RefreshScore(int seat)
@@ -2437,7 +2426,7 @@ namespace Quota
             var mark = TitleSprite(true);
             if (mark != null)
             {
-                PlaceSprite(frame, "title-mark", mark, 24f, 28f, 680f, 116f);
+                PlaceSprite(frame, "title-mark", mark, 24f, 28f, 640f, 116f);
                 var image = frame.Find("title-mark").GetComponent<Image>();
                 image.color = Cream;
                 if (logoInk == null) logoInk = new Material(Resources.Load<Shader>("Quota/LogoInk")) { hideFlags = HideFlags.HideAndDontSave };
@@ -2445,30 +2434,28 @@ namespace Quota
             }
             else Shade(TextAt(frame, "QUOTA", 24f, 28f, 680f, 116f, 76, Cream, nameFont, TextAnchor.MiddleLeft));
             var note = game.DoubleStage == 1 ? "ダブル：1回目の行動です。" : game.DoubleStage == 2 ? "ダブル：2回目の行動です。" : game.Plan == "reshuffle" ? "配り直しました。行動を選んでください。" : "";
-            if (note.Length > 0) Shade(TextAt(frame, note, 340f, 134f, 560f, 24f, 16, Cream, nameFont, TextAnchor.MiddleRight));
-            PhotoText(frame, RoundLabel(game), 24f, 364f, 310f, 28f, 20, TextAnchor.MiddleLeft);
-            var hint = $"手番 {game.TurnNumber}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
-            PhotoText(frame, hint, 340f, 364f, 330f, 28f, 18, TextAnchor.MiddleLeft);
+            if (note.Length > 0) Shade(TextAt(frame, note, 24f, 134f, 630f, 24f, 16, Cream, nameFont, TextAnchor.MiddleRight));
+            DrawBoardStatus(game);
         }
 
         void DrawTitleWide(Game game)
         {
             var mark = TitleSprite(true);
-            if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 24f, 260f, 52f);
-            else Shade(TextAt(frame, "QUOTA", 28f, 28f, 280f, 64f, 48, Cream, nameFont, TextAnchor.MiddleLeft));
-            PhotoText(frame, RoundLabel(game), 292f, 44f, 296f, 40f, 26, TextAnchor.MiddleLeft);
-            var note = "";
-            if (game.DoubleStage == 1) note = "ダブル：1回目の行動です。  ";
-            else if (game.DoubleStage == 2) note = "ダブル：2回目の行動です。  ";
-            else if (game.Plan == "reshuffle") note = "配り直しました。行動を選んでください。  ";
-            var me = game.Players[game.Current];
-            var hint = $"手番 {game.TurnNumber}  膠着 {(game.StallFlag ? 1 : 0)}/{game.Players.Count}";
-            if (me.Quota != null && me.Quota.Rank != null)
-            {
-                var need = me.Quota.Rank.Value - 1 - me.Collection.Count;
-                if (need > 0) hint = $"あと{need}枚   " + hint;
-            }
-            PhotoText(frame, note + hint, 596f, 44f, 1000f, 40f, 20, TextAnchor.MiddleLeft);
+            if (mark != null) PlaceSprite(frame, "title-mark", mark, 28f, 12f, 250f, 64f);
+            else Shade(TextAt(frame, "QUOTA", 28f, 16f, 250f, 68f, 56, Cream, nameFont, TextAnchor.MiddleLeft));
+            DrawBoardStatus(game);
+        }
+
+        void DrawBoardStatus(Game game)
+        {
+            var x = (WideScreen() ? LandWidth : ScreenWidth) - 412f;
+            PhotoText(frame, RoundLabel(game), x, 84f, 244f, 30f, 22, TextAnchor.MiddleLeft);
+            TextAt(frame, "膠着:", x + 8f, 116f, 70f, 28f, 20, Ink, nameFont, TextAnchor.MiddleLeft);
+            var threshold = game.Config.ResolvedStallThreshold();
+            var filled = Mathf.Clamp((game.StallFlag ? threshold : 0) + game.NoGainStreak, 0, threshold * 2);
+            for (var i = 0; i < threshold * 2; i++)
+                Portrait.Circle(frame, "stall-dot-" + i, x + 80f + i * Mathf.Min(22f, 144f / Mathf.Max(1, threshold * 2 - 1)), 119f, 19f,
+                    i >= filled ? Hex("#E8E8E8") : i < threshold ? Hex("#FFD326") : Hex("#E64235"));
         }
 
         void DrawMarket(Game game, ItemSet theme)
@@ -2565,7 +2552,7 @@ namespace Quota
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
             strip.AddRange(player.Collection);
-            LayCards(quotaCards, theme, strip, 6.5f, 47.5f);
+            LayQuotaCards(quotaCards, theme, strip, 6.5f);
             TextAt(seat, "実績", 0f, 220f, 122f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
             var achieved = Portrait.Rect(seat, "achieved-cards", 130f, 220f, 405f, 145f);
             achieved.gameObject.AddComponent<RectMask2D>();
@@ -2583,6 +2570,8 @@ namespace Quota
             PlaceBonus(game, player, quotaCards, tray, coinX, coinY, coinW, coinH, coinD, 1f);
             var score = TextAt(seat, SeatPoints(game, index, player), 0f, 262f, 122f, 60f, 40, Ink, nameFont, TextAnchor.UpperRight);
             score.gameObject.name = "score";
+            if (game.RoundIndex >= 2) ((RectTransform)score.transform).anchoredPosition += new Vector2(0f, -30f);
+            DrawPreviousScore(seat, game, player, false);
             if (game.Config.SpecialActionsRule)
             {
                 DrawSpecialCard(seat, "double-card", "ダブル", player.DoubleActionLeft > 0, 900f, 75f, 148f, 38f, Hex("#cfe9f5"));
@@ -2623,6 +2612,8 @@ namespace Quota
             TextAt(seat, "実績", 224f, recordY + 4f, 80f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
             var score = TextAt(seat, SeatPoints(game, index, player), 224f, recordY + 30f, 60f, 46f, 30, Ink, nameFont, TextAnchor.UpperLeft);
             score.gameObject.name = "score";
+            if (game.RoundIndex >= 2) ((RectTransform)score.transform).anchoredPosition += new Vector2(0f, -28f);
+            DrawPreviousScore(seat, game, player, true);
             var achieved = Portrait.Rect(seat, "achieved-cards", 290f, recordY + 30f, 134f, recordH - 38f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 2f, 3f, 0.62f);
@@ -2634,13 +2625,7 @@ namespace Quota
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
             strip.AddRange(player.Collection);
-            var stride = CardWidth + 8f;
-            if (strip.Count > 1)
-            {
-                var need = CardWidth + (strip.Count - 1) * stride;
-                if (need > 618f) stride = (618f - CardWidth) / (strip.Count - 1);
-            }
-            LayCards(quotaCards, theme, strip, 0f, stride, 1f);
+            LayQuotaCards(quotaCards, theme, strip, 0f);
             var bonusBox = seat.Find("bonus-box");
             float coinX, coinY, coinW, coinH, coinD;
             CoinSpot(true, out coinX, out coinY, out coinW, out coinH, out coinD);
@@ -2738,14 +2723,18 @@ namespace Quota
                 var maxHeight = 0f;
                 foreach (var bonus in pair.Value)
                     maxHeight = Mathf.Max(maxHeight, BonusChipLab.ChipBounds(BonusChipLab.GameChip(bonus.Kind, ChipSeed(bonus), true)).height);
-                var step = count > 1 ? Mathf.Min(28f, (CardHeight - 42f - maxHeight) / (count-1)) : 0f;
+                var columns = count > 4 && player.Quota != null && pair.Key == player.Quota.Id ? 2 : 1;
+                var rows = Mathf.CeilToInt(count / (float)columns);
+                var pileScale = columns > 1 ? Mathf.Min(1f, (CardHeight - 42f - (rows - 1) * 3f) / (rows * maxHeight)) : 1f;
+                var step = rows > 1 ? Mathf.Min(28f, (CardHeight - 42f - maxHeight * pileScale) / (rows - 1)) : 0f;
                 for (var i = 0; i < count; i++)
                 {
                     var bonus=pair.Value[i];
                     var bounds=BonusChipLab.ChipBounds(BonusChipLab.GameChip(bonus.Kind,ChipSeed(bonus),true));
                     var px=1f+Centered(ChipSeed(bonus)+11)*Mathf.Max(0,CardWidth/3f-bounds.width-2f);
-                    var py=40f+i*step+Centered(ChipSeed(bonus)+17)*2f;
-                    DrawCoin(host,bonus,px*cardScale,py*cardScale,cardScale,true);
+                    px += (i % columns) * 35f;
+                    var py=40f+(i / columns)*step+(columns > 1 ? 0f : Centered(ChipSeed(bonus)+17)*2f);
+                    DrawCoin(host,bonus,px*cardScale,py*cardScale,cardScale*pileScale,true);
                 }
             }
             if (ceremonyRunning)
@@ -2885,6 +2874,21 @@ namespace Quota
             }
         }
 
+        void LayQuotaCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding)
+        {
+            for (var i = 0; i < cards.Count; i++)
+                DrawCard(area, theme, cards[i], padding + (i == 0 ? 0f : 70f + (i - 1) * 40f), padding, 1f, null, false);
+        }
+
+        void DrawPreviousScore(Transform seat, Game game, Player player, bool wide)
+        {
+            if (game.RoundIndex < 2) return;
+            var previous = player.Score - BaseScore(player) - GreenCount(player);
+            var label = TextAt(seat, previous + "+", wide ? 224f : 12f, wide ? 96f : 260f,
+                wide ? 64f : 110f, 30f, wide ? 18 : 24, Ink, nameFont, TextAnchor.UpperLeft);
+            label.gameObject.name = "previous-score";
+        }
+
         void LayCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding, float stride, float scale = 1f)
         {
             var x = padding;
@@ -2987,10 +2991,10 @@ namespace Quota
 
         void LeaveButton()
         {
-            const string caption = "ゲームから抜ける";
-            var width = caption.Length * 28f + 36f;
-            var x = WideScreen() ? LandWidth - 24f - width : ScreenWidth - 20f - width;
-            var y = WideScreen() ? 164f : 362f;
+            const string caption = "EXIT";
+            const float width = 144f;
+            var x = (WideScreen() ? LandWidth : ScreenWidth) - 328f;
+            const float y = 8f;
             var host = transform.Find("leave-button") as RectTransform;
             if (host != null)
             {
@@ -3004,12 +3008,12 @@ namespace Quota
             var hit = host.gameObject.AddComponent<Image>();
             hit.sprite = Portrait.SlicedRound;
             hit.type = Image.Type.Sliced;
-            hit.color = Ecru;
-            Portrait.ApplyGlass(hit);
+            hit.color = Hex("#00C900");
             var button = host.gameObject.AddComponent<Button>();
             button.targetGraphic = hit;
             button.onClick.AddListener(() => Ask("leave"));
-            var label = TextAt(host, caption, 12f, 0f, width - 20f, 40f, 28, Ink, nameFont, TextAnchor.MiddleRight);
+            var label = TextAt(host, caption, 8f, 0f, width - 16f, 40f, 28, Color.white, nameFont, TextAnchor.MiddleCenter);
+            label.fontStyle = FontStyle.Bold;
             label.raycastTarget = false;
         }
 

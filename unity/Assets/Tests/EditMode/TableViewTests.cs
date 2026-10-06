@@ -66,6 +66,39 @@ namespace Quota.Tests
             Assert.Less(((RectTransform)score.transform).anchoredPosition.x, wide ? 290f : 130f);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void QuotaSpacingAndPreviousRoundScoreFollowTheBoardLayout(bool wide)
+        {
+            host = Open(); Set("widePreview", wide); Set("seedText", "0"); Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            var player = game.Players[0];
+            player.Quota = new Card(9100, Suit.H, 13);
+            player.Collection.Clear();
+            for (var i = 0; i < 11; i++) player.Collection.Add(new Card(9101 + i, Suit.H, 2));
+            player.Achieved.Clear(); player.Bundles.Clear(); player.Score = 87;
+            game.RoundIndex = 2; game.RoundCount = 3;
+            game.StallFlag = true; game.NoGainStreak = 1;
+            Show(view);
+            var seat = host.transform.Find("Root/Frame/seat0");
+            var area = seat.Find("quota-cards");
+            var first = (RectTransform)area.Find("card9100");
+            var second = (RectTransform)area.Find("card9101");
+            var third = (RectTransform)area.Find("card9102");
+            Assert.AreEqual(70f, second.anchoredPosition.x - first.anchoredPosition.x);
+            Assert.AreEqual(40f, third.anchoredPosition.x - second.anchoredPosition.x);
+            Assert.AreEqual("87+", seat.Find("previous-score").GetComponent<Text>().text);
+            Assert.AreEqual("0", seat.Find("score").GetComponent<Text>().text);
+            Assert.IsNotNull(FindText("ラウンド 2/3"));
+            var frame = host.transform.Find("Root/Frame");
+            Assert.AreEqual(new Color32(255,211,38,255), (Color32)frame.Find("stall-dot-0").GetComponent<Image>().color);
+            Assert.AreEqual(new Color32(230,66,53,255), (Color32)frame.Find("stall-dot-3").GetComponent<Image>().color);
+            Assert.AreEqual(new Color32(232,232,232,255), (Color32)frame.Find("stall-dot-4").GetComponent<Image>().color);
+            Assert.AreEqual(FontStyle.Bold, ButtonNamed("EXIT").GetComponentInChildren<Text>().fontStyle);
+        }
+
         [Test]
         public void LeaveButtonSurvivesCpuRedrawAndDisappearsAfterLeaving()
         {
@@ -73,16 +106,16 @@ namespace Quota.Tests
             Set("seedText", "0");
             Begin();
             var view = host.GetComponent<TableView>();
-            var button = ButtonNamed("ゲームから抜ける");
+            var button = ButtonNamed("EXIT");
             var frame = host.transform.Find("Root/Frame") as RectTransform;
             var corners = new Vector3[4];
             frame.GetWorldCorners(corners);
             var buttonRect = (RectTransform)button.transform;
-            var expected = corners[1] + new Vector3(frame.rect.width - 20f - buttonRect.rect.width, -362f, 0f) * frame.localScale.x;
+            var expected = corners[1] + new Vector3(frame.rect.width - 328f, -8f, 0f) * frame.localScale.x;
             Assert.Less(Vector3.Distance(expected, buttonRect.position), 0.1f);
             Show(view);
-            Assert.AreSame(button, ButtonNamed("ゲームから抜ける"));
-            Click("ゲームから抜ける");
+            Assert.AreSame(button, ButtonNamed("EXIT"));
+            Click("EXIT");
             Click("抜ける");
             Assert.IsNull(host.transform.Find("leave-button"));
         }
@@ -106,7 +139,7 @@ namespace Quota.Tests
             Set("busy", true);
             Show(view);
             var ticket = (int)typeof(TableView).GetField("cpuRun", flags).GetValue(view);
-            ButtonNamed("ゲームから抜ける").onClick.Invoke();
+            ButtonNamed("EXIT").onClick.Invoke();
             Assert.IsNull(match.Game);
             Assert.IsNull(typeof(TableView).GetField("confirm", flags).GetValue(view));
             Assert.IsTrue((bool)typeof(TableView).GetField("onSetup", flags).GetValue(view));
@@ -355,8 +388,9 @@ namespace Quota.Tests
             }
         }
 
-        [Test]
-        public void SixCardChipsStayBelowTheNumberAndInsideTheLeftThird()
+        [TestCase(6)]
+        [TestCase(8)]
+        public void QuotaChipsStayBelowTheNumberAndInsideTheExposedSeventyPixels(int count)
         {
             host = Open();
             Set("seedText", "1"); Begin();
@@ -364,17 +398,23 @@ namespace Quota.Tests
             var match=(OfflineMatch)typeof(TableView).GetField("match",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(view);
             match.Game.Players[0].Quota=new Card(9100,Suit.H,13);
             match.Game.Players[0].Collection.Clear();
+            match.Game.Players[0].Achieved.Clear();
+            if (count == 8)
+            {
+                match.Game.Config.SequenceRule = true;
+                for (var i = 0; i < 13; i++) match.Game.Players[0].Achieved.Add(new Card(9200+i, Suit.H, 13));
+            }
             Show(view);
             var card=host.transform.Find("Root/Frame/seat0/quota-cards/card9100");
             var chips=card.GetComponentsInChildren<BonusChipLab>();
-            Assert.AreEqual(6,chips.Length);
+            Assert.AreEqual(count,chips.Length);
             foreach(var chip in chips)
             {
                 var rect=chip.rectTransform;
                 Assert.GreaterOrEqual(-rect.anchoredPosition.y,40f);
-                Assert.LessOrEqual(-rect.anchoredPosition.y+rect.rect.height,132f);
+                Assert.LessOrEqual(-rect.anchoredPosition.y+rect.rect.height*rect.localScale.y,132f);
                 Assert.GreaterOrEqual(rect.anchoredPosition.x,0f);
-                Assert.LessOrEqual(rect.anchoredPosition.x+rect.rect.width,95f/3f);
+                Assert.LessOrEqual(rect.anchoredPosition.x+rect.rect.width*rect.localScale.x,70f);
             }
         }
 
@@ -629,7 +669,7 @@ namespace Quota.Tests
             Begin();
             Assert.IsFalse((bool)noHuman.Invoke(view, null));
 
-            Click("ゲームから抜ける");
+            Click("EXIT");
             Click("抜ける");
             Click("対局開始");
             Click("自分は参加しない　オフ");
@@ -958,12 +998,12 @@ namespace Quota.Tests
             Assert.IsNull(FindText("本当にパスしますか？"));
             Assert.AreNotEqual(0, game.Current);
 
-            Click("ゲームから抜ける");
+            Click("EXIT");
             AssertConfirmInside("seat0");
             Assert.IsNotNull(FindText("本当にゲームから抜けますか？"));
             Assert.IsNotNull(ButtonNamed("抜ける"));
             Click("キャンセル");
-            Assert.IsNotNull(ButtonNamed("ゲームから抜ける"));
+            Assert.IsNotNull(ButtonNamed("EXIT"));
         }
 
         [Test]
@@ -982,7 +1022,7 @@ namespace Quota.Tests
             typeof(TableView).GetField("ceremonyHeading", flags).SetValue(view, "第1ラウンド終了（山札切れ）");
             Show(view);
             Assert.IsNull(FindText("第1ラウンド終了（山札切れ）"));
-            Assert.IsNotNull(FindText("第2ラウンド / 3"));
+            Assert.IsNotNull(FindText("ラウンド 2/3"));
         }
 
         [Test]
@@ -1147,7 +1187,7 @@ namespace Quota.Tests
             var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
             Assert.IsTrue(match.Game.Players[0].IsHuman);
             var ticket = (int)typeof(TableView).GetField("cpuRun", flags).GetValue(view);
-            Click("ゲームから抜ける");
+            Click("EXIT");
             AssertConfirmInside("seat0");
             Click("抜ける");
             Assert.IsNull(match.Game);
