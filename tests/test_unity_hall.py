@@ -106,3 +106,87 @@ def test_host_can_watch_without_losing_leadership_or_cpu_cast():
     started = hall.begin("a")
     assert started["phase"] == "playing"
     assert not any(p.is_human for p in hall.tables[opened["table_id"]].game.players)
+
+
+def playing_pair():
+    hall = UnityHall()
+    opened = hall.create({"name": "A", "players": 3, "turn_timeout": 1}, "a")
+    hall.join({"table": opened["table_id"], "name": "B"}, "b")
+    hall.begin("a")
+    return hall, hall.tables[opened["table_id"]]
+
+
+@pytest.mark.parametrize('client,seat', [('a', 0), ('b', 1)])
+def test_leaving_preserves_other_players_and_replaces_named_seat(client, seat):
+    hall, table = playing_pair()
+    remaining = 'b' if client == 'a' else 'a'
+    names = [p.name for p in table.game.players]
+    assert hall.leave(client)['phase'] == 'hall'
+    assert hall.snapshot(remaining)['phase'] == 'playing'
+    assert [p.name for p in table.game.players] == names
+    assert not table.game.players[seat].is_human
+    assert table.actions == [f'cpu:{seat}']
+    assert hall.snapshot(remaining)['you']['leader']
+    assert hall.snapshot(remaining)['you']['seat'] == (1 if remaining == 'b' else 0)
+    table.game.current = seat
+    table.cpu_at = 0
+    hall.snapshot(remaining)
+    assert len(table.actions) > 1
+
+
+def test_timeout_replaces_human_without_renaming_or_resetting_board():
+    hall, table = playing_pair()
+    table.game.current = 1
+    hall.update_deadline(table)
+    table.turn_deadline = 0
+    state = hall.snapshot('b')
+    assert not table.game.players[1].is_human
+    assert table.game.players[1].name == 'B'
+    assert state['you']['observer']
+    assert state['seats'][1]['cpu']
+    with pytest.raises(ValueError, match='あなたの手番'):
+        hall.action({'key': 'pass', 'revision': len(table.actions)}, 'b')
+    table.cpu_at = 0
+    hall.snapshot('a')
+    assert len(table.actions) >= 2
+
+
+def test_abandon_keeps_same_turn_and_can_pass_without_matching_card():
+    from quota.cards import Card
+    hall, table = playing_pair()
+    game = table.game
+    game.current = 1
+    game.order_cursor = game.turn_order.index(1)
+    game.players[1].quota = Card(99999, 'S', 13)
+    turn = game.turn_number
+    hall.action({'key': 'abandon', 'revision': 0}, 'b')
+    assert game.players[1].quota is None
+    assert game.current == 1 and game.turn_number == turn
+    game.market = [None] * len(game.market)
+    hall.action({'key': 'pass', 'revision': 1}, 'b')
+    assert game.current != 1 or game.finished
+
+
+def test_abandon_does_not_extend_turn_deadline():
+    from quota.cards import Card
+    hall, table = playing_pair()
+    table.game.current = 0
+    table.game.order_cursor = table.game.turn_order.index(0)
+    hall.update_deadline(table)
+    table.game.players[0].quota = Card(99999, 'S', 13)
+    deadline = table.turn_deadline
+    hall.action({'key': 'abandon', 'revision': 0}, 'a')
+    assert table.turn_deadline == deadline
+
+
+def test_all_humans_replaced_can_advance_remaining_rounds():
+    hall, table = playing_pair()
+    table.game.round_count = 3
+    table.game.awaiting_next_round = True
+    table.options['ok_timeout'] = 0
+    hall.replace_human(table, 0)
+    hall.replace_human(table, 1)
+    hall.snapshot('a')
+    assert not table.game.awaiting_next_round
+    assert table.actions[-1] == 'next_round'
+    assert all(not p.is_human for p in table.game.players)

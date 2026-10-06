@@ -19,7 +19,7 @@ PORT = 8080
 
 import sys
 sys.path.insert(0, str(ROOT))
-from quota.characters import pick_cast, display_name, seat_cast, mind_for
+from quota.characters import pick_cast, display_name, seat_cast, mind_for, bind_replacement
 from quota.engine import Game, GameConfig, TakeQuota, Collect, Abandon, Pass
 
 TYPES = {
@@ -59,6 +59,9 @@ class UnityTable:
         self.game = None
         self.actions = []
         self.cpu_at = 0.0
+        self.turn_key = None
+        self.turn_deadline = 0.0
+        self.round_at = None
 
     def touch(self) -> None:
         self.idle_at = time.monotonic()
@@ -96,13 +99,13 @@ class UnityTable:
             "event_n": 1,
             "players": self.players,
             "seats": [
-                {"name": seat.name, "leader": seat.client == self.leader_id()}
+                {"name": seat.name, "leader": seat.client == self.leader_id(), "cpu": seat.cpu}
                 for seat in self.humans
             ],
             "cpus": [display_name(cid) for cid in self.cpu_cast[:max(0, self.players - self.seated())]],
             "you": {
                 "seat": next((i for i, seat in enumerate(self.humans) if seat.client == client), -1),
-                "observer": not any(seat.client == client for seat in self.humans),
+                "observer": not any(seat.client == client and not seat.cpu for seat in self.humans),
                 "joined": self.has(client),
                 "leader": client == self.leader_id(),
             },
@@ -166,14 +169,17 @@ class UnityHall:
         table = self.tables.get(tid)
         if table is None:
             return self.snapshot(client)
-        if table.phase == "playing" and table.game is not None and table.game.finished:
-            if tid not in self.where.values(): self.tables.pop(tid, None)
-            return self.snapshot(client)
         if table.phase == "playing":
-            # Closing the table keeps seat indices from shifting under a live game.
-            self.tables.pop(tid, None)
-            for other, loc in list(self.where.items()):
-                if loc == tid: del self.where[other]
+            for index, seat in enumerate(table.humans):
+                if seat.client == client:
+                    self.replace_human(table, index)
+            table.members.pop(client, None)
+            if table.host.client == client and table.members:
+                table.host = next(iter(table.members.values()))
+            if not table.members:
+                self.tables.pop(tid, None)
+            else:
+                table.touch()
             return self.snapshot(client)
         table.members.pop(client, None)
         table.humans = [seat for seat in table.humans if seat.client != client]
@@ -234,6 +240,7 @@ class UnityHall:
         seat_cast(table.game, table.cpu_cast)
         table.cpu_at = time.monotonic() + 0.7
         table.phase = "playing"
+        self.update_deadline(table)
         table.touch()
         return table.recruiting(client)
 
@@ -248,10 +255,11 @@ class UnityHall:
         if key == "next_round":
             if client != table.leader_id():
                 raise ValueError("リーダーだけがラウンドを進められます")
-        elif game.finished or game.awaiting_next_round or game.current >= table.seated() or table.humans[game.current].client != client:
+        elif game.finished or game.awaiting_next_round or game.current >= table.seated() or not game.players[game.current].is_human or table.humans[game.current].client != client:
             raise ValueError("あなたの手番ではありません")
         self.apply_action(table, key)
         table.cpu_at = time.monotonic() + 0.7
+        self.update_deadline(table)
         return table.recruiting(client)
 
     @staticmethod
@@ -268,7 +276,44 @@ class UnityHall:
         else: raise ValueError("不明な行動です")
         table.actions.append(key)
 
+    @staticmethod
+    def update_deadline(table):
+        game = table.game
+        key = (game.round_index, game.turn_number, game.current)
+        if key != table.turn_key:
+            table.turn_key = key
+            table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
+
+    @staticmethod
+    def replace_human(table, index):
+        player = table.game.players[index]
+        if not player.is_human:
+            return
+        player.is_human = False
+        table.humans[index].cpu = True
+        bind_replacement(player)
+        table.actions.append(f"cpu:{index}")
+        table.cpu_at = time.monotonic() + 0.7
+
     def pump_cpu(self, table):
+        game = table.game
+        if game is None or game.finished:
+            return
+        if game.awaiting_next_round:
+            # Continue even when the original human leader has left the table.
+            if table.round_at is None:
+                table.round_at = time.monotonic()
+            if not any(p.is_human for p in game.players) or table.host.client not in self.where:
+                if time.monotonic() >= table.round_at + max(0, float(table.options["ok_timeout"])):
+                    self.apply_action(table, "next_round")
+                    table.round_at = None
+                    self.update_deadline(table)
+            return
+        table.round_at = None
+        self.update_deadline(table)
+        if len(table.humans) > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
+            self.replace_human(table, game.current)
+
         game = table.game
         if game is None or game.finished or game.awaiting_next_round or game.players[game.current].is_human or time.monotonic() < table.cpu_at:
             return

@@ -948,6 +948,27 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void GuestAbandonAndExitConfirmationsStayAboveOtherPlayers()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            match.Game.Current = 1;
+            match.Game.Players[1].IsHuman = true;
+            Set("confirm", "abandon");
+            Show(view);
+            var panel = host.transform.Find("Root/Frame/seat1/confirm");
+            Assert.IsNotNull(panel);
+            Assert.IsTrue(panel.GetComponent<Canvas>().overrideSorting);
+            Assert.AreEqual(100, panel.GetComponent<Canvas>().sortingOrder);
+            Assert.IsNotNull(panel.GetComponent<UnityEngine.UI.GraphicRaycaster>());
+            Assert.IsNotNull(FindText("本当に放棄しますか？"));
+        }
+
+        [Test]
         public void AbandonConfirmAttachesToTheLiveSeat()
         {
             host = Open();
