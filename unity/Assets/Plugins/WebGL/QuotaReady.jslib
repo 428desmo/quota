@@ -1,4 +1,9 @@
 mergeInto(LibraryManager.library, {
+  QuotaEditChipColor: function(valuePtr, targetPtr) {
+    var value = window.prompt("チップの色（#RRGGBB）", UTF8ToString(valuePtr));
+    if (value !== null && window.quotaUnityInstance)
+      window.quotaUnityInstance.SendMessage(UTF8ToString(targetPtr), "OnChipColorEdited", value);
+  },
   QuotaMarkReady: function (messagePtr) {
     if (window.quotaReport) window.quotaReport(UTF8ToString(messagePtr));
   },

@@ -901,6 +901,23 @@ namespace Quota
             finally { networkRequest = false; }
         }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void QuotaEditChipColor(string value, string target);
+#endif
+        void EditChipColor()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            QuotaEditChipColor(chipLabState.Rgb, gameObject.name);
+#endif
+        }
+
+        public void OnChipColorEdited(string value)
+        {
+            chipLabState.TrySetRgb(value);
+            if (setupPage == "chips") ShowSetup();
+        }
+
         public void OnNameEdited(string value)
         {
             playerName = string.IsNullOrWhiteSpace(value) ? "あなた" : value.Trim();
@@ -3247,7 +3264,7 @@ namespace Quota
             veil.GetComponent<Image>().raycastTarget = true;
             if (setupPage == "chips")
             {
-                BonusChipLab.Open(frame, screenW, screenH, wide, titleRule, nameFont, Ecru, Ink, chipLabState, () => { setupPage = null; ShowSetup(); });
+                BonusChipLab.Open(frame, screenW, screenH, wide, titleRule, nameFont, Ecru, Ink, chipLabState, () => { setupPage = null; ShowSetup(); }, EditChipColor);
                 return;
             }
             if (setupPage == "tests")
