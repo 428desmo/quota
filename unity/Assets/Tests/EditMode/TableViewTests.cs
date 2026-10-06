@@ -642,7 +642,7 @@ namespace Quota.Tests
             CollectionAssert.AreNotEqual(before, cast);
             Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(cast[0])));
 
-            Click("設定");
+            Click("その他の設定");
             Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
             var decide = ButtonNamed("決定").GetComponent<RectTransform>();
             var cancel = ButtonNamed("キャンセル").GetComponent<RectTransform>();
@@ -653,8 +653,8 @@ namespace Quota.Tests
             Click("キャンセル");
             Assert.IsNull(FindButton("シンプルモード　オン"));
 
-            Click("参加せずに観戦");
-            Assert.IsNotNull(FindText("✓ 参加せずに観戦"));
+            Click("自分は参加せずに参戦: NO");
+            Assert.IsNotNull(FindText("自分は参加せずに参戦: YES"));
             Assert.IsNull(FindText("1. あなた"));
             Assert.AreEqual(4, CountText("CPU"));
             Assert.IsNotNull(FindTextContaining("1. "));
@@ -683,7 +683,7 @@ namespace Quota.Tests
             Click("EXIT");
             Click("抜ける");
             Click("対局開始");
-            Click("参加せずに観戦");
+            Click("自分は参加せずに参戦: NO");
             Click("ゲーム開始");
             Assert.IsTrue((bool)noHuman.Invoke(view, null));
             Assert.AreEqual(5f, (float)typeof(TableView).GetField("okTimeout", flags).GetValue(view));

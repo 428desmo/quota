@@ -804,7 +804,7 @@ namespace Quota
         {
             const float innerGap = 16f;
             var seats = playerCount;
-            var buttonH = SetupButtonHeight(available, 13f + seats + (showReview ? 1f : 0f), seats + 4 + (showReview ? 1 : 0));
+            var buttonH = SetupButtonHeight(available, 12f + seats + (showReview ? 1f : 0f), seats + 3 + (showReview ? 1 : 0));
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
             var column = SetupColumn(screenW, columnTop, available + 24f);
             var rowW = screenW * 0.60f;
@@ -831,14 +831,15 @@ namespace Quota
             }
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
                 SetupButton(column, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, rowW, buttonH, font);
+            SetupGap(column, innerGap);
+            SetupButton(column, sitOut ? "自分は参加せずに参戦: YES" : "自分は参加せずに参戦: NO", () =>
             {
-                SetupGap(column, section);
-                SetupParticipationChoice(column, "自分も対局に参加", false, rowW, buttonH, font);
-                SetupGap(column, innerGap);
-                SetupParticipationChoice(column, "参加せずに観戦", true, rowW, buttonH, font);
-                SetupGap(column, innerGap);
-            }
-            SetupButton(column, "設定", OpenSettings, actionW, buttonH, font);
+                if (NetworkJoined)
+                    StartCoroutine(NetworkPost("/api/participation", JsonUtility.ToJson(new NetworkCreate { sit_out = !sitOut })));
+                else { sitOut = !sitOut; ShowSetup(); }
+            }, rowW, buttonH, font);
+            SetupGap(column, section);
+            SetupButton(column, "その他の設定", OpenSettings, actionW, buttonH, font);
             SetupGap(column, section);
             if (NetworkJoined)
             {
@@ -3647,24 +3648,6 @@ namespace Quota
         {
             var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
             SetupButton(row, value, action, fieldW, height, fontSize);
-        }
-
-        void SetupParticipationChoice(RectTransform parent, string caption, bool observe, float width, float height, int font)
-        {
-            SetupButton(parent, caption, () =>
-            {
-                if (NetworkJoined)
-                    StartCoroutine(NetworkPost("/api/participation", JsonUtility.ToJson(new NetworkCreate { sit_out = observe })));
-                else { sitOut = observe; ShowSetup(); }
-            }, width, height, font);
-            var choice = parent.GetChild(parent.childCount - 1);
-            if (sitOut == observe)
-            {
-                choice.GetComponent<Image>().color = Hex("#FFF0C2");
-                var label = choice.GetComponentInChildren<Text>();
-                label.text = "✓ " + caption;
-                label.fontStyle = FontStyle.Bold;
-            }
         }
 
         void SetupSeatRow(RectTransform parent, string seatName, bool cpu, float rowW, float height, int fontSize)
