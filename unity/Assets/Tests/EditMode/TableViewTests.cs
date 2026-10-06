@@ -67,6 +67,62 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void LeaveButtonSurvivesCpuRedrawAndDisappearsAfterLeaving()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var button = ButtonNamed("ゲームから抜ける");
+            Show(view);
+            Assert.AreSame(button, ButtonNamed("ゲームから抜ける"));
+            Click("ゲームから抜ける");
+            Click("抜ける");
+            Assert.IsNull(host.transform.Find("leave-button"));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CpuOnlySpectatorLeavesImmediatelyEvenDuringRoundScoring(bool duringScoring)
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
+            match.Begin(new GameConfig { NumPlayers = 3, Seed = 0, HumanSeats = new List<int>(), Rounds = 3 }, pumpCpus: false);
+            if (duringScoring)
+            {
+                match.Game.AwaitingNextRound = true;
+                typeof(TableView).GetMethod("PrepareCeremony", flags).Invoke(view, new object[] { match.Game });
+                Set("ceremonyRunning", true);
+                Set("ceremonyDialog", true);
+            }
+            Set("busy", true);
+            Show(view);
+            var ticket = (int)typeof(TableView).GetField("cpuRun", flags).GetValue(view);
+            ButtonNamed("ゲームから抜ける").onClick.Invoke();
+            Assert.IsNull(match.Game);
+            Assert.IsNull(typeof(TableView).GetField("confirm", flags).GetValue(view));
+            Assert.IsTrue((bool)typeof(TableView).GetField("onSetup", flags).GetValue(view));
+            Assert.IsFalse((bool)typeof(TableView).GetField("busy", flags).GetValue(view));
+            Assert.IsFalse((bool)typeof(TableView).GetField("ceremonyRunning", flags).GetValue(view));
+            Assert.Greater((int)typeof(TableView).GetField("cpuRun", flags).GetValue(view), ticket);
+        }
+
+        [TestCase(true, -1, true)]
+        [TestCase(false, -1, true)]
+        [TestCase(false, 0, false)]
+        public void NetworkSpectatingUsesOwnParticipationStatus(bool observer, int seat, bool expected)
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":3,\"seed\":1,\"seats\":[{\"name\":\"A\"}],\"cpus\":[\"CPU1\",\"CPU2\"],\"cpu_cast\":[0,1],\"you\":{\"seat\":" + seat + ",\"observer\":" + (observer ? "true" : "false") + "},\"options\":{\"simple\":true},\"actions\":[]}";
+            typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
+            Assert.AreEqual(expected, typeof(TableView).GetProperty("IsSpectating", flags).GetValue(view));
+        }
+
+        [Test]
         public void ActionNoticeIsOpaqueBorderedAndContainsOnlyTheAction()
         {
             host = Open();

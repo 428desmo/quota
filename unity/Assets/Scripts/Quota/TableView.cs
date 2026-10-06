@@ -679,6 +679,7 @@ namespace Quota
 
         void ShowSetup()
         {
+            RemoveLeaveButton();
             actionNotices.Clear();
             if (noticeRun != null) StopCoroutine(noticeRun);
             noticeRun = null;
@@ -1469,6 +1470,7 @@ namespace Quota
                 thinking.horizontalOverflow = HorizontalWrapMode.Overflow;
             }
             if (!game.Finished) LeaveButton();
+            else RemoveLeaveButton();
             if (!showCeremony && game.Finished && !ceremonyBreak)
             {
                 Result(game);
@@ -2967,7 +2969,16 @@ namespace Quota
             var width = caption.Length * 28f + 36f;
             var x = WideScreen() ? LandWidth - 24f - width : ScreenWidth - 20f - width;
             var y = WideScreen() ? 40f : 18f;
-            var host = Portrait.Rect(frame, caption, x, y, width, 40f);
+            var host = transform.Find("leave-button") as RectTransform;
+            if (host != null)
+            {
+                host.position = frame.TransformPoint(new Vector3(x, -y, 0f));
+                host.localScale = frame.localScale;
+                return;
+            }
+            host = Portrait.Rect(transform, "leave-button", 0f, 0f, width, 40f);
+            host.position = frame.TransformPoint(new Vector3(x, -y, 0f));
+            host.localScale = frame.localScale;
             var hit = host.gameObject.AddComponent<Image>();
             hit.sprite = Portrait.SlicedRound;
             hit.type = Image.Type.Sliced;
@@ -2980,8 +2991,23 @@ namespace Quota
             label.raycastTarget = false;
         }
 
+        void RemoveLeaveButton()
+        {
+            var button = transform.Find("leave-button");
+            if (button != null) DestroyImmediate(button.gameObject);
+        }
+
+        bool IsSpectating => NetworkPlaying && networkState.you != null
+            ? networkState.you.observer || networkState.you.seat < 0
+            : NoHumanSeats();
+
         void Ask(string kind)
         {
+            if (kind == "leave" && IsSpectating)
+            {
+                LeaveMatch();
+                return;
+            }
             confirm = kind;
             ShowTable();
         }
