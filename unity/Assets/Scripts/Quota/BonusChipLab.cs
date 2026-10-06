@@ -7,6 +7,7 @@ using UnityEngine.UI;
 namespace Quota
 {
     // Independent visual prototype: no game scores or live bonus display are changed.
+    [RequireComponent(typeof(CanvasRenderer))]
     public class BonusChipLab : MaskableGraphic
     {
         public class Chip
