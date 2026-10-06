@@ -429,13 +429,14 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0", help="Listen address (use 127.0.0.1 behind Nginx)")
     parser.add_argument("--port", type=int, default=PORT)
     parser.add_argument("--dir", type=Path, default=DEFAULT_DIR)
     args = parser.parse_args()
     folder = args.dir.resolve()
     if not folder.is_dir():
         raise SystemExit(f"WebGL export is not built yet: {folder}")
-    server = ThreadingHTTPServer(("0.0.0.0", args.port), lambda *a, **k: Handler(*a, directory=str(folder), **k))
+    server = ThreadingHTTPServer((args.host, args.port), lambda *a, **k: Handler(*a, directory=str(folder), **k))
     print(f"http://127.0.0.1:{args.port}  （Unity WebGL）")
     server.serve_forever()
 
