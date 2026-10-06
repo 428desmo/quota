@@ -948,6 +948,24 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void ExitConfirmationIsAvailableDuringScoreCeremony()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Begin();
+            var view = host.GetComponent<TableView>();
+            Set("ceremonyRunning", true);
+            Set("ceremonyDialog", true);
+            Set("confirm", "leave");
+            // Render the confirmation directly: it must not depend on whose turn it is.
+            typeof(TableView).GetMethod("Confirm", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(view, null);
+            Assert.IsNotNull(ButtonNamed("抜ける"));
+            ButtonNamed("抜ける").onClick.Invoke();
+            var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            Assert.IsNull(match.Game);
+        }
+
+        [Test]
         public void GuestAbandonAndExitConfirmationsStayAboveOtherPlayers()
         {
             host = Open();

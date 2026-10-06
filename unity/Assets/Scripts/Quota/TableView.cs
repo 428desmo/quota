@@ -1226,7 +1226,7 @@ namespace Quota
                 var key = actions[networkApplied];
                 var game = match.Game;
                 var beforeCards = BoardFrame.Capture(game);
-                if (game.Current != HumanSeat(game)) QueueNotice(game.Current, key, game.TurnGain || game.DoubleGained);
+                if (IsSpectating || game.Current != HumanSeat(game)) QueueNotice(game.Current, key, game.TurnGain || game.DoubleGained);
                 if (key.StartsWith("cpu:")) game.Players[int.Parse(key.Substring(4))].IsHuman = false;
                 else if (key == "double") game.DeclareDouble();
                 else if (key == "reshuffle") game.DeclareReshuffle();
@@ -1492,7 +1492,7 @@ namespace Quota
                 Result(game);
                 if (offerStandard) DrawStandardOffer();
             }
-            else if (confirm != null && !ceremonyRunning && !showCeremony && !reviewMode) Confirm();
+            else if (confirm != null && (confirm == "leave" || (!ceremonyRunning && !showCeremony && !reviewMode))) Confirm();
         }
 
         static string RoundLabel(Game game)
@@ -2484,7 +2484,7 @@ namespace Quota
             var origin = (1080f - group) * 0.5f;
             var y = 158f;
             var me = game.Players[game.Current];
-            var yours = MyHumanTurn && !game.Finished;
+            var yours = MyHumanTurn && !game.Finished && confirm == null;
             for (var i = 0; i < market.Count; i++)
             {
                 var card = market[i];
@@ -2516,7 +2516,7 @@ namespace Quota
             var originX = LandMarketX + (LandMarketW - groupW) * 0.5f;
             var originY = LandMarketY + (LandMarketH - groupH) * 0.5f;
             var me = game.Players[game.Current];
-            var yours = MyHumanTurn && !game.Finished;
+            var yours = MyHumanTurn && !game.Finished && confirm == null;
             for (var i = 0; i < market.Count; i++)
             {
                 var card = market[i];
@@ -3236,7 +3236,7 @@ namespace Quota
 
         void Play(GameAction action)
         {
-            if (busy || CardsAnimating || !MyHumanTurn || !match.Game.IsLegal(action)) return;
+            if (confirm != null || busy || CardsAnimating || !MyHumanTurn || !match.Game.IsLegal(action)) return;
             if (NetworkPlaying) { SendNetworkAction(action.Key); return; }
             confirm = null;
             var seat = match.Game.Current;
