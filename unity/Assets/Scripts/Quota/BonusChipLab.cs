@@ -48,7 +48,7 @@ namespace Quota
                     var margin = Size + Thickness;
                     Chips.Add(new Chip {
                         Position = new Vector2(margin + (float)random.NextDouble() * Mathf.Max(0,width-2*margin), margin + (float)random.NextDouble() * Mathf.Max(0,height-2*margin)),
-                        Rotation = Quaternion.Euler((float)random.NextDouble()*35-17, (float)random.NextDouble()*35-17, (float)random.NextDouble()*360),
+                        Rotation = Quaternion.Euler((float)random.NextDouble()*6-3, (float)random.NextDouble()*6-3, (float)random.NextDouble()*360),
                         Color = ChipColor, Sides = Shape < 2 ? 32 : Shape == 2 ? Sides : 4,
                         Size = Size, Aspect = Shape == 1 || Shape == 3 ? Aspect : 1, Thickness = Thickness,
                         Born = now + i * 0.012f
@@ -60,6 +60,13 @@ namespace Quota
         int first;
         readonly List<Face> faces = new List<Face>();
         class Face { public Vector3[] Points; public Color Color; public float Depth; }
+        // Thirty degrees away from straight overhead: near-round tops, visible front edges.
+        static readonly Vector3 ViewDirection = new Vector3(0f, -0.5f, 0.8660254f);
+        public static Vector2 ProjectChipPoint(Vector3 point)
+        {
+            return new Vector2(point.x, point.y * 0.8660254f + point.z * 0.5f);
+        }
+        public static bool FaceVisible(Vector3 normal) => Vector3.Dot(normal, ViewDirection) > 0f;
         static readonly Vector3 Light = new Vector3(-0.6f, 0.8f, 1.2f).normalized;
         public static void Open(Transform parent, float width, float height, bool wide, bool titled, Font font, Color fill, Color ink, State state, UnityAction exit, UnityAction editColor)
         {
@@ -183,13 +190,17 @@ namespace Quota
                 {
                     var j=(i+1)%chip.Sides;
                     var normal=Vector3.Cross(bottom[i]-top[i],top[j]-top[i]).normalized;
-                    if(normal.z>0)AddFace(new[]{top[i],bottom[i],bottom[j],top[j]},normal,chip.Color);
+                    if(FaceVisible(normal))AddFace(new[]{top[i],bottom[i],bottom[j],top[j]},normal,chip.Color);
                 }
                 faces.Sort((a,b)=>a.Depth.CompareTo(b.Depth));
                 foreach(var f in faces)
                 {
                     var start=vh.currentVertCount;
-                    foreach(var v in f.Points)vh.AddVert(new Vector3(center.x+v.x,center.y+v.y*0.8f-v.z*0.35f),f.Color,Vector2.zero);
+                    foreach(var v in f.Points)
+                    {
+                        var projected = center + ProjectChipPoint(v);
+                        vh.AddVert(new Vector3(projected.x,projected.y,0),f.Color,Vector2.zero);
+                    }
                     for(var i=1;i<f.Points.Length-1;i++)vh.AddTriangle(start,start+i,start+i+1);
                 }
             }
@@ -197,7 +208,7 @@ namespace Quota
         void AddFace(Vector3[] points,Vector3 normal,Color tint)
         {
             var brightness=0.40f+0.60f*Mathf.Max(0,Vector3.Dot(normal,Light));
-            var depth=0f;foreach(var p in points)depth+=p.z;
+            var depth=0f;foreach(var p in points)depth+=Vector3.Dot(p,ViewDirection);
             faces.Add(new Face{Points=points,Color=new Color(tint.r*brightness,tint.g*brightness,tint.b*brightness,1),Depth=depth/points.Length});
         }
     }
