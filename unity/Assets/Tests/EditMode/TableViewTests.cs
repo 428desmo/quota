@@ -98,7 +98,7 @@ namespace Quota.Tests
             Assert.AreEqual(48, progress.fontSize); Assert.IsTrue(progress.text.Contains("<size=21>/13</size>"));
             foreach (var text in new[] { score, previous, progress }) Assert.AreEqual(FontStyle.Bold, text.fontStyle);
             Assert.AreEqual(((RectTransform)score.transform).anchoredPosition.x, ((RectTransform)previous.transform).anchoredPosition.x);
-            Assert.AreEqual(400f, ((RectTransform)seat.Find("nameplate")).rect.width);
+            Assert.AreEqual(wide ? 960f : 540f, ((RectTransform)seat.Find("nameplate")).rect.width);
             var caption = typeof(TableView).GetMethod("PlayerCaption", BindingFlags.Static | BindingFlags.NonPublic);
             var leader = game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
             Assert.AreEqual("①" + game.Players[leader].Name, caption.Invoke(null, new object[] { game, leader }));
@@ -552,13 +552,19 @@ namespace Quota.Tests
             var guide = ButtonNamed("QuickStartガイド").GetComponent<RectTransform>();
             var rules = ButtonNamed("ルール").GetComponent<RectTransform>();
             var hint = ButtonNamed("勝つためのヒント").GetComponent<RectTransform>();
-            var start = ButtonNamed("対局開始").GetComponent<RectTransform>();
+            var start = ButtonNamed("新規ゲーム卓の準備").GetComponent<RectTransform>();
             Assert.AreEqual(1080f * 0.40f, guide.rect.width, 2f);
             Assert.AreEqual(guide.rect.width, rules.rect.width, 1f);
             Assert.AreEqual(guide.rect.width, hint.rect.width, 1f);
-            Assert.AreEqual(1080f * 0.35f, start.rect.width, 2f);
+            Assert.AreEqual(1080f * 0.60f, start.rect.width, 2f);
             Assert.AreEqual(guide.rect.height * 2f, start.rect.height, 2f);
-            Assert.AreEqual(guide.GetComponentInChildren<Text>().fontSize * 2, start.GetComponentInChildren<Text>().fontSize);
+            Assert.AreEqual(Mathf.RoundToInt(guide.GetComponentInChildren<Text>().fontSize * 1.3f), start.GetComponentInChildren<Text>().fontSize);
+            var tables = host.transform.Find("Root/Frame/setup-column/table-list") as RectTransform;
+            if (tables == null)
+                foreach (var rect in host.GetComponentsInChildren<RectTransform>()) if (rect.name == "table-list") tables = rect;
+            Assert.IsNotNull(tables);
+            Assert.Less(WorldTop(tables), WorldBottom(start));
+            Assert.IsNotNull(FindText("参加・観戦できるゲーム卓"));
             Assert.IsNull(FindButton("設定"));
             Assert.IsNull(FindButton("CPU模擬戦を観戦"));
             Assert.IsNull(FindText("プレイヤーの数："));
@@ -618,16 +624,16 @@ namespace Quota.Tests
             host = Open();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            Click("対局開始");
-            Assert.IsNull(FindButton("対局開始"));
+            Click("新規ゲーム卓の準備");
+            Assert.IsNull(FindButton("新規ゲーム卓の準備"));
             Assert.IsNotNull(FindText("プレイヤーの数："));
             Assert.IsNotNull(FindText("1. あなた"));
             Assert.AreEqual(2, CountText("CPU"));
 
             Click("戻る");
-            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
             Assert.IsNull(FindButton("ゲーム開始"));
-            Click("対局開始");
+            Click("新規ゲーム卓の準備");
 
             Click("3人");
             Assert.IsNotNull(ButtonNamed("4人"));
@@ -682,7 +688,7 @@ namespace Quota.Tests
 
             Click("EXIT");
             Click("抜ける");
-            Click("対局開始");
+            Click("新規ゲーム卓の準備");
             Click("自分は参加せずに参戦: NO");
             Click("ゲーム開始");
             Assert.IsTrue((bool)noHuman.Invoke(view, null));
@@ -944,7 +950,7 @@ namespace Quota.Tests
             Assert.AreEqual(-(panel.sizeDelta.y - 80f), leave.anchoredPosition.y, 1f);
             Assert.IsNull(FindButton("ゲームを終了"));
             Click("抜ける");
-            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
         }
 
         [Test]
@@ -1244,20 +1250,20 @@ namespace Quota.Tests
             Click("抜ける");
             Assert.IsNull(match.Game);
             Assert.IsNull(FindText("本当にゲームから抜けますか？"));
-            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
             Assert.IsNull(host.transform.Find("Root/Frame/seat0"));
             Assert.IsNull(FindButton("パス"));
             Assert.IsTrue((bool)typeof(TableView).GetField("onSetup", flags).GetValue(view));
             typeof(TableView).GetField("laidOutWide", flags).SetValue(view, true);
             typeof(TableView).GetMethod("Update", flags).Invoke(view, null);
             Rebuild(host);
-            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
             Assert.IsNull(host.transform.Find("Root/Frame/seat0"));
             Assert.IsNull(FindButton("パス"));
             var run = (IEnumerator)typeof(TableView).GetMethod("RunCpus", flags).Invoke(view, new object[] { ticket });
             Drive(run);
             Assert.IsNull(match.Game);
-            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
             Assert.IsNull(FindButton("パス"));
         }
 
@@ -1286,7 +1292,7 @@ namespace Quota.Tests
             Assert.IsNull(host.transform.Find("Root/Frame/seat" + match.Game.Current + "/confirm"));
             Click("抜ける");
             Assert.IsNull(match.Game);
-            Assert.IsNotNull(ButtonNamed("対局開始"));
+            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
         }
 
         [Test]
@@ -1365,7 +1371,7 @@ namespace Quota.Tests
 
         void Begin()
         {
-            Click("対局開始");
+            Click("新規ゲーム卓の準備");
             Click("ゲーム開始");
         }
 
