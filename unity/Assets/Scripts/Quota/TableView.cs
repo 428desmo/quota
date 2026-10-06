@@ -304,6 +304,7 @@ namespace Quota
             foreach (var input in GetComponentsInChildren<InputField>())
                 if (input.isFocused) return;
             Fit();
+            if (!onSetup && match.Game != null && transform.Find("leave-button") != null) LeaveButton();
             UpdateNameplates();
             if (!Application.isPlaying || frame == null) return;
             var wide = WideScreen();
@@ -426,7 +427,12 @@ namespace Quota
         {
             if (string.IsNullOrEmpty(file)) return null;
             if (goodsSprites.TryGetValue(file, out var cached)) return cached;
-            if (Application.platform == RuntimePlatform.WebGLPlayer) return null;
+            if (Application.platform == RuntimePlatform.WebGLPlayer)
+            {
+                var bundled = LoadBundledSprite("goods/" + file);
+                if (bundled != null) goodsSprites[file] = bundled;
+                return bundled;
+            }
             var path = Path.Combine(Application.streamingAssetsPath, "goods", file + ".png");
             Sprite sprite = null;
             if (File.Exists(path))
@@ -482,8 +488,7 @@ namespace Quota
                 var loaded = 0;
                 foreach (var file in ItemCatalog.PictureFiles())
                 {
-                    var picture = LoadBundledSprite("goods/" + file);
-                    if (picture != null) goodsSprites[file] = picture;
+                    GoodsSprite(file);
                     if (++loaded % 8 == 0) yield return null;
                 }
             }
