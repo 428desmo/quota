@@ -74,6 +74,12 @@ namespace Quota.Tests
             Begin();
             var view = host.GetComponent<TableView>();
             var button = ButtonNamed("ゲームから抜ける");
+            var frame = host.transform.Find("Root/Frame") as RectTransform;
+            var corners = new Vector3[4];
+            frame.GetWorldCorners(corners);
+            var buttonRect = (RectTransform)button.transform;
+            var expected = corners[1] + new Vector3(frame.rect.width - 20f - buttonRect.rect.width, -18f, 0f) * frame.localScale.x;
+            Assert.Less(Vector3.Distance(expected, buttonRect.position), 0.1f);
             Show(view);
             Assert.AreSame(button, ButtonNamed("ゲームから抜ける"));
             Click("ゲームから抜ける");
