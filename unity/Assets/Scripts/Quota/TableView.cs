@@ -98,10 +98,10 @@ namespace Quota
         bool webNetworkDone;
         string webNetworkResponse;
         string draftOk = "5";
-        string draftTurn = "120";
+        string draftTurn = "30";
         bool draftSimple;
         float okTimeout = 5f;
-        float turnTimeout = 120f;
+        float turnTimeout = 30f;
         Sprite titleMark;
         Sprite catchMark;
         bool widePreview;
@@ -168,6 +168,9 @@ namespace Quota
 
         [System.Runtime.InteropServices.DllImport("__Internal")]
         static extern void QuotaEditName(string value, string target);
+
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void QuotaEditTimeout(string value, string kind, string target);
 #endif
 
         static void MarkWeb(string message)
@@ -668,7 +671,7 @@ namespace Quota
             playerName = PlayerPrefs.GetString("quota.name", "あなた");
             if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
             okTimeout = PlayerPrefs.GetFloat("quota.okTimeout", 5f);
-            turnTimeout = PlayerPrefs.GetFloat("quota.turnTimeout", 120f);
+            turnTimeout = PlayerPrefs.GetFloat("quota.turnTimeout", 30f);
             ApplyMode();
         }
 
@@ -1316,7 +1319,7 @@ namespace Quota
             simpleMode = draftSimple;
             ApplyMode();
             okTimeout = ParseSeconds(draftOk, 5f, 0f);
-            turnTimeout = ParseSeconds(draftTurn, 120f, 1f);
+            turnTimeout = ParseSeconds(draftTurn, 30f, 1f);
             draftOk = okTimeout.ToString("0.##");
             draftTurn = turnTimeout.ToString("0.##");
             SaveRules();
@@ -3508,10 +3511,19 @@ namespace Quota
                 draftSimple = !draftSimple;
                 ShowSetup();
             });
+#if UNITY_WEBGL && !UNITY_EDITOR
+            TextAt(panel, "OKタイムアウト（秒）", 32f, 196f, 380f, 28f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+            Pill(panel, draftOk + "秒　✎ 変更", 32f, 228f, 380f, 64f, 28, () => QuotaEditTimeout(draftOk, "ok", gameObject.name));
+            TextAt(panel, "手番タイムアウト（秒）", 440f, 196f, 380f, 28f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+            Pill(panel, draftTurn + "秒　✎ 変更", 440f, 228f, 380f, 64f, 28, () => QuotaEditTimeout(draftTurn, "turn", gameObject.name));
+            TextAt(panel, "変更をタップして秒数を入力", 32f, 310f, panelW - 64f, 40f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+#else
             var ok = DialogField(panel, "OKタイムアウト（秒）", draftOk, 32f, 196f, 380f);
             ok.onValueChanged.AddListener(value => draftOk = value);
             var turn = DialogField(panel, "手番タイムアウト（秒）", draftTurn, 440f, 196f, 380f);
             turn.onValueChanged.AddListener(value => draftTurn = value);
+            TextAt(panel, "数値をクリックして秒数を入力", 32f, 310f, panelW - 64f, 40f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+#endif
             var decideW = 200f;
             var cancelW = 240f;
             var buttonGap = 20f;
@@ -3522,6 +3534,18 @@ namespace Quota
                 setupPage = null;
                 ShowSetup();
             });
+        }
+
+        public void OnOkTimeoutEdited(string value)
+        {
+            draftOk = ParseSeconds(value, ParseSeconds(draftOk, 5f, 0f), 0f).ToString("0.##");
+            if (setupPage == "settings") ShowSetup();
+        }
+
+        public void OnTurnTimeoutEdited(string value)
+        {
+            draftTurn = ParseSeconds(value, ParseSeconds(draftTurn, 30f, 1f), 1f).ToString("0.##");
+            if (setupPage == "settings") ShowSetup();
         }
 
         void DrawGuide(float screenW, float screenH)
@@ -3575,6 +3599,18 @@ namespace Quota
             text.color = Ink;
             text.supportRichText = false;
             var field = host.gameObject.AddComponent<InputField>();
+            text.raycastTarget = false;
+            field.targetGraphic = host.GetComponent<Image>();
+            field.contentType = InputField.ContentType.DecimalNumber;
+            field.customCaretColor = true;
+            field.caretColor = Ink;
+            field.caretWidth = 4;
+            field.caretBlinkRate = 1.2f;
+            field.selectionColor = new Color(0.2f, 0.55f, 1f, 0.45f);
+            var colors = field.colors;
+            colors.selectedColor = new Color(0.75f, 0.9f, 1f);
+            colors.highlightedColor = new Color(0.88f, 0.96f, 1f);
+            field.colors = colors;
             field.textComponent = text;
             field.text = value;
             return field;

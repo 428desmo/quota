@@ -43,7 +43,7 @@ class Table:
         self.roster: list[dict] = []
         self.capacity = 3
         self.cpu_picks: list[int] = []
-        self.turn_timeout = 120.0
+        self.turn_timeout = 30.0
         self.finished_at: float | None = None
         self.turn_deadline: float | None = None
         self.cover: dict | None = None
@@ -65,7 +65,7 @@ class Table:
             raise ValueError("参加できません")
         self.capacity = players
         self.ok_timeout = _seconds(body.get("ok_timeout"), 5, minimum=0)
-        self.turn_timeout = _seconds(body.get("turn_timeout"), 120, minimum=1)
+        self.turn_timeout = _seconds(body.get("turn_timeout"), 30, minimum=1)
         self.left_handed = bool(body.get("left_handed"))
         self.seed = body.get("seed")
         if "simple" in body:
@@ -200,7 +200,7 @@ class Table:
         simple = bool(body.get("simple", False))
         self.capacity = players
         self.ok_timeout = 0
-        self.turn_timeout = 120
+        self.turn_timeout = 30
         self.left_handed = False
         self.last_options = {
             "players": players,
@@ -209,7 +209,7 @@ class Table:
             "title": not simple,
             "special": not simple,
             "ok_timeout": 0,
-            "turn_timeout": 120,
+            "turn_timeout": 30,
             "left_handed": False,
         }
         self.roster = []

@@ -28,10 +28,10 @@ def test_cpu_waits_one_second_after_the_opening_deal():
     assert len(game.log) > before[2]
 
 
-def test_turn_timeout_is_two_minutes_and_skips_a_lone_human():
+def test_turn_timeout_is_thirty_seconds_and_skips_a_lone_human():
     table = Table()
     table.open({"players": 3, "name": "a", "seed": 1, "simple": True}, "human")
-    assert table.turn_timeout == 120
+    assert table.turn_timeout == 30
     table.begin("human")
     table.step_timeout()
     assert table.turn_deadline is None
