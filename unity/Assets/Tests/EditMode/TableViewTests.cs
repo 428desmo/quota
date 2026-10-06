@@ -117,7 +117,7 @@ namespace Quota.Tests
             foreach (var button in host.GetComponentsInChildren<Button>())
                 if (button.name == "＋1") { button.onClick.Invoke(); break; }
             var batches = host.GetComponentsInChildren<BonusChipLab>();
-            Assert.AreEqual(2, batches.Length);
+            Assert.AreEqual(6, batches.Length);
             foreach (var batch in batches)
             {
                 Assert.IsNotNull(batch.GetComponent<CanvasRenderer>());
@@ -125,6 +125,32 @@ namespace Quota.Tests
             }
             foreach (var mask in host.GetComponentsInChildren<RectMask2D>()) mask.PerformClipping();
             Canvas.ForceUpdateCanvases();
+        }
+
+        [Test]
+        public void NativeChipColorEditorAcceptsKeyboardInputAndScalesPreviews()
+        {
+            host = new GameObject("ChipCanvas", typeof(RectTransform), typeof(Canvas));
+            var events = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem)).GetComponent<UnityEngine.EventSystems.EventSystem>();
+            typeof(UnityEngine.EventSystems.EventSystem).GetMethod("OnEnable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(events,null);
+            UnityEngine.EventSystems.EventSystem.current = events;
+            var state = new BonusChipLab.State();
+            BonusChipLab.Open(host.transform, 1920, 1080, true, false,
+                Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"), Color.white, Color.black, state, () => {}, () => {});
+            var input = host.GetComponentInChildren<InputField>();
+            foreach (var button in host.GetComponentsInChildren<Button>())
+                if (button.name == "編集") button.onClick.Invoke();
+            typeof(InputField).GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(input,null);
+            Assert.IsTrue(input.isFocused);
+            input.text = "";
+            input.caretPosition = 0;
+            foreach (var c in "#00ff00") input.ProcessEvent(new Event { type=EventType.KeyDown, character=c });
+            Assert.AreEqual("#00ff00",input.text);
+            input.DeactivateInputField();
+            Assert.AreEqual("#00FF00",state.Rgb);
+            var panel = host.transform.Find("bonus-chip-test");
+            for (var scale=1;scale<=3;scale++)
+                Assert.AreEqual(Vector3.one*scale,panel.Find("chip-tray-"+scale).localScale);
         }
 
         [TestCase("#00ff00", "#00FF00")]

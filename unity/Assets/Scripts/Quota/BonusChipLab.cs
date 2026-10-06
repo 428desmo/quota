@@ -68,21 +68,30 @@ namespace Quota
             Label(panel,"ボーナスチップ実装テスト",20,24,pw-40,52,32,font,ink);
             var trayW = wide ? 176f : 220f;
             var trayH = wide ? (titled ? 126f : 148f) : 105f;
-            var tray = Portrait.Box(panel,"chip-tray",(pw-trayW)/2,(height-40-trayH)/2,trayW,trayH,7,1,fill,ink,false);
-            tray.gameObject.AddComponent<RectMask2D>();
-            var draw = Portrait.Rect(tray,"chips",0,0,trayW,trayH).gameObject.AddComponent<BonusChipLab>();
-            draw.state = state; draw.raycastTarget = false;
+            var trays = new List<RectTransform>();
+            for (var scale = 1; scale <= 3; scale++)
+            {
+                var x = wide ? 700f + (scale == 1 ? 0 : scale == 2 ? trayW + 40 : trayW * 3 + 80) : (pw-trayW*scale)/2;
+                var ty = wide ? (height-40-trayH*scale)/2 : 650f + (scale == 1 ? 0 : scale == 2 ? trayH+65 : trayH*3+130);
+                Label(panel,scale+"倍",x,ty-44,trayW*scale,36,24,font,ink);
+                var tray = Portrait.Box(panel,"chip-tray-"+scale,x,ty,trayW,trayH,7,1,fill,ink,false);
+                tray.localScale = Vector3.one * scale;
+                tray.gameObject.AddComponent<RectMask2D>();
+                trays.Add(tray);
+            }
             var count = Label(panel,"",20,88,pw-40,40,24,font,ink);
             Action update = () => {
-                count.text = $"チップ {state.Chips.Count}枚　トレイ {trayW}×{trayH}";
-                // Split meshes to stay below Unity UI's 65k vertex limit.
-                for (var offset = 400; offset < state.Chips.Count; offset += 400)
+                count.text = $"チップ {state.Chips.Count}枚　標準トレイ {trayW}×{trayH}";
+                foreach (var tray in trays)
                 {
-                    if (tray.Find("chips" + offset) != null) continue;
-                    var batch = Portrait.Rect(tray,"chips" + offset,0,0,trayW,trayH).gameObject.AddComponent<BonusChipLab>();
-                    batch.state = state; batch.first = offset; batch.raycastTarget = false;
+                    for (var offset = 0; offset < Mathf.Max(1,state.Chips.Count); offset += 400)
+                    {
+                        if (tray.Find("chips" + offset) != null) continue;
+                        var batch = Portrait.Rect(tray,"chips" + offset,0,0,trayW,trayH).gameObject.AddComponent<BonusChipLab>();
+                        batch.state = state; batch.first = offset; batch.raycastTarget = false;
+                    }
+                    foreach (var batch in tray.GetComponentsInChildren<BonusChipLab>()) batch.SetVerticesDirty();
                 }
-                foreach (var batch in tray.GetComponentsInChildren<BonusChipLab>()) batch.SetVerticesDirty();
             };
             var buttonW = wide ? 600f : Mathf.Min(800,pw-80);
             var bx = wide ? 40f : (pw-buttonW)/2;
@@ -98,13 +107,24 @@ namespace Quota
             Button(panel,state.Rgb,bx+buttonW*0.4f,y,buttonW*0.6f,56,editColor,font,ink,fill);
             Label(panel,state.ColorError,bx,y+58,buttonW,44,20,font,ink);
 #else
-            var inputHost = Portrait.Box(panel,"chip-rgb-input",bx+buttonW*0.4f,y,buttonW*0.6f,56,7,1,fill,ink,false);
+            var inputHost = Portrait.Rect(panel,"chip-rgb-input",bx+buttonW*0.4f,y,buttonW*0.4f,56);
+            var background = inputHost.gameObject.AddComponent<Image>();
+            background.sprite = Portrait.SlicedRound; background.type = Image.Type.Sliced;
+            background.color = new Color(1f,0.98f,0.94f,1f);
             var input = inputHost.gameObject.AddComponent<InputField>();
             input.targetGraphic = inputHost.GetComponent<Image>();
             inputHost.GetComponent<Image>().raycastTarget = true;
-            input.textComponent = Label(inputHost,"",8,0,buttonW*0.6f-16,56,24,font,ink);
+            input.textComponent = Label(inputHost,"",8,0,buttonW*0.4f-16,56,24,font,ink);
+            input.textComponent.raycastTarget = true;
+            input.textComponent.supportRichText = false;
             input.shouldHideMobileInput = false;
             input.text = state.Rgb;
+            input.ForceLabelUpdate();
+            Button(panel,"編集",bx+buttonW*0.8f,y,buttonW*0.2f,56,()=> {
+                var events = UnityEngine.EventSystems.EventSystem.current;
+                if (events != null) events.SetSelectedGameObject(input.gameObject);
+                input.ActivateInputField();
+            },font,ink,fill);
             var error = Label(panel,state.ColorError,bx,y+58,buttonW,44,20,font,ink);
             input.onEndEdit.AddListener(value => { state.TrySetRgb(value); error.text = state.ColorError; if (state.ColorError.Length == 0) input.text = state.Rgb; });
 #endif
