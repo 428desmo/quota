@@ -304,6 +304,7 @@ namespace Quota
             foreach (var input in GetComponentsInChildren<InputField>())
                 if (input.isFocused) return;
             Fit();
+            UpdateNameplates();
             if (!Application.isPlaying || frame == null) return;
             var wide = WideScreen();
             if (wide == laidOutWide) return;
@@ -683,6 +684,7 @@ namespace Quota
         void ShowSetup()
         {
             ResetCardMotion();
+            pulsingSeat = -1;
             RemoveLeaveButton();
             actionNotices.Clear();
             if (noticeRun != null) StopCoroutine(noticeRun);
@@ -2520,10 +2522,38 @@ namespace Quota
             }
         }
 
+        int pulsingSeat = -1;
+        int pulsingRound;
+        float pulseStarted;
+
         Color NameplateColor(Game game, int index)
         {
+            if (game.Current != pulsingSeat || game.RoundIndex != pulsingRound)
+            {
+                pulsingSeat = game.Current; pulsingRound = game.RoundIndex; pulseStarted = Time.time;
+            }
             var playing = index == game.Current && !game.Finished && !game.AwaitingNextRound && !reviewMode;
-            return playing ? Hex("#fff3d6") : Color.white;
+            return playing ? TurnPulse(Time.time - pulseStarted) : Color.white;
+        }
+
+        static Color TurnPulse(float elapsed) => Color.Lerp(Color.white, Hex("#FFE6AD"), Mathf.PingPong(elapsed, 1f));
+
+        void UpdateNameplates()
+        {
+            if (onSetup || frame == null || match.Game == null) return;
+            for (var i = 0; i < seatFrames.Count; i++)
+            {
+                if (seatFrames[i] == null) continue;
+                var plate = seatFrames[i].Find("nameplate/fill");
+                if (plate != null) plate.GetComponent<Image>().color = NameplateColor(match.Game, i);
+            }
+        }
+
+        static string PlayerCaption(Game game, int seat)
+        {
+            var count = game.TurnOrder.Count;
+            var position = count == 0 ? seat : (game.TurnOrder.IndexOf(seat) - (game.RoundIndex - 1) % count + count) % count;
+            return ((char)('①' + position)).ToString() + game.Players[seat].Name;
         }
 
         static int NameFontSize(string name, float width, int preferred)
@@ -2541,19 +2571,19 @@ namespace Quota
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 25f, 25f, 1030f, 340f, 7f, 1f, Plate, Ink, false);
-            Portrait.Box(seat, "nameplate", 0f, 10f, 300f, 50f, 4.5f, 1f, NameplateColor(game, index), Ink, true);
-            var name = TextAt(seat, player.Name, 12f, 10f, 276f, 50f, NameFontSize(player.Name, 276f, 36), Ink, nameFont, TextAnchor.MiddleLeft);
+            Portrait.Box(seat, "nameplate", 0f, 10f, 400f, 50f, 4.5f, 1f, NameplateColor(game, index), Ink, true);
+            var name = TextAt(seat, PlayerCaption(game, index), 12f, 10f, 376f, 50f, NameFontSize(PlayerCaption(game, index), 376f, 36), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             var quotaTop = 75f;
-            TextAt(seat, "ノルマ", 0f, quotaTop, 174f, 40f, 28, Ink, nameFont, TextAnchor.MiddleCenter);
-            DrawQuotaProgress(seat, player, 12f, 120f, 164f, 62f, 48);
+            Bold(TextAt(seat, "ノルマ", 32f, quotaTop, 142f, 40f, 24, Ink, nameFont, TextAnchor.MiddleLeft));
+            DrawQuotaProgress(seat, player, 32f, 120f, 142f, 62f, 48);
             var quotaCards = Portrait.Rect(seat, "quota-cards", 186f, quotaTop, 712f, 145f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
             if (player.Quota != null) strip.Add(player.Quota);
             strip.AddRange(player.Collection);
             LayQuotaCards(quotaCards, theme, strip, 6.5f);
-            TextAt(seat, "実績", 0f, 220f, 122f, 40f, 24, Ink, nameFont, TextAnchor.UpperRight);
+            Bold(TextAt(seat, "実績", 32f, 220f, 96f, 40f, 24, Ink, nameFont, TextAnchor.UpperLeft));
             var achieved = Portrait.Rect(seat, "achieved-cards", 130f, 220f, 405f, 145f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 6.5f, 3f);
@@ -2568,8 +2598,9 @@ namespace Quota
             CoinSpot(false, out coinX, out coinY, out coinW, out coinH, out coinD);
             Portrait.Rect(tray, "coin-area", coinX, coinY, coinW, coinH);
             PlaceBonus(game, player, quotaCards, tray, coinX, coinY, coinW, coinH, coinD, 1f);
-            var score = TextAt(seat, SeatPoints(game, index, player), 0f, 262f, 122f, 60f, 40, Ink, nameFont, TextAnchor.UpperRight);
+            var score = TextAt(seat, SeatPoints(game, index, player), 32f, 262f, 96f, 64f, 48, Ink, nameFont, TextAnchor.UpperLeft);
             score.gameObject.name = "score";
+            score.fontStyle = FontStyle.Bold;
             if (game.RoundIndex >= 2) ((RectTransform)score.transform).anchoredPosition += new Vector2(0f, -30f);
             DrawPreviousScore(seat, game, player, false);
             if (game.Config.SpecialActionsRule)
@@ -2587,8 +2618,8 @@ namespace Quota
             while (seatFrames.Count <= index) seatFrames.Add(null);
             seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, Plate, Ink, false);
-            Portrait.Box(seat, "nameplate", 16f, 6f, 270f, 46f, 4.5f, 1f, NameplateColor(game, index), Ink, false);
-            var name = TextAt(seat, player.Name, 28f, 6f, 246f, 46f, NameFontSize(player.Name, 246f, 30), Ink, nameFont, TextAnchor.MiddleLeft);
+            Portrait.Box(seat, "nameplate", 16f, 6f, 400f, 46f, 4.5f, 1f, NameplateColor(game, index), Ink, false);
+            var name = TextAt(seat, PlayerCaption(game, index), 28f, 6f, 376f, 46f, NameFontSize(PlayerCaption(game, index), 376f, 30), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             if (game.Config.SpecialActionsRule)
             {
@@ -2609,17 +2640,18 @@ namespace Quota
             const float recordY = 66f;
             const float recordH = 148f;
             Portrait.Box(seat, "record-box", 216f, recordY, 220f, recordH, 7f, 1f, Ecru, Ink, false);
-            TextAt(seat, "実績", 224f, recordY + 4f, 80f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
-            var score = TextAt(seat, SeatPoints(game, index, player), 224f, recordY + 30f, 60f, 46f, 30, Ink, nameFont, TextAnchor.UpperLeft);
+            Bold(TextAt(seat, "実績", 224f, recordY + 4f, 96f, 30f, 24, Ink, nameFont, TextAnchor.MiddleLeft));
+            var score = TextAt(seat, SeatPoints(game, index, player), 224f, recordY + 34f, 96f, 64f, 48, Ink, nameFont, TextAnchor.UpperLeft);
             score.gameObject.name = "score";
+            score.fontStyle = FontStyle.Bold;
             if (game.RoundIndex >= 2) ((RectTransform)score.transform).anchoredPosition += new Vector2(0f, -28f);
             DrawPreviousScore(seat, game, player, true);
-            var achieved = Portrait.Rect(seat, "achieved-cards", 290f, recordY + 30f, 134f, recordH - 38f);
+            var achieved = Portrait.Rect(seat, "achieved-cards", 330f, recordY + 30f, 94f, recordH - 38f);
             achieved.gameObject.AddComponent<RectMask2D>();
             LayCards(achieved, theme, player.Achieved, 2f, 3f, 0.62f);
 
-            TextAt(seat, "ノルマ", 452f, recordY, 80f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft);
-            DrawQuotaProgress(seat, player, 452f, recordY + 24f, 104f, 50f, 32);
+            Bold(TextAt(seat, "ノルマ", 452f, recordY, 104f, 30f, 24, Ink, nameFont, TextAnchor.MiddleLeft));
+            DrawQuotaProgress(seat, player, 452f, recordY + 34f, 104f, 62f, 48);
             var quotaCards = Portrait.Rect(seat, "quota-cards", 564f, recordY + 22f, 618f, CardHeight + 4f);
             quotaCards.gameObject.AddComponent<RectMask2D>();
             var strip = new List<Card>();
@@ -2874,6 +2906,8 @@ namespace Quota
             }
         }
 
+        static Text Bold(Text label) { label.fontStyle = FontStyle.Bold; return label; }
+
         void LayQuotaCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding)
         {
             for (var i = 0; i < cards.Count; i++)
@@ -2884,9 +2918,10 @@ namespace Quota
         {
             if (game.RoundIndex < 2) return;
             var previous = player.Score - BaseScore(player) - GreenCount(player);
-            var label = TextAt(seat, previous + "+", wide ? 224f : 12f, wide ? 96f : 260f,
-                wide ? 64f : 110f, 30f, wide ? 18 : 24, Ink, nameFont, TextAnchor.UpperLeft);
+            var label = TextAt(seat, previous + "+", wide ? 224f : 32f, wide ? 98f : 260f,
+                96f, 30f, 21, Ink, nameFont, TextAnchor.UpperLeft);
             label.gameObject.name = "previous-score";
+            label.fontStyle = FontStyle.Bold;
         }
 
         void LayCards(RectTransform area, ItemSet theme, IReadOnlyList<Card> cards, float padding, float stride, float scale = 1f)

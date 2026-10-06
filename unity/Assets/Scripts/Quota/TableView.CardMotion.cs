@@ -290,7 +290,8 @@ namespace Quota
             $"{1 + player.Collection.Count}/{player.Quota.Rank}";
         void DrawQuotaProgress(Transform parent, Player player, float x, float y, float width, float height, int font)
         {
-            var label = TextAt(parent, player.Quota == null ? "" : $"{1 + player.Collection.Count}<size={Mathf.RoundToInt(font * 0.6f)}>/{player.Quota.Rank}</size>", x, y, width, height, font, Ink, nameFont, TextAnchor.MiddleCenter);
+            var label = TextAt(parent, player.Quota == null ? "" : $"{1 + player.Collection.Count}<size={21}>/{player.Quota.Rank}</size>", x, y, width, height, font, Ink, nameFont, TextAnchor.MiddleLeft);
+            label.fontStyle = FontStyle.Bold;
             label.gameObject.name = "quota-progress";
             label.supportRichText = true;
         }
