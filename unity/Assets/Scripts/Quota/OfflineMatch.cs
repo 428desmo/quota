@@ -32,10 +32,15 @@ namespace Quota
             PumpCpus();
         }
 
-        public bool StepOneCpu()
+        public bool StepOneCpu(System.Action<string, string, bool> notify = null)
         {
             if (Game.Finished || Game.AwaitingNextRound || Game.Players[Game.Current].IsHuman) return false;
+            var player = Game.Players[Game.Current];
+            var plan = Game.Plan;
             var action = Cpu.ChooseAction(Game);
+            if (Game.Plan != plan && (Game.Plan == "double" || Game.Plan == "reshuffle"))
+                notify?.Invoke(player.Name, Game.Plan, Game.TurnGain);
+            notify?.Invoke(player.Name, action.Key, Game.TurnGain || Game.DoubleGained);
             var seat = Game.Current;
             var turn = Game.TurnNumber;
             Characters.Observe(Game, action);
