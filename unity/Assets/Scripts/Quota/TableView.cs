@@ -28,9 +28,9 @@ namespace Quota
         const float SeatHeight = 380f;
         const float ActionStride = 74f;
         const float SplashSeconds = 3f;
-        const float SplashFadeSeconds = 0.6f;
+        const float SplashFadeSeconds = 0.5f;
         const int AdvancedPromptAfter = 3;
-        const string SplashCopy = "港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
+        const string SplashCopy = "あなたは港で働く仲買人だ。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
         const string BuildStamp = "UNITY-WEBGL splash-harbor";
         const float MarketScale = 1.35f;
         const float CardWidth = 95f;
@@ -292,8 +292,13 @@ namespace Quota
             volume.sharedProfile = gradeProfile;
         }
 
+        bool splashDismissed;
+        readonly Queue<string> actionNotices = new Queue<string>();
+        Coroutine noticeRun;
+
         void Update()
         {
+            if (frame != null && frame.Find("splash") != null && (Input.GetMouseButtonDown(0) || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began))) DismissSplash();
             if (TouchScreenKeyboard.visible) return;
             foreach (var input in GetComponentsInChildren<InputField>())
                 if (input.isFocused) return;
@@ -438,7 +443,8 @@ namespace Quota
             var width = wide ? LandWidth : ScreenWidth;
             var height = wide ? LandHeight : ScreenHeight;
             var splash = Portrait.Rect(frame, "splash", 0f, 0f, width, height);
-            splash.gameObject.AddComponent<CanvasGroup>();
+            splashDismissed = false;
+            splash.gameObject.AddComponent<CanvasGroup>().alpha = Application.isPlaying ? 0f : 1f;
             var panelW = wide ? 1040f : 880f;
             var panelH = 320f;
             var panelX = (width - panelW) * 0.5f;
@@ -544,14 +550,26 @@ namespace Quota
 
         IEnumerator FadeSplash()
         {
-            yield return new WaitForSeconds(SplashSeconds);
-            var splash = frame.Find("splash");
-            var group = splash != null ? splash.GetComponent<CanvasGroup>() : null;
+            var group = frame.Find("splash").GetComponent<CanvasGroup>();
             var elapsed = 0f;
+            while (elapsed < SplashFadeSeconds && !splashDismissed)
+            {
+                elapsed += Time.deltaTime;
+                group.alpha = Mathf.Clamp01(elapsed / SplashFadeSeconds);
+                yield return null;
+            }
+            elapsed = 0f;
+            while (elapsed < SplashSeconds && !splashDismissed)
+            {
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+            var startAlpha = group.alpha;
+            elapsed = 0f;
             while (elapsed < SplashFadeSeconds)
             {
                 elapsed += Time.deltaTime;
-                if (group != null) group.alpha = 1f - Mathf.Clamp01(elapsed / SplashFadeSeconds);
+                group.alpha = startAlpha * (1f - Mathf.Clamp01(elapsed / SplashFadeSeconds));
                 yield return null;
             }
             splashRun = null;
@@ -560,9 +578,53 @@ namespace Quota
 
         void DismissSplash()
         {
-            if (splashRun != null) StopCoroutine(splashRun);
-            splashRun = null;
-            ShowSetup();
+            splashDismissed = true;
+            if (!Application.isPlaying) ShowSetup();
+        }
+
+        internal static string NoticeFor(string key, bool gained)
+        {
+            if (key == "pass") return gained ? null : "パス";
+            if (key == "abandon") return "放棄";
+            if (key == "double") return "ダブル";
+            if (key == "reshuffle") return "配り直し";
+            if (key == "cancel_double") return "ダブルを取り消し";
+            return null;
+        }
+
+        void QueueNotice(string name, string key, bool gained)
+        {
+            var caption = NoticeFor(key, gained);
+            if (caption == null || !Application.isPlaying) return;
+            actionNotices.Enqueue(name + "：" + caption);
+            if (noticeRun == null) noticeRun = StartCoroutine(ShowNotices());
+        }
+
+        IEnumerator ShowNotices()
+        {
+            // Outside Frame: rebuilding the table must not interrupt notifications.
+            while (actionNotices.Count > 0)
+            {
+                var root = Portrait.Rect(transform, "action-notice", 0f, 0f, 640f, 90f);
+                root.anchorMin = root.anchorMax = new Vector2(0.5f, 0.5f);
+                root.pivot = new Vector2(0.5f, 0.5f);
+                root.anchoredPosition = Vector2.zero;
+                root.localScale = frame.localScale;
+                SoftPanel(root, "panel", 0f, 0f, 640f, 90f, Paper);
+                TextAt(root, actionNotices.Dequeue(), 12f, 8f, 616f, 74f, 32, Ink, nameFont, TextAnchor.MiddleCenter);
+                var group = root.gameObject.AddComponent<CanvasGroup>();
+                group.blocksRaycasts = false;
+                yield return new WaitForSeconds(0.5f);
+                var elapsed = 0f;
+                while (elapsed < 0.5f)
+                {
+                    elapsed += Time.deltaTime;
+                    group.alpha = 1f - Mathf.Clamp01(elapsed / 0.5f);
+                    yield return null;
+                }
+                Destroy(root.gameObject);
+            }
+            noticeRun = null;
         }
 
         void ApplyMode()
@@ -607,6 +669,11 @@ namespace Quota
 
         void ShowSetup()
         {
+            actionNotices.Clear();
+            if (noticeRun != null) StopCoroutine(noticeRun);
+            noticeRun = null;
+            var notice = transform.Find("action-notice");
+            if (notice != null) DestroyImmediate(notice.gameObject);
             onSetup = true;
             busy = false;
             backdropDim = true;
@@ -1134,6 +1201,7 @@ namespace Quota
             {
                 var key = actions[networkApplied];
                 var game = match.Game;
+                if (game.Current != HumanSeat(game)) QueueNotice(game.Players[game.Current].Name, key, game.TurnGain || game.DoubleGained);
                 if (key == "double") game.DeclareDouble();
                 else if (key == "reshuffle") game.DeclareReshuffle();
                 else if (key == "cancel_double") game.CancelDouble();
@@ -2380,12 +2448,13 @@ namespace Quota
             var origin = 20f + (1040f - group) * 0.5f;
             var y = 170f + (210f - cardHeight) * 0.5f;
             var me = game.Players[game.Current];
-            var yours = MyHumanTurn && !busy && !game.Finished;
+            var yours = MyHumanTurn && !game.Finished;
             for (var i = 0; i < game.Market.Count; i++)
             {
                 var card = game.Market[i];
                 if (card == null) continue;
-                var playable = yours && CanPlay(card, me);
+                var legal = CanPlay(card, me);
+                var playable = yours && !busy && legal;
                 var cardId = card.Id;
                 var takingQuota = me.Quota == null;
                 var x = origin + i * (cardWidth + gap);
@@ -2393,7 +2462,7 @@ namespace Quota
                 {
                     if (takingQuota) Play(new TakeQuota(cardId));
                     else Play(new Collect(new[] { cardId }));
-                } : null, yours && !playable);
+                } : null, yours && !legal);
             }
         }
 
@@ -2410,12 +2479,13 @@ namespace Quota
             var originX = LandMarketX + (LandMarketW - groupW) * 0.5f;
             var originY = LandMarketY + (LandMarketH - groupH) * 0.5f;
             var me = game.Players[game.Current];
-            var yours = MyHumanTurn && !busy && !game.Finished;
+            var yours = MyHumanTurn && !game.Finished;
             for (var i = 0; i < game.Market.Count; i++)
             {
                 var card = game.Market[i];
                 if (card == null) continue;
-                var playable = yours && CanPlay(card, me);
+                var legal = CanPlay(card, me);
+                var playable = yours && !busy && legal;
                 var cardId = card.Id;
                 var takingQuota = me.Quota == null;
                 var x = originX + (i % columns) * (CardWidth + gapX);
@@ -2424,7 +2494,7 @@ namespace Quota
                 {
                     if (takingQuota) Play(new TakeQuota(cardId));
                     else Play(new Collect(new[] { cardId }));
-                } : null, yours && !playable);
+                } : null, yours && !legal);
             }
         }
 
@@ -2788,7 +2858,7 @@ namespace Quota
             var height = CardHeight * scale;
             var host = Portrait.Rect(parent, "card" + card.Id, x, y, width, height);
             var group = host.gameObject.AddComponent<CanvasGroup>();
-            group.alpha = dim ? 0.35f : 1f;
+            group.alpha = dim ? 0.95f : 1f;
             group.blocksRaycasts = onClick != null;
             Portrait.Box(host, "face", 0f, 0f, width, height, 4.5f * scale, Mathf.Max(1f, scale), Color.white, Ink, false);
             var kind = KindIndex(card);
@@ -3069,7 +3139,7 @@ namespace Quota
                 yield return WaitConfirm(ticket);
                 if (ticket != cpuRun || match.Game == null) yield break;
                 if (match.Game.Finished || match.IsHumanTurn) break;
-                if (!match.StepOneCpu()) break;
+                if (!match.StepOneCpu((name, key, gained) => QueueNotice(name, key, gained))) break;
                 ShowTable();
                 yield return WaitForCoins();
                 yield return new WaitForSeconds(0.35f);

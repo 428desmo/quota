@@ -19,6 +19,18 @@ namespace Quota.Tests
             if (events != null) Object.DestroyImmediate(events.gameObject);
         }
 
+        [TestCase("pass", false, "パス")]
+        [TestCase("pass", true, null)]
+        [TestCase("abandon", false, "放棄")]
+        [TestCase("double", false, "ダブル")]
+        [TestCase("reshuffle", false, "配り直し")]
+        [TestCase("collect:1", false, null)]
+        public void OtherPlayerNoticesExcludeCardsAndPassAfterCollecting(string key, bool gained, string expected)
+        {
+            var method = typeof(TableView).GetMethod("NoticeFor", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.AreEqual(expected, method.Invoke(null, new object[] { key, gained }));
+        }
+
         [TestCase("quota_goods_v1.0", "quota_goods_v1.0")]
         [TestCase("quota_goods_v1.0.json", "quota_goods_v1.0")]
         [TestCase("cpu_ranking_v1.2.json", "cpu_ranking_v1.2")]
@@ -264,9 +276,9 @@ namespace Quota.Tests
 
             Text splash = null;
             foreach (var label in host.GetComponentsInChildren<Text>())
-                if (label.text.StartsWith("港で働く仲買人のあなた。")) splash = label;
+                if (label.text.StartsWith("あなたは港で働く仲買人だ。")) splash = label;
             Assert.IsNotNull(splash);
-            Assert.AreEqual("港で働く仲買人のあなた。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。", splash.text);
+            Assert.AreEqual("あなたは港で働く仲買人だ。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。", splash.text);
             Assert.IsNotNull(host.transform.Find("Root/Frame/splash/splash-panel"));
             Color ink;
             ColorUtility.TryParseHtmlString("#2C221E", out ink);

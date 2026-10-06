@@ -98,6 +98,15 @@ namespace Quota.EditorTools
             foreach (var source in Directory.GetFiles(sourceGoods, "*.png"))
                 File.Copy(source, Path.Combine(targetGoods, Path.GetFileName(source)), true);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            // Default NPOT import rounds each axis separately, distorting photos and logos.
+            foreach (var file in Directory.GetFiles(ResourceRoot, "*", SearchOption.AllDirectories))
+            {
+                var importer = AssetImporter.GetAtPath(file) as TextureImporter;
+                if (importer == null) continue;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                importer.maxTextureSize = 4096;
+                importer.SaveAndReimport();
+            }
         }
 
         static void CopyResource(string name)
