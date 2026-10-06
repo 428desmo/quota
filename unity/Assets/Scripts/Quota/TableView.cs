@@ -2867,7 +2867,7 @@ namespace Quota
             var height = CardHeight * scale;
             var host = Portrait.Rect(parent, "card" + card.Id, x, y, width, height);
             var group = host.gameObject.AddComponent<CanvasGroup>();
-            group.alpha = dim ? 0.95f : 1f;
+            group.alpha = dim ? 0.85f : 1f;
             group.blocksRaycasts = onClick != null;
             Portrait.Box(host, "face", 0f, 0f, width, height, 4.5f * scale, Mathf.Max(1f, scale), Color.white, Ink, false);
             var kind = KindIndex(card);
