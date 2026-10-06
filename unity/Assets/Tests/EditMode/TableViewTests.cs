@@ -103,6 +103,30 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void ChipTestKeepsEarlierColorsAndAddsTheRequestedCount()
+        {
+            var state = new BonusChipLab.State { Shape = 2, Sides = 8, ColorIndex = 0 };
+            state.Add(10, 220, 105, 0);
+            var green = state.Chips[0].Color;
+            foreach (var chip in state.Chips)
+            {
+                Assert.AreEqual(green, chip.Color);
+                Assert.AreEqual(8, chip.Sides);
+                Assert.That(chip.Position.x, Is.InRange(0f, 220f));
+                Assert.That(chip.Position.y, Is.InRange(0f, 105f));
+            }
+            state.ColorIndex = 1;
+            state.Add(50, 220, 105, 1);
+            Assert.AreEqual(60, state.Chips.Count);
+            Assert.AreEqual(green, state.Chips[0].Color);
+            Assert.AreNotEqual(green, state.Chips[10].Color);
+            Assert.AreNotEqual(state.Chips[10].Rotation, state.Chips[11].Rotation);
+            state.Chips.Clear();
+            Assert.AreEqual(0, state.Chips.Count);
+            Assert.AreEqual(1, state.ColorIndex);
+        }
+
+        [Test]
         public void SetupTextStaysInsideThePanelAndIsTallEnoughToRead()
         {
             host = new GameObject("Quota");

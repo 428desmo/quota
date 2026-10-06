@@ -81,6 +81,7 @@ namespace Quota
         string seedText = "";
         string playerName = "あなた";
         string setupPage;
+        readonly BonusChipLab.State chipLabState = new BonusChipLab.State();
         bool lobbyOpen;
         bool sitOut;
         bool onSetup = true;
@@ -671,7 +672,7 @@ namespace Quota
         {
             const float innerGap = 16f;
             var tableCount = Mathf.Min(3, networkTables.Count);
-            var buttonH = SetupButtonHeight(available, 10f + tableCount + (showReview ? 1f : 0f), 2 + tableCount + (showReview ? 1 : 0));
+            var buttonH = SetupButtonHeight(available, 11f + tableCount + (showReview ? 1f : 0f), 3 + tableCount + (showReview ? 1 : 0));
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
             var column = SetupColumn(screenW, columnTop, available + 24f);
             var guideW = screenW * 0.40f;
@@ -701,6 +702,8 @@ namespace Quota
             }
             SetupGap(column, section);
             SetupButton(column, "対局開始", OpenLobby, actionW, buttonH * 2f, font * 2);
+            SetupGap(column, innerGap);
+            SetupButton(column, "実装テスト", () => OpenPage("tests"), actionW, buttonH, font);
             if (showReview)
             {
                 SetupGap(column, innerGap);
@@ -3242,6 +3245,19 @@ namespace Quota
             var screenH = wide ? LandHeight : ScreenHeight;
             var veil = Portrait.Solid(frame, "setup-veil", 0f, 0f, screenW, screenH, new Color(0.10f, 0.07f, 0.05f, 0.58f));
             veil.GetComponent<Image>().raycastTarget = true;
+            if (setupPage == "chips")
+            {
+                BonusChipLab.Open(frame, screenW, screenH, wide, titleRule, nameFont, Ecru, Ink, chipLabState, () => { setupPage = null; ShowSetup(); });
+                return;
+            }
+            if (setupPage == "tests")
+            {
+                var panel = Portrait.Box(frame, "implementation-tests", (screenW-800)/2, (screenH-300)/2, 800, 300, 7, 1, Paper, Ink, false);
+                TextAt(panel, "実装テスト", 24, 16, 752, 60, 32, Ink, nameFont, TextAnchor.MiddleCenter);
+                Pill(panel, "ボーナスチップ", 40, 100, 720, 72, 32, () => OpenPage("chips"));
+                Pill(panel, "終了", 40, 200, 720, 72, 32, () => { setupPage = null; ShowSetup(); });
+                return;
+            }
             if (setupPage == "settings") DrawSettings(screenW, screenH);
             else DrawGuide(screenW, screenH);
         }
