@@ -3116,33 +3116,33 @@ namespace Quota
             var hasHuman = false;
             for (var i = 0; i < game.Players.Count; i++)
                 if (game.Players[i].IsHuman) hasHuman = true;
-            const float panelWidth = 700f;
-            const float panelHeight = 280f;
+            const float panelWidth = 1000f;
+            const float panelHeight = 330f;
             RectTransform panel;
             if (WideScreen() || (confirm == "leave" && !hasHuman))
-                panel = Portrait.Box(frame, "confirm", ((WideScreen() ? LandWidth : ScreenWidth) - panelWidth) * 0.5f, ((WideScreen() ? LandHeight : ScreenHeight) - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Paper, Ink, false);
+                panel = Portrait.Box(frame, "confirm", ((WideScreen() ? LandWidth : ScreenWidth) - panelWidth) * 0.5f, ((WideScreen() ? LandHeight : ScreenHeight) - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Hex("#FFD078"), Ink, false);
             else
             {
                 var seat = seatFrames[seatIndex];
-                panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Paper, Ink, false);
+                panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Hex("#FFD078"), Ink, false);
             }
             // Seat panels are drawn in display order; keep confirmations above every seat.
             var modalCanvas = panel.gameObject.AddComponent<Canvas>();
             modalCanvas.overrideSorting = true;
             modalCanvas.sortingOrder = 100;
             panel.gameObject.AddComponent<GraphicRaycaster>();
-            TextAt(panel, message, 24f, 28f, 652f, 80f, 32, Ink, nameFont, TextAnchor.MiddleCenter);
-            var yesWidth = yes.Length * 32f + 30f;
-            Pill(panel, yes, 40f, 150f, yesWidth, 72f, 32, () =>
+            TextAt(panel, message, 24f, 16f, panelWidth - 48f, 80f, 34, Ink, nameFont, TextAnchor.MiddleCenter);
+            Pill(panel, yes, 20f, 110f, panelWidth - 40f, 84f, 34, () =>
             {
                 confirm = null;
                 run();
             });
-            Pill(panel, "キャンセル", 700f - 40f - 224f, 150f, 224f, 72f, 32, () =>
+            Pill(panel, "キャンセル", 20f, 210f, panelWidth - 40f, 84f, 34, () =>
             {
                 confirm = null;
                 ShowTable();
             });
+            foreach (var label in panel.GetComponentsInChildren<Text>()) label.fontStyle = FontStyle.Bold;
         }
 
         void NoteFinish()
