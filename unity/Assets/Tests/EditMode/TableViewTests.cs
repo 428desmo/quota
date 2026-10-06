@@ -109,7 +109,7 @@ namespace Quota.Tests
             host.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             var state = new BonusChipLab.State();
             BonusChipLab.Open(host.transform, 1920, 1080, true, false,
-                Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"), Color.white, Color.black, state, () => {});
+                Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"), Color.white, Color.black, state, () => {}, () => {});
             var initial = host.GetComponentInChildren<BonusChipLab>();
             Assert.IsNotNull(initial.GetComponent<CanvasRenderer>());
             // Cross the mesh-batch boundary through the actual UI callback.
@@ -127,10 +127,23 @@ namespace Quota.Tests
             Canvas.ForceUpdateCanvases();
         }
 
+        [TestCase("#00ff00", "#00FF00")]
+        [TestCase("123abc", "#123ABC")]
+        public void ChipRgbAcceptsSixDigitColors(string value, string expected)
+        {
+            var state = new BonusChipLab.State();
+            Assert.IsTrue(state.TrySetRgb(value));
+            Assert.AreEqual(expected, state.Rgb);
+            var selected = state.ChipColor;
+            Assert.IsFalse(state.TrySetRgb("#12345Z"));
+            Assert.AreEqual(selected, state.ChipColor);
+            Assert.IsNotEmpty(state.ColorError);
+        }
+
         [Test]
         public void ChipTestKeepsEarlierColorsAndAddsTheRequestedCount()
         {
-            var state = new BonusChipLab.State { Shape = 2, Sides = 8, ColorIndex = 0 };
+            var state = new BonusChipLab.State { Shape = 2, Sides = 8 };
             state.Add(10, 220, 105, 0);
             var green = state.Chips[0].Color;
             foreach (var chip in state.Chips)
@@ -140,7 +153,7 @@ namespace Quota.Tests
                 Assert.That(chip.Position.x, Is.InRange(0f, 220f));
                 Assert.That(chip.Position.y, Is.InRange(0f, 105f));
             }
-            state.ColorIndex = 1;
+            state.TrySetRgb("#0000ff");
             state.Add(50, 220, 105, 1);
             Assert.AreEqual(60, state.Chips.Count);
             Assert.AreEqual(green, state.Chips[0].Color);
@@ -148,7 +161,7 @@ namespace Quota.Tests
             Assert.AreNotEqual(state.Chips[10].Rotation, state.Chips[11].Rotation);
             state.Chips.Clear();
             Assert.AreEqual(0, state.Chips.Count);
-            Assert.AreEqual(1, state.ColorIndex);
+            Assert.AreEqual("#0000FF", state.Rgb);
         }
 
         [Test]

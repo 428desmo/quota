@@ -20,20 +20,36 @@ namespace Quota
         }
         public class State
         {
-            public int Shape, ColorIndex, Sides = 6;
+            public int Shape, Sides = 6;
+            public Color ChipColor = new Color(0.22f, 0.72f, 0.30f);
+            public string ColorError = "";
+            public string Rgb => "#" + ColorUtility.ToHtmlStringRGB(ChipColor);
+            public bool TrySetRgb(string value)
+            {
+                var hex = (value ?? "").Trim();
+                if (hex.StartsWith("#")) hex = hex.Substring(1);
+                if (hex.Length == 6)
+                {
+                    var valid = true;
+                    foreach (var c in hex) if (!Uri.IsHexDigit(c)) valid = false;
+                    if (valid && ColorUtility.TryParseHtmlString("#" + hex, out var parsed))
+                    { ChipColor = parsed; ColorError = ""; return true; }
+                }
+                ColorError = "色は #RRGGBB の形式で入力してください";
+                return false;
+            }
             public float Size = 18, Aspect = 0.65f, Thickness = 4;
             public readonly List<Chip> Chips = new List<Chip>();
             readonly System.Random random = new System.Random();
             public void Add(int count, float width, float height, float now)
             {
-                var colors = new[] { new Color(0.22f,0.72f,0.30f), new Color(0.20f,0.49f,0.91f), new Color(0.62f,0.28f,0.83f) };
                 for (var i = 0; i < count; i++)
                 {
                     var margin = Size + Thickness;
                     Chips.Add(new Chip {
                         Position = new Vector2(margin + (float)random.NextDouble() * Mathf.Max(0,width-2*margin), margin + (float)random.NextDouble() * Mathf.Max(0,height-2*margin)),
                         Rotation = Quaternion.Euler((float)random.NextDouble()*35-17, (float)random.NextDouble()*35-17, (float)random.NextDouble()*360),
-                        Color = colors[ColorIndex], Sides = Shape < 2 ? 32 : Shape == 2 ? Sides : 4,
+                        Color = ChipColor, Sides = Shape < 2 ? 32 : Shape == 2 ? Sides : 4,
                         Size = Size, Aspect = Shape == 1 || Shape == 3 ? Aspect : 1, Thickness = Thickness,
                         Born = now + i * 0.012f
                     });
@@ -45,7 +61,7 @@ namespace Quota
         readonly List<Face> faces = new List<Face>();
         class Face { public Vector3[] Points; public Color Color; public float Depth; }
         static readonly Vector3 Light = new Vector3(-0.6f, 0.8f, 1.2f).normalized;
-        public static void Open(Transform parent, float width, float height, bool wide, bool titled, Font font, Color fill, Color ink, State state, UnityAction exit)
+        public static void Open(Transform parent, float width, float height, bool wide, bool titled, Font font, Color fill, Color ink, State state, UnityAction exit, UnityAction editColor)
         {
             var panel = Portrait.Box(parent, "bonus-chip-test", 20, 20, width-40, height-40, 7, 1, fill, ink, false);
             var pw = width-40;
@@ -77,7 +93,21 @@ namespace Quota
             Cycle(panel,bx,y,buttonW,"厚み",()=>state.Thickness.ToString("0"),()=>state.Thickness=state.Thickness>=10?2:state.Thickness+2,font,ink,fill); y+=70;
             Cycle(panel,bx,y,buttonW,"多角形の辺数",()=>state.Sides.ToString(),()=>state.Sides=state.Sides>=8?3:state.Sides+1,font,ink,fill); y+=70;
             Cycle(panel,bx,y,buttonW,"縦横比（楕円・板）",()=>state.Aspect.ToString("0.00"),()=>state.Aspect=state.Aspect>=0.99f?0.4f:Mathf.Min(1,state.Aspect+0.15f),font,ink,fill); y+=70;
-            Cycle(panel,bx,y,buttonW,"色",()=>new[]{"緑","青","紫"}[state.ColorIndex],()=>state.ColorIndex=(state.ColorIndex+1)%3,font,ink,fill);
+            Label(panel,"色（RGB）",bx,y,buttonW*0.4f,56,24,font,ink);
+#if UNITY_WEBGL && !UNITY_EDITOR
+            Button(panel,state.Rgb,bx+buttonW*0.4f,y,buttonW*0.6f,56,editColor,font,ink,fill);
+            Label(panel,state.ColorError,bx,y+58,buttonW,44,20,font,ink);
+#else
+            var inputHost = Portrait.Box(panel,"chip-rgb-input",bx+buttonW*0.4f,y,buttonW*0.6f,56,7,1,fill,ink,false);
+            var input = inputHost.gameObject.AddComponent<InputField>();
+            input.targetGraphic = inputHost.GetComponent<Image>();
+            inputHost.GetComponent<Image>().raycastTarget = true;
+            input.textComponent = Label(inputHost,"",8,0,buttonW*0.6f-16,56,24,font,ink);
+            input.shouldHideMobileInput = false;
+            input.text = state.Rgb;
+            var error = Label(panel,state.ColorError,bx,y+58,buttonW,44,20,font,ink);
+            input.onEndEdit.AddListener(value => { state.TrySetRgb(value); error.text = state.ColorError; if (state.ColorError.Length == 0) input.text = state.Rgb; });
+#endif
             var bottom = height-40-180;
             for (var i=0;i<3;i++)
             {
