@@ -53,7 +53,7 @@ namespace Quota
         public int Score;
         public int AchieveCount;
         public int MaxSingleScore;
-        public readonly bool IsHuman;
+        public bool IsHuman;
         public readonly List<Bundle> Bundles = new List<Bundle>();
         public int ReshuffleTakeLeft;
         public int DoubleActionLeft;

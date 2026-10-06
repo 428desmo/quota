@@ -1227,7 +1227,8 @@ namespace Quota
                 var game = match.Game;
                 var beforeCards = BoardFrame.Capture(game);
                 if (game.Current != HumanSeat(game)) QueueNotice(game.Current, key, game.TurnGain || game.DoubleGained);
-                if (key == "double") game.DeclareDouble();
+                if (key.StartsWith("cpu:")) game.Players[int.Parse(key.Substring(4))].IsHuman = false;
+                else if (key == "double") game.DeclareDouble();
                 else if (key == "reshuffle") game.DeclareReshuffle();
                 else if (key == "cancel_double") game.CancelDouble();
                 else if (key == "next_round") game.BeginNextRound();
@@ -1244,7 +1245,13 @@ namespace Quota
                 networkApplied++;
                 changed = true;
             }
-            if (changed) { confirm = null; busy = false; ShowTable(); }
+            if (changed)
+            {
+                // A remote player acting must not dismiss a local EXIT confirmation.
+                if (confirm != "leave") confirm = null;
+                busy = false;
+                ShowTable();
+            }
         }
 
         void StartNetworkMatch()
@@ -1524,6 +1531,7 @@ namespace Quota
         {
             public string name;
             public bool leader;
+            public bool cpu;
         }
 
         [System.Serializable]
@@ -3122,6 +3130,11 @@ namespace Quota
                 var seat = seatFrames[seatIndex];
                 panel = Portrait.Box(seat, "confirm", 25f + (1030f - panelWidth) * 0.5f, 25f + (340f - panelHeight) * 0.5f, panelWidth, panelHeight, 7f, 1f, Paper, Ink, false);
             }
+            // Seat panels are drawn in display order; keep confirmations above every seat.
+            var modalCanvas = panel.gameObject.AddComponent<Canvas>();
+            modalCanvas.overrideSorting = true;
+            modalCanvas.sortingOrder = 100;
+            panel.gameObject.AddComponent<GraphicRaycaster>();
             TextAt(panel, message, 24f, 28f, 652f, 80f, 32, Ink, nameFont, TextAnchor.MiddleCenter);
             var yesWidth = yes.Length * 32f + 30f;
             Pill(panel, yes, 40f, 150f, yesWidth, 72f, 32, () =>
