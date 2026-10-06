@@ -142,7 +142,7 @@ class UnityHall:
         self.leave(client)
         players = int(body.get("players") or 3)
         table = UnityTable(client, str(body.get("name") or "あなた"), players)
-        table.options = {key: body.get(key, default) for key, default in {"simple": True, "sequence": False, "title": False, "special": False, "ok_timeout": 5, "turn_timeout": 120}.items()}
+        table.options = {key: body.get(key, default) for key, default in {"simple": True, "sequence": False, "title": False, "special": False, "ok_timeout": 5, "turn_timeout": 30}.items()}
         if body.get("sit_out"):
             table.humans.clear()
         self.tables[table.id] = table

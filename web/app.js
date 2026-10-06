@@ -308,7 +308,7 @@ function startOptions(players, leftHanded) {
     special: !simple,
     ok_timeout: savedOkTimeout(saved),
     ok_timeout_set: true,
-    turn_timeout: Number(saved.turn_timeout ?? 120),
+    turn_timeout: Number(saved.turn_timeout ?? 30),
     left_handed: leftHanded,
   };
 }
@@ -559,7 +559,7 @@ function render() {
       settingsDraft = {
         simple: simpleOn(savedOptionsNow),
         ok: savedOkTimeout(savedOptionsNow),
-        turn: Number(savedOptionsNow.turn_timeout ?? 120),
+        turn: Number(savedOptionsNow.turn_timeout ?? 30),
       };
       settingsOpen = true;
       guide = null;

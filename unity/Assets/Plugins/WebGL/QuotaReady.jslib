@@ -1,4 +1,10 @@
 mergeInto(LibraryManager.library, {
+  QuotaEditTimeout: function(valuePtr, kindPtr, targetPtr) {
+    var kind = UTF8ToString(kindPtr);
+    var value = window.prompt(kind === "turn" ? "手番タイムアウト（秒）" : "OKタイムアウト（秒）", UTF8ToString(valuePtr));
+    if (value !== null && window.quotaUnityInstance)
+      window.quotaUnityInstance.SendMessage(UTF8ToString(targetPtr), kind === "turn" ? "OnTurnTimeoutEdited" : "OnOkTimeoutEdited", value);
+  },
   QuotaEditChipColor: function(valuePtr, targetPtr) {
     var value = window.prompt("チップの色（#RRGGBB）", UTF8ToString(valuePtr));
     if (value !== null && window.quotaUnityInstance)
