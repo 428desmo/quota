@@ -316,3 +316,45 @@ def test_other_human_timer_survives_temporary_cpu_substitution():
     assert 'timeout:1' in state['actions']
     assert not game.players[1].is_human
     assert table.participating_humans() == 2
+
+
+def test_second_returning_participant_starts_timer_for_existing_turn():
+    import time
+    hall, table = playing_pair()
+    table.options['turn_timeout'] = 30
+    hall.leave('a')
+    hall.leave('b')
+    hall.join({'table': table.id}, 'a')
+    assert table.participating_humans() == 1
+    game = table.game
+    game.current = 0
+    game.turn_number += 1
+    hall.update_deadline(table)
+    assert game.players[0].is_human
+    assert not table.recruiting('a')['turn_timeout_active']
+    table.turn_deadline = time.monotonic() - 60
+    key = table.turn_key
+    state = hall.join({'table': table.id}, 'b')
+    assert state['you']['observer']  # B still waits for the next own turn.
+    assert not game.players[1].is_human
+    assert table.turn_key == key  # A's turn does not change.
+    assert table.participating_humans() == 2
+    state = hall.snapshot('a')
+    assert state['turn_timeout_active']
+    assert 29 < state['turn_remaining'] <= 30
+    deadline = table.turn_deadline
+    hall.join({'table': table.id}, 'b')
+    hall.snapshot('a')
+    assert table.turn_deadline == deadline  # Polling/repeated join cannot reset it.
+    table.turn_deadline = 0
+    assert 'timeout:0' in hall.snapshot('a')['actions']
+
+
+def test_spectator_join_does_not_enable_a_single_humans_timer():
+    hall, table = playing_pair()
+    hall.leave('b')
+    table.game.current = 0
+    hall.update_deadline(table)
+    hall.join({'table': table.id, 'name': '観戦者'}, 'spectator')
+    assert table.participating_humans() == 1
+    assert not table.recruiting('a')['turn_timeout_active']

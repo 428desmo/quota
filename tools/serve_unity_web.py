@@ -64,6 +64,7 @@ class UnityTable:
         self.cpu_at = 0.0
         self.turn_key = None
         self.turn_deadline = 0.0
+        self.timer_enabled = False
         self.round_at = None
 
     def touch(self) -> None:
@@ -74,7 +75,7 @@ class UnityTable:
 
     def participating_humans(self) -> int:
         # CPU substitution is temporary; only EXIT removes a participant.
-        return sum(not seat.departed and seat.client in self.members for seat in self.humans)
+        return sum(seat.client in self.members and (not seat.departed or seat.resume_after is not None) for seat in self.humans)
 
     def leader_name(self) -> str:
         return self.host.name
@@ -182,6 +183,8 @@ class UnityHall:
                 table.humans.append(seat)
         self.where[client] = table.id
         table.touch()
+        if table.game is not None:
+            self.update_deadline(table)
         return table.recruiting(client)
 
     def leave(self, client: str) -> dict:
@@ -200,6 +203,7 @@ class UnityHall:
             if table.host.client == client and table.members:
                 table.host = next(iter(table.members.values()))
             table.touch()
+            self.update_deadline(table)
             return self.snapshot(client)
         table.members.pop(client, None)
         table.humans = [seat for seat in table.humans if seat.client != client]
@@ -300,6 +304,10 @@ class UnityHall:
     def update_deadline(table):
         game = table.game
         key = (game.round_index, game.turn_number, game.current)
+        enabled = table.participating_humans() > 1
+        if enabled and not table.timer_enabled:
+            table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
+        table.timer_enabled = enabled
         if key != table.turn_key:
             table.turn_key = key
             table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
