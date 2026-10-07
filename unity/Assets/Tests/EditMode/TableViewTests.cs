@@ -99,9 +99,9 @@ namespace Quota.Tests
             foreach (var text in new[] { score, previous, progress }) Assert.AreEqual(FontStyle.Bold, text.fontStyle);
             Assert.AreEqual(((RectTransform)score.transform).anchoredPosition.x, ((RectTransform)previous.transform).anchoredPosition.x);
             Assert.AreEqual(wide ? 960f : 540f, ((RectTransform)seat.Find("nameplate")).rect.width);
-            var caption = typeof(TableView).GetMethod("PlayerCaption", BindingFlags.Static | BindingFlags.NonPublic);
+            var caption = typeof(TableView).GetMethod("PlayerCaption", BindingFlags.Instance | BindingFlags.NonPublic);
             var leader = game.TurnOrder[(game.RoundIndex - 1) % game.TurnOrder.Count];
-            Assert.AreEqual("①" + game.Players[leader].Name, caption.Invoke(null, new object[] { game, leader }));
+            Assert.AreEqual("①" + game.Players[leader].Name, caption.Invoke(host.GetComponent<TableView>(), new object[] { game, leader }));
             Assert.IsNotNull(FindText("ラウンド 2/3"));
             var frame = host.transform.Find("Root/Frame");
             Assert.AreEqual(new Color32(255,211,38,255), (Color32)frame.Find("stall-dot-0").GetComponent<Image>().color);
@@ -1010,6 +1010,24 @@ namespace Quota.Tests
             Assert.IsNotNull(live.Find("confirm"));
             Assert.IsNull(stale.transform.Find("confirm"));
             Object.DestroyImmediate(stale);
+        }
+
+        [Test]
+        public void DepartedCaptionDisappearsWhenSeatReturnsToHumanControl()
+        {
+            host = Open();
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            var apply = typeof(TableView).GetMethod("ApplyNetworkActions", flags);
+            apply.Invoke(view, new object[] { new[] { "away:0", "cpu:0" } });
+            var caption = typeof(TableView).GetMethod("PlayerCaption", flags);
+            Assert.IsTrue(((string)caption.Invoke(view, new object[] { game, 0 })).EndsWith("（退席）"));
+            Assert.IsFalse(game.Players[0].IsHuman);
+            apply.Invoke(view, new object[] { new[] { "away:0", "cpu:0", "human:0" } });
+            Assert.IsFalse(((string)caption.Invoke(view, new object[] { game, 0 })).Contains("（退席）"));
+            Assert.IsTrue(game.Players[0].IsHuman);
         }
 
         [TestCase(false)]

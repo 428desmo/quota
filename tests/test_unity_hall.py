@@ -125,7 +125,7 @@ def test_leaving_preserves_other_players_and_replaces_named_seat(client, seat):
     assert hall.snapshot(remaining)['phase'] == 'playing'
     assert [p.name for p in table.game.players] == names
     assert not table.game.players[seat].is_human
-    assert table.actions == [f'cpu:{seat}']
+    assert table.actions == [f'away:{seat}', f'cpu:{seat}']
     assert hall.snapshot(remaining)['you']['leader']
     assert hall.snapshot(remaining)['you']['seat'] == (1 if remaining == 'b' else 0)
     table.game.current = seat
@@ -223,3 +223,43 @@ def test_countdown_is_authoritative_and_disabled_with_only_one_human():
     assert not table.recruiting("a")["turn_timeout_active"]
     table.game.current = 1
     assert not table.recruiting("a")["turn_timeout_active"]
+
+
+def test_departed_player_rejoins_original_seat_on_next_turn_only():
+    hall, table = playing_pair()
+    game = table.game
+    game.current = 0
+    game.order_cursor = game.turn_order.index(0)
+    hall.update_deadline(table)
+    hall.leave('a')
+    assert table.humans[0].departed
+    assert hall.snapshot('a')['tables'][0]['rejoin']
+    assert 'rejoin' not in hall.snapshot('stranger')['tables'][0]
+    state = hall.join({'table': table.id, 'name': '別の名前'}, 'a')
+    assert state['you']['observer']
+    assert len(table.humans) == 2
+    assert game.players[0].name == 'A'
+    hall.update_deadline(table)
+    assert not game.players[0].is_human
+    hall.apply_action(table, 'pass')
+    for _ in range(3):
+        hall.update_deadline(table)
+        if game.current == 0: break
+        hall.apply_action(table, 'pass')
+    assert game.current == 0
+    assert game.players[0].is_human
+    assert not table.humans[0].departed
+    assert not table.recruiting('a')['you']['observer']
+    assert table.actions[-1] == 'human:0'
+
+
+def test_last_departed_player_can_rejoin_and_cancel_pending_return():
+    hall, table = playing_pair()
+    hall.leave('a')
+    hall.leave('b')
+    assert table.id in hall.tables
+    assert hall.snapshot('a')['tables'][0]['rejoin']
+    hall.join({'table': table.id}, 'a')
+    hall.leave('a')
+    assert table.humans[0].resume_after is None
+    assert table.humans[0].departed
