@@ -42,6 +42,8 @@ class Seat:
         self.client = client
         self.name = name
         self.cpu = cpu
+        self.departed = False
+        self.resume_after = None
 
 
 class UnityTable:
@@ -78,9 +80,9 @@ class UnityTable:
     def has(self, client: str) -> bool:
         return client in self.members
 
-    def summary(self) -> dict:
+    def summary(self, client="") -> dict:
         active_humans = {seat.client for seat in self.humans if not seat.cpu}
-        return {
+        result = {
             "id": self.id,
             "leader": self.leader_name(),
             "players": self.players,
@@ -88,6 +90,10 @@ class UnityTable:
             "status": "募集中" if self.phase == "recruiting" else "対局中",
             "observers": len(set(self.members) - active_humans),
         }
+
+        if any(seat.client == client and seat.departed for seat in self.humans) and self.game and not self.game.finished:
+            result["rejoin"] = True
+        return result
 
     def recruiting(self, client: str) -> dict:
         return {
@@ -102,7 +108,7 @@ class UnityTable:
             "turn_remaining": max(0.0, self.turn_deadline - time.monotonic()),
             "players": self.players,
             "seats": [
-                {"name": seat.name, "leader": seat.client == self.leader_id(), "cpu": seat.cpu}
+                {"name": seat.name, "leader": seat.client == self.leader_id(), "cpu": seat.cpu, "departed": seat.departed}
                 for seat in self.humans
             ],
             "cpus": [display_name(cid) for cid in self.cpu_cast[:max(0, self.players - self.seated())]],
@@ -135,7 +141,7 @@ class UnityHall:
         table = self.tables.get(self.where.get(client, ""))
         if table is None:
             self.where.pop(client, None)
-            return {"phase": "hall", "tables": [item.summary() for item in self.tables.values()]}
+            return {"phase": "hall", "tables": [item.summary(client) for item in self.tables.values()]}
         table.touch()
         if table.phase == "playing":
             self.pump_cpu(table)
@@ -158,7 +164,11 @@ class UnityHall:
         if table is None or table.phase not in ("recruiting", "playing"):
             raise ValueError("その卓はありません")
         if not table.has(client):
-            seat = Seat(client, str(body.get("name") or "あなた"))
+            seat = next((seat for seat in table.humans if seat.client == client and seat.departed), None)
+            if seat is not None and table.game and not table.game.finished:
+                seat.resume_after = (table.game.round_index, table.game.turn_number, table.game.current)
+            else:
+                seat = Seat(client, str(body.get("name") or "あなた"))
             table.members[client] = seat
             if table.phase == "recruiting" and table.seated() < table.players:
                 table.humans.append(seat)
@@ -174,14 +184,14 @@ class UnityHall:
         if table.phase == "playing":
             for index, seat in enumerate(table.humans):
                 if seat.client == client:
+                    seat.departed = True
+                    seat.resume_after = None
+                    table.actions.append(f"away:{index}")
                     self.replace_human(table, index)
             table.members.pop(client, None)
             if table.host.client == client and table.members:
                 table.host = next(iter(table.members.values()))
-            if not table.members:
-                self.tables.pop(tid, None)
-            else:
-                table.touch()
+            table.touch()
             return self.snapshot(client)
         table.members.pop(client, None)
         table.humans = [seat for seat in table.humans if seat.client != client]
@@ -285,6 +295,14 @@ class UnityHall:
         if key != table.turn_key:
             table.turn_key = key
             table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
+            if game.current < len(table.humans):
+                seat = table.humans[game.current]
+                if seat.resume_after is not None and key != seat.resume_after and seat.client in table.members:
+                    seat.cpu = False
+                    seat.departed = False
+                    seat.resume_after = None
+                    game.players[game.current].is_human = True
+                    table.actions.append(f"human:{game.current}")
 
     @staticmethod
     def replace_human(table, index):

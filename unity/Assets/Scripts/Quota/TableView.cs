@@ -100,6 +100,7 @@ namespace Quota
         string draftOk = "5";
         string draftTurn = "30";
         double networkTurnDeadline;
+        readonly HashSet<int> departedSeats = new HashSet<int>();
         readonly HashSet<int> timedOutSeats = new HashSet<int>();
         readonly HashSet<int> timeoutNoticeSeats = new HashSet<int>();
         bool draftSimple;
@@ -822,7 +823,7 @@ namespace Quota
             for (var i = 0; i < tableCount; i++)
             {
                 var table = networkTables[i];
-                var action = table.status == "募集中" && table.seated < table.players ? "参加" : "観戦";
+                var action = table.rejoin ? "再び参加" : (table.status == "募集中" && table.seated < table.players ? "参加" : "観戦");
                 SetupButton(tableRoot, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
             }
             if (tableCount == 0) SetupNotice(tableRoot, "現在、卓はありません", rowW - 40f, buttonH, font);
@@ -1084,6 +1085,7 @@ namespace Quota
                     networkNavigating = true;
                     networkApplied = 0;
                     timedOutSeats.Clear();
+                    departedSeats.Clear();
                     timeoutNoticeSeats.Clear();
                     if (onSetup)
                     {
@@ -1146,6 +1148,7 @@ namespace Quota
                     status = JsonString(chunk, "status"),
                     players = JsonInt(chunk, "players"),
                     seated = JsonInt(chunk, "seated"),
+                    rejoin = JsonUtility.FromJson<NetworkTable>(chunk).rejoin,
                 };
                 if (!string.IsNullOrEmpty(table.id)) networkTables.Add(table);
                 start = close + 1;
@@ -1269,7 +1272,16 @@ namespace Quota
                 }
                 else if (timedOutSeats.Contains(game.Current) || IsSpectating || game.Current != HumanSeat(game))
                     QueueNotice(game.Current, key, !timedOutSeats.Contains(game.Current) && (game.TurnGain || game.DoubleGained));
-                if (key.StartsWith("timeout:")) { }
+                if (key.StartsWith("away:")) departedSeats.Add(int.Parse(key.Substring(5)));
+                else if (key.StartsWith("human:"))
+                {
+                    var seat = int.Parse(key.Substring(6));
+                    game.Players[seat].IsHuman = true;
+                    departedSeats.Remove(seat);
+                    timedOutSeats.Remove(seat);
+                    timeoutNoticeSeats.Remove(seat);
+                }
+                else if (key.StartsWith("timeout:")) { }
                 else if (key.StartsWith("cpu:")) game.Players[int.Parse(key.Substring(4))].IsHuman = false;
                 else if (key == "double") game.DeclareDouble();
                 else if (key == "reshuffle") game.DeclareReshuffle();
@@ -1568,6 +1580,7 @@ namespace Quota
             public string leader;
             public int players;
             public int seated;
+            public bool rejoin;
             public string status;
         }
 
@@ -2609,11 +2622,11 @@ namespace Quota
             }
         }
 
-        static string PlayerCaption(Game game, int seat)
+        string PlayerCaption(Game game, int seat)
         {
             var count = game.TurnOrder.Count;
             var position = count == 0 ? seat : (game.TurnOrder.IndexOf(seat) - (game.RoundIndex - 1) % count + count) % count;
-            return ((char)('①' + position)).ToString() + game.Players[seat].Name;
+            return ((char)('①' + position)).ToString() + game.Players[seat].Name + (departedSeats.Contains(seat) ? "（退席）" : "");
         }
 
         static int NameFontSize(string name, float width, int preferred)
