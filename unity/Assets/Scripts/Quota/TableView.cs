@@ -1586,7 +1586,7 @@ namespace Quota
                 ceremonyDialog = false;
             var showCeremony = reviewMode || ceremonyDialog;
             if (showCeremony) DrawCeremonyPanel();
-            else if (confirm == null && !catchingUpCards && ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
+            else if (confirm == null && !catchingUpCards && ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning && acknowledgedRound == game.RoundIndex) DrawRoundBreak(game);
             else if (confirm == null && MyHumanTurn && !busy && !CardsAnimating && !game.Finished) DrawControls(game);
             if (!game.Finished) LeaveButton();
             else RemoveLeaveButton();
