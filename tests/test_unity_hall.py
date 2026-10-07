@@ -263,3 +263,30 @@ def test_last_departed_player_can_rejoin_and_cancel_pending_return():
     hall.leave('a')
     assert table.humans[0].resume_after is None
     assert table.humans[0].departed
+
+
+@pytest.mark.parametrize("connected", [True, False])
+def test_timeout_proxy_returns_to_connected_human_on_next_turn(connected):
+    import time
+    hall, table = playing_pair()
+    game = table.game
+    game.current = 1
+    game.order_cursor = game.turn_order.index(1)
+    hall.update_deadline(table)
+    table.turn_deadline = 0
+    hall.snapshot('b')
+    assert not game.players[1].is_human
+    assert not table.humans[1].departed
+    if not connected: table.humans[1].last_seen = time.monotonic() - 10
+    hall.apply_action(table, 'pass')
+    for _ in range(3):
+        hall.update_deadline(table)
+        if game.current == 1: break
+        hall.apply_action(table, 'pass')
+    assert game.current == 1
+    assert game.players[1].is_human == connected
+    if connected:
+        assert table.actions[-1] == 'human:1'
+        assert not table.recruiting('b')['you']['observer']
+    else:
+        assert table.humans[1].resume_after is not None

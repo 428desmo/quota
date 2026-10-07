@@ -79,7 +79,12 @@ namespace Quota
         void EnqueueCards(BoardFrame before, BoardFrame after)
         {
             cardChanges.Enqueue(new BoardChange { Before = before, After = after });
-            if (cardMotion == null) cardMotion = StartCoroutine(RunCardChanges(cardTicket));
+            if (cardMotion == null)
+            {
+                // Keep the pre-action board visible before the coroutine's first yield.
+                presentedBoard = before.Copy();
+                cardMotion = StartCoroutine(RunCardChanges(cardTicket));
+            }
         }
         IEnumerator RunCardChanges(int ticket)
         {

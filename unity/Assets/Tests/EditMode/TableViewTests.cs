@@ -198,6 +198,27 @@ namespace Quota.Tests
             Assert.IsNull(deck.Find("upper")); Assert.AreEqual("0", deck.Find("remaining").GetComponent<Text>().text);
         }
 
+        [Test]
+        public void RefillCardStaysHiddenDuringAnimationStartupFrame()
+        {
+            host = Open();
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            var type = typeof(TableView).GetNestedType("BoardFrame", BindingFlags.NonPublic);
+            var capture = type.GetMethod("Capture", BindingFlags.Static | BindingFlags.Public);
+            var before = capture.Invoke(null, new object[] { game });
+            var original = game.Market[0];
+            var refill = new Card(99123, Suit.H, 7);
+            game.Market[0] = refill;
+            var after = capture.Invoke(null, new object[] { game });
+            typeof(TableView).GetMethod("EnqueueCards", flags).Invoke(view, new[] { before, after });
+            Show(view);
+            Assert.IsNotNull(host.transform.Find("Root/Frame/card" + original.Id));
+            Assert.IsNull(host.transform.Find("Root/Frame/card" + refill.Id));
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void CompletedQuotaHasAPresentationOnlyFullCollectionStage(bool rankOne)

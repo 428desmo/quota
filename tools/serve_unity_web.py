@@ -44,6 +44,7 @@ class Seat:
         self.cpu = cpu
         self.departed = False
         self.resume_after = None
+        self.last_seen = time.monotonic()
 
 
 class UnityTable:
@@ -143,6 +144,8 @@ class UnityHall:
             self.where.pop(client, None)
             return {"phase": "hall", "tables": [item.summary(client) for item in self.tables.values()]}
         table.touch()
+        if client in table.members:
+            table.members[client].last_seen = time.monotonic()
         if table.phase == "playing":
             self.pump_cpu(table)
         return table.recruiting(client)
@@ -169,6 +172,7 @@ class UnityHall:
                 seat.resume_after = (table.game.round_index, table.game.turn_number, table.game.current)
             else:
                 seat = Seat(client, str(body.get("name") or "あなた"))
+            seat.last_seen = time.monotonic()
             table.members[client] = seat
             if table.phase == "recruiting" and table.seated() < table.players:
                 table.humans.append(seat)
@@ -297,7 +301,7 @@ class UnityHall:
             table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
             if game.current < len(table.humans):
                 seat = table.humans[game.current]
-                if seat.resume_after is not None and key != seat.resume_after and seat.client in table.members:
+                if seat.resume_after is not None and key != seat.resume_after and seat.client in table.members and time.monotonic() - seat.last_seen <= 5:
                     seat.cpu = False
                     seat.departed = False
                     seat.resume_after = None
@@ -334,6 +338,7 @@ class UnityHall:
         if sum(not seat.cpu for seat in table.humans) > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
             table.actions.append(f"timeout:{game.current}")
             self.replace_human(table, game.current)
+            table.humans[game.current].resume_after = table.turn_key
 
         game = table.game
         if game is None or game.finished or game.awaiting_next_round or game.players[game.current].is_human or time.monotonic() < table.cpu_at:
