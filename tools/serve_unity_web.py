@@ -242,6 +242,8 @@ class UnityHall:
         if table.phase != "recruiting":
             raise ValueError("対局中は人数を変更できません")
         table.players = players
+        if len(table.cpu_cast) < players:
+            table.cpu_cast.extend(pick_cast(players - len(table.cpu_cast), used=table.cpu_cast))
         table.touch()
         return table.recruiting(client)
 
@@ -339,7 +341,7 @@ class UnityHall:
             # Continue even when the original human leader has left the table.
             if table.round_at is None:
                 table.round_at = time.monotonic()
-            if not any(p.is_human for p in game.players) or table.host.client not in self.where:
+            if table.host.client not in self.where:
                 if time.monotonic() >= table.round_at + max(0, float(table.options["ok_timeout"])):
                     self.apply_action(table, "next_round")
                     table.round_at = None

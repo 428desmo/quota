@@ -19,6 +19,24 @@ namespace Quota.Tests
             if (events != null) Object.DestroyImmediate(events.gameObject);
         }
 
+        [Test]
+        public void FourCpuNetworkTableStartsWithoutHumanSeats()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":4,\"seed\":1,\"seats\":[],\"cpus\":[\"A\",\"B\",\"C\",\"D\"],\"cpu_cast\":[0,1,2,3],\"you\":{\"seat\":-1,\"observer\":true,\"leader\":true},\"options\":{\"simple\":true},\"actions\":[]}";
+            typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            Assert.AreEqual(4, game.Players.Count);
+            foreach (var player in game.Players) Assert.IsFalse(player.IsHuman);
+            game.AwaitingNextRound = true;
+            typeof(TableView).GetMethod("ShowCompletedCeremony", flags).Invoke(view, null);
+            Assert.IsNotNull(FindText("OK"));
+            Assert.IsFalse((bool)typeof(TableView).GetField("ceremonyRunning", flags).GetValue(view));
+            Assert.IsTrue((bool)typeof(TableView).GetField("ceremonyDialog", flags).GetValue(view));
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         public void RoundPanelStartsWithEachNetworkViewersOwnPlayerAndNoScores(int viewer)

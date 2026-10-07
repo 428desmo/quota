@@ -943,7 +943,7 @@ namespace Quota
             {
                 var networkSeats = new List<KeyValuePair<string, bool>>();
                 if (networkState.seats != null)
-                    foreach (var seat in networkState.seats)
+                    foreach (var seat in networkState.seats ?? new NetworkSeat[0])
                         networkSeats.Add(new KeyValuePair<string, bool>(seat.name, false));
                 if (networkState.cpus != null)
                     foreach (var cpu in networkState.cpus)
@@ -1148,7 +1148,9 @@ namespace Quota
                     }
                 }
                 ApplyNetworkActions(next.actions);
+                var restoredEnding = catchingUpCards && match.Game != null && (match.Game.AwaitingNextRound || match.Game.Finished);
                 catchingUpCards = false;
+                if (restoredEnding) ShowCompletedCeremony();
                 return;
             }
             var signature = next.phase + ":" + (next.table_id ?? "") + ":" + HallSignature() + ":" + JsonUtility.ToJson(next);
@@ -1312,9 +1314,9 @@ namespace Quota
                 {
                     var seat = int.Parse(key.Substring(8));
                     timedOutSeats.Add(seat);
-                    QueueTimeoutNotice(seat);
+                    if (!catchingUpCards) QueueTimeoutNotice(seat);
                 }
-                else if (timedOutSeats.Contains(game.Current) || IsSpectating || game.Current != HumanSeat(game))
+                else if (!catchingUpCards && (timedOutSeats.Contains(game.Current) || IsSpectating || game.Current != HumanSeat(game)))
                     QueueNotice(game.Current, key, !timedOutSeats.Contains(game.Current) && (game.TurnGain || game.DoubleGained));
                 if (key.StartsWith("away:")) departedSeats.Add(int.Parse(key.Substring(5)));
                 else if (key.StartsWith("human:"))
@@ -1465,9 +1467,9 @@ namespace Quota
             }
             var shared = networkState != null && networkState.phase == "playing";
             var humanSeats = new List<int>();
-            if (shared && networkState.seats != null)
+            if (shared)
             {
-                foreach (var seat in networkState.seats)
+                foreach (var seat in networkState.seats ?? new NetworkSeat[0])
                 {
                     humanSeats.Add(names.Count);
                     names.Add(seat.name);
@@ -1553,7 +1555,7 @@ namespace Quota
             coinFrom = SnapshotCardCoins();
             var game = match.Game;
             var ceremonyBreak = !reviewMode && game != null && (game.AwaitingNextRound || (Application.isPlaying && game.Finished && !ceremonyDismissed));
-            if (ceremonyBreak && Application.isPlaying && !CardsAnimating && !ceremonyRunning && acknowledgedRound != game.RoundIndex)
+            if (ceremonyBreak && !catchingUpCards && Application.isPlaying && !CardsAnimating && !ceremonyRunning && acknowledgedRound != game.RoundIndex)
             {
                 ceremonyRunning = true;
                 PrepareCeremony(game);
@@ -1584,7 +1586,7 @@ namespace Quota
                 ceremonyDialog = false;
             var showCeremony = reviewMode || ceremonyDialog;
             if (showCeremony) DrawCeremonyPanel();
-            else if (confirm == null && ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
+            else if (confirm == null && !catchingUpCards && ceremonyBreak && game.AwaitingNextRound && !ceremonyRunning) DrawRoundBreak(game);
             else if (confirm == null && MyHumanTurn && !busy && !CardsAnimating && !game.Finished) DrawControls(game);
             if (!game.Finished) LeaveButton();
             else RemoveLeaveButton();
@@ -1774,6 +1776,30 @@ namespace Quota
             ceremonyReasonShown = false;
             ceremonyExpand = 0f;
             ceremonyButton = null;
+        }
+
+        // A newly joined viewer sees the completed result, never the historical animation.
+        void ShowCompletedCeremony()
+        {
+            cpuRun++;
+            PrepareCeremony(match.Game);
+            ceremonyRunning = false;
+            acknowledgedRound = match.Game.RoundIndex;
+            ceremonyDialog = true;
+            ceremonyNamesOnly = false;
+            ceremonyExpand = 1f;
+            ceremonyOverall = match.Game.RoundIndex >= 2;
+            ceremonyEquation = ceremonyOverall;
+            scoreOverride = new Dictionary<int, int>();
+            foreach (var seat in dialogOrder)
+                scoreOverride[seat] = roundScores[seat] + (ceremonyOverall ? previousScores[seat] : 0);
+            dialogOrder.Sort((a, b) => scoreOverride[b].CompareTo(scoreOverride[a]));
+            AssignPlaces(seat => scoreOverride[seat]);
+            CaptureRankSlots();
+            ceremonyTray.Clear();
+            ceremonyWinner = ceremonyLast;
+            ceremonyButton = "OK";
+            ShowTable();
         }
 
         IEnumerator RunCeremony(int serial)
@@ -2217,6 +2243,7 @@ namespace Quota
                 if (!reviewMode)
                 {
                     ceremonyOk = true;
+                    if (!ceremonyRunning) FinishCeremony();
                     return;
                 }
                 reviewMode = false;
@@ -2500,36 +2527,7 @@ namespace Quota
 
         void DrawRoundBreak(Game game)
         {
-            var reason = game.RoundEndReason == "DECK" ? "山札切れ" : "膠着の連続";
-            const float width = 760f;
-            var height = 220f + game.Players.Count * 36f;
-            var panel = WideScreen()
-                ? Portrait.Box(frame, "round-break", (LandWidth - width) * 0.5f, (LandHeight - height) * 0.5f, width, height, 7f, 1f, Paper, Ink, false)
-                : Portrait.Box(frame, "round-break", (ScreenWidth - width) * 0.5f, 640f, width, height, 7f, 1f, Paper, Ink, false);
-            TextAt(panel, $"第{game.RoundIndex}ラウンド終了（{reason}）", 32f, 24f, width - 64f, 48f, 32, Ink, nameFont, TextAnchor.MiddleLeft);
-            var y = 84f;
-            foreach (var group in game.Ranking())
-            {
-                foreach (var seat in group)
-                {
-                    var player = game.Players[seat];
-                    TextAt(panel, $"{player.Name}  {game.FinalScore(player)}点", 32f, y, width - 64f, 36f, 24, Ink, nameFont, TextAnchor.MiddleLeft);
-                    y += 36f;
-                }
-            }
-            if (NetworkPlaying && (networkState.you == null || !networkState.you.leader))
-            {
-                TextAt(panel, "リーダーが次のラウンドを開始するのを待っています", 32f, height - 96f, width - 64f, 72f, 24, Ink, nameFont, TextAnchor.MiddleCenter);
-                return;
-            }
-            Pill(panel, "次のラウンド", 32f, height - 96f, 280f, 72f, 32, () =>
-            {
-                if (NetworkPlaying) { SendNetworkAction("next_round"); return; }
-                var beforeCards = BoardFrame.Capture(match.Game);
-                match.Game.BeginNextRound();
-                TrackCardChange(beforeCards);
-                ShowTable();
-            });
+            ShowCompletedCeremony();
         }
 
         Material logoInk;
