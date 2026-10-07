@@ -99,7 +99,9 @@ namespace Quota
         string webNetworkResponse;
         string draftOk = "5";
         string draftTurn = "30";
-        float networkTurnDeadline;
+        double networkTurnDeadline;
+        readonly HashSet<int> timedOutSeats = new HashSet<int>();
+        readonly HashSet<int> timeoutNoticeSeats = new HashSet<int>();
         bool draftSimple;
         bool confirmActions = true;
         bool draftConfirmActions = true;
@@ -601,6 +603,7 @@ namespace Quota
 
         internal static string NoticeFor(string key, bool gained)
         {
+            if (key.StartsWith("timeout:")) return "CPUによる代理アクション";
             if (key == "pass") return gained ? null : "パス";
             if (key == "abandon") return "放棄";
             if (key == "double") return "ダブル";
@@ -615,6 +618,11 @@ namespace Quota
             if (caption == null || !Application.isPlaying || catchingUpCards) return;
             actionNotices.Enqueue(new KeyValuePair<int, string>(seat, caption));
             if (noticeRun == null) noticeRun = StartCoroutine(ShowNotices());
+        }
+
+        void QueueTimeoutNotice(int seat)
+        {
+            if (timeoutNoticeSeats.Add(seat)) QueueNotice(seat, "timeout:" + seat, false);
         }
 
         IEnumerator ShowNotices()
@@ -1051,7 +1059,7 @@ namespace Quota
             if (next == null || !string.IsNullOrEmpty(next.error)) return;
             var wasRecruiting = networkState != null && networkState.phase == "recruiting";
             networkState = next;
-            networkTurnDeadline = Time.unscaledTime + next.turn_remaining;
+            networkTurnDeadline = Time.realtimeSinceStartupAsDouble + next.turn_remaining;
             if (next.phase == "hall")
             {
                 networkLeaving = false;
@@ -1075,6 +1083,8 @@ namespace Quota
                 {
                     networkNavigating = true;
                     networkApplied = 0;
+                    timedOutSeats.Clear();
+                    timeoutNoticeSeats.Clear();
                     if (onSetup)
                     {
                         playerCount = next.players;
@@ -1237,6 +1247,7 @@ namespace Quota
 
         void SendNetworkAction(string key)
         {
+            if (key != "next_round" && networkState != null && networkState.turn_timeout_active && networkTurnDeadline <= Time.realtimeSinceStartupAsDouble) return;
             confirm = null;
             StartCoroutine(NetworkPost("/api/action", JsonUtility.ToJson(new NetworkActionRequest { key = key, revision = networkApplied })));
         }
@@ -1250,8 +1261,16 @@ namespace Quota
                 var key = actions[networkApplied];
                 var game = match.Game;
                 var beforeCards = BoardFrame.Capture(game);
-                if (IsSpectating || game.Current != HumanSeat(game)) QueueNotice(game.Current, key, game.TurnGain || game.DoubleGained);
-                if (key.StartsWith("cpu:")) game.Players[int.Parse(key.Substring(4))].IsHuman = false;
+                if (key.StartsWith("timeout:"))
+                {
+                    var seat = int.Parse(key.Substring(8));
+                    timedOutSeats.Add(seat);
+                    QueueTimeoutNotice(seat);
+                }
+                else if (timedOutSeats.Contains(game.Current) || IsSpectating || game.Current != HumanSeat(game))
+                    QueueNotice(game.Current, key, !timedOutSeats.Contains(game.Current) && (game.TurnGain || game.DoubleGained));
+                if (key.StartsWith("timeout:")) { }
+                else if (key.StartsWith("cpu:")) game.Players[int.Parse(key.Substring(4))].IsHuman = false;
                 else if (key == "double") game.DeclareDouble();
                 else if (key == "reshuffle") game.DeclareReshuffle();
                 else if (key == "cancel_double") game.CancelDouble();
@@ -2662,7 +2681,7 @@ namespace Quota
             seatFrames[index] = seat;
             Portrait.Box(seat, "plate", 16f, 22f, 1188f, 206f, 7f, 1f, Plate, Ink, false);
             Portrait.Box(seat, "nameplate", 16f, 6f, LandWidth * 0.5f, 46f, 4.5f, 1f, NameplateColor(game, index), Ink, false);
-            var name = TextAt(seat, PlayerCaption(game, index), 28f, 6f, LandWidth * 0.5f - 24f, 46f, NameFontSize(PlayerCaption(game, index), LandWidth * 0.5f - 24f, 30), Ink, nameFont, TextAnchor.MiddleLeft);
+            var name = TextAt(seat, PlayerCaption(game, index), 28f, 6f, 648f, 46f, NameFontSize(PlayerCaption(game, index), 648f, 30), Ink, nameFont, TextAnchor.MiddleLeft);
             name.horizontalOverflow = HorizontalWrapMode.Overflow;
             name.fontStyle = FontStyle.Bold;
             if (game.Config.SpecialActionsRule)
@@ -3023,7 +3042,7 @@ namespace Quota
 
         void DrawTurnCountdown(Transform seat, int index, bool wide)
         {
-            var label = TextAt(seat, "", wide ? 840f : 660f, wide ? 58f : 75f, 130f, 38f, 26, Ink, nameFont, TextAnchor.MiddleRight);
+            var label = TextAt(seat, "", wide ? 700f : 620f, wide ? 8f : 25f, 200f, 40f, 26, Ink, nameFont, TextAnchor.MiddleRight);
             label.gameObject.name = "turn-countdown";
             label.fontStyle = FontStyle.Bold;
             UpdateTurnCountdown();
@@ -3038,7 +3057,23 @@ namespace Quota
                 var host = seatFrames[i].Find("turn-countdown");
                 if (host == null) continue;
                 var active = !onSetup && NetworkPlaying && networkState.turn_timeout_active && game != null && !game.Finished && game.Current == i;
-                host.GetComponent<Text>().text = active ? Mathf.CeilToInt(Mathf.Max(0f, networkTurnDeadline - Time.unscaledTime)) + "秒" : "";
+                var remaining = networkTurnDeadline - Time.realtimeSinceStartupAsDouble;
+                var label = host.GetComponent<Text>();
+                label.text = active ? (int)System.Math.Ceiling(System.Math.Max(0d, remaining)) + "秒" : "";
+                label.color = active && remaining <= 5f ? Hex("#D00000") : Ink;
+            }
+            if (frame != null && NetworkPlaying && networkState.turn_timeout_active && networkTurnDeadline <= Time.realtimeSinceStartupAsDouble)
+            {
+                if (game != null && !game.Finished) QueueTimeoutNotice(game.Current);
+                var controls = frame.Find("controls");
+                if (controls != null) controls.gameObject.SetActive(false);
+                if (confirm != null && confirm != "leave")
+                {
+                    var dialog = frame.Find("confirm");
+                    if (dialog != null) dialog.gameObject.SetActive(false);
+                    foreach (var seat in seatFrames)
+                        if (seat != null && seat.Find("confirm") != null) seat.Find("confirm").gameObject.SetActive(false);
+                }
             }
         }
 

@@ -1012,6 +1012,31 @@ namespace Quota.Tests
             Object.DestroyImmediate(stale);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CountdownIsVisibleTurnsRedAndHidesExpiredControls(bool wide)
+        {
+            host = Open();
+            Set("widePreview", wide);
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":3,\"seed\":0,\"turn_timeout_active\":true,\"turn_remaining\":30,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"CPU\"],\"cpu_cast\":[0],\"you\":{\"seat\":0,\"leader\":true},\"options\":{\"simple\":true},\"actions\":[]}";
+            typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            game.Current = 0;
+            Show(view);
+            var label = host.transform.Find("Root/Frame/seat0/turn-countdown").GetComponent<Text>();
+            Assert.AreEqual("30秒", label.text);
+            Set("networkTurnDeadline", Time.realtimeSinceStartupAsDouble + 4d);
+            typeof(TableView).GetMethod("UpdateTurnCountdown", flags).Invoke(view, null);
+            Assert.AreEqual("4秒", label.text);
+            Assert.Greater(label.color.r, label.color.g);
+            Set("networkTurnDeadline", Time.realtimeSinceStartupAsDouble - 1d);
+            typeof(TableView).GetMethod("UpdateTurnCountdown", flags).Invoke(view, null);
+            Assert.AreEqual("0秒", label.text);
+            Assert.IsFalse(host.transform.Find("Root/Frame/controls").gameObject.activeSelf);
+        }
+
         [Test]
         public void ActionFillIsOpaqueAndDisabledConfirmationPassesImmediately()
         {

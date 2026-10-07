@@ -140,6 +140,7 @@ def test_timeout_replaces_human_without_renaming_or_resetting_board():
     hall.update_deadline(table)
     table.turn_deadline = 0
     state = hall.snapshot('b')
+    assert state['actions'][:2] == ['timeout:1', 'cpu:1']
     assert not table.game.players[1].is_human
     assert table.game.players[1].name == 'B'
     assert state['you']['observer']
