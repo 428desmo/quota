@@ -44,7 +44,7 @@ namespace Quota
         static readonly Color Plate = new Color(0.953f, 0.929f, 0.894f, 0.80f);
         static readonly Color Paper = new Color(0.965f, 0.945f, 0.910f, 0.92f);
         static readonly Color Field = Hex("#FFF8F0");
-        static readonly Color DimTint = new Color(0.78f, 0.74f, 0.68f, 1f);
+        static readonly Color DimTint = new Color(0.52f, 0.49f, 0.45f, 1f);
 
         static readonly Color[] IndicatorColors =
         {
@@ -61,6 +61,8 @@ namespace Quota
         RectTransform frame;
         Image backdrop;
         bool backdropDim;
+        float backdropShade;
+        float tableScroll = 1f;
         SpriteRenderer backdropStage;
         VolumeProfile gradeProfile;
         Sprite verticalBackground;
@@ -239,6 +241,11 @@ namespace Quota
 
         void OnDestroy()
         {
+            if (logoInk != null)
+            {
+                if (Application.isPlaying) Destroy(logoInk);
+                else DestroyImmediate(logoInk);
+            }
             if (gradeProfile == null) return;
             if (Application.isPlaying) Destroy(gradeProfile);
             else DestroyImmediate(gradeProfile);
@@ -308,6 +315,12 @@ namespace Quota
 
         void Update()
         {
+            var shade = Mathf.MoveTowards(backdropShade, backdropDim ? 1f : 0f, Time.unscaledDeltaTime / 0.8f);
+            if (!Mathf.Approximately(shade, backdropShade))
+            {
+                backdropShade = shade;
+                PresentBackdrop();
+            }
             if (frame != null && frame.Find("splash") != null && (Input.GetMouseButtonDown(0) || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began))) DismissSplash();
             if (TouchScreenKeyboard.visible) return;
             foreach (var input in GetComponentsInChildren<InputField>())
@@ -392,7 +405,8 @@ namespace Quota
         void PresentBackdrop()
         {
             if (backdrop == null) return;
-            var tint = backdropDim ? DimTint : Color.white;
+            if (!Application.isPlaying) backdropShade = backdropDim ? 1f : 0f;
+            var tint = Color.Lerp(Color.white, DimTint, Mathf.SmoothStep(0f, 1f, backdropShade));
             if (backdrop.sprite != null)
             {
                 Shader.SetGlobalTexture("_QuotaBackdrop", backdrop.sprite.texture);
@@ -752,7 +766,7 @@ namespace Quota
             else Shade(TextAt(frame, "QUOTA", (screenW - 700f) * 0.5f, 36f, 700f, 72f, 64, Cream, nameFont, TextAnchor.MiddleCenter));
             if (catchLine != null) PlaceSprite(frame, "title-catch", catchLine, (screenW - 560f) * 0.5f, 184f, 560f, 56f);
             else Shade(TextAt(frame, "ノルマは、自分で決めろ。", (screenW - 700f) * 0.5f, 184f, 700f, 40f, 28, Cream, nameFont, TextAnchor.MiddleCenter));
-            const float columnTop = 384f;
+            var columnTop = wide ? 264f : 384f;
             var showReview = reviewUntil > Time.realtimeSinceStartup && reviewOrder != null && reviewOrder.Count > 0;
             var available = screenH - columnTop - 24f;
             if (lobbyOpen) DrawLobby(screenW, columnTop, available, showReview);
@@ -777,8 +791,9 @@ namespace Quota
         void DrawStartMenu(float screenW, float columnTop, float available, bool showReview)
         {
             const float innerGap = 16f;
-            var tableCount = Mathf.Min(3, networkTables.Count);
-            var buttonH = SetupButtonHeight(available, 12f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f), 4 + Mathf.Max(1, tableCount) + (showReview ? 1 : 0));
+            var tableCount = Mathf.Min(4, networkTables.Count);
+            var fixedSpace = 80f + Mathf.Max(1, tableCount) * 12f + (showReview ? 16f : 0f);
+            var buttonH = Mathf.Clamp((available - fixedSpace) / (14f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f)), 28f, 72f);
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
             var column = SetupColumn(screenW, columnTop, available + 24f);
             var guideW = screenW * 0.40f;
@@ -820,13 +835,38 @@ namespace Quota
             layout.childForceExpandHeight = false;
             var tableRoot = tablePanel.GetComponent<RectTransform>();
             SetupNotice(tableRoot, "参加・観戦できるゲーム卓", rowW - 40f, buttonH, font);
-            for (var i = 0; i < tableCount; i++)
+            var viewportHeight = Mathf.Max(1, tableCount) * (buttonH + 12f) - 12f;
+            var viewportObject = new GameObject("table-viewport", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+            viewportObject.transform.SetParent(tableRoot, false);
+            SizeElement(viewportObject.GetComponent<LayoutElement>(), rowW - 40f, viewportHeight);
+            viewportObject.GetComponent<Image>().color = Color.clear;
+            var viewport = viewportObject.GetComponent<RectTransform>();
+            var content = Portrait.Rect(viewport, "table-list-content", 0f, 0f, rowW - 40f, Mathf.Max(1, networkTables.Count) * (buttonH + 12f) - 12f);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.sizeDelta = new Vector2(0f, Mathf.Max(1, networkTables.Count) * (buttonH + 12f) - 12f);
+            content.anchoredPosition = new Vector2(0f, (1f - tableScroll) * Mathf.Max(0f, content.sizeDelta.y - viewportHeight));
+            var contentLayout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            contentLayout.spacing = 12f;
+            contentLayout.childAlignment = TextAnchor.UpperCenter;
+            contentLayout.childControlWidth = contentLayout.childControlHeight = true;
+            contentLayout.childForceExpandWidth = contentLayout.childForceExpandHeight = false;
+            var scroll = viewportObject.GetComponent<ScrollRect>();
+            scroll.viewport = viewport;
+            scroll.content = content;
+            scroll.horizontal = false;
+            scroll.vertical = networkTables.Count > 4;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 40f;
+            scroll.onValueChanged.AddListener(value => tableScroll = value.y);
+            for (var i = 0; i < networkTables.Count; i++)
             {
                 var table = networkTables[i];
                 var action = table.rejoin ? "再び参加" : (table.status == "募集中" && table.seated < table.players ? "参加" : "観戦");
-                SetupButton(tableRoot, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
+                SetupButton(content, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
             }
-            if (tableCount == 0) SetupNotice(tableRoot, "現在、卓はありません", rowW - 40f, buttonH, font);
+            if (tableCount == 0) SetupNotice(content, "現在、卓はありません", rowW - 40f, buttonH, font);
             SetupGap(column, section);
             SetupButton(column, "実装テスト", () => OpenPage("tests"), actionW, buttonH, font);
             if (showReview)
@@ -2503,7 +2543,7 @@ namespace Quota
             {
                 PlaceSprite(frame, "title-mark", mark, 24f, 28f, 640f - Mathf.Max(0, game.Config.ResolvedStallThreshold() * 2 - 6) * 22f, 116f);
                 var image = frame.Find("title-mark").GetComponent<Image>();
-                image.color = Cream;
+                image.color = Color.white;
                 if (logoInk == null) logoInk = new Material(Resources.Load<Shader>("Quota/LogoInk")) { hideFlags = HideFlags.HideAndDontSave };
                 image.material = logoInk;
             }
@@ -3757,7 +3797,7 @@ namespace Quota
             return MakeSprite(FitTexture(texture));
         }
 
-        static void PlaceSprite(Transform parent, string name, Sprite sprite, float x, float y, float width, float height)
+        void PlaceSprite(Transform parent, string name, Sprite sprite, float x, float y, float width, float height)
         {
             var host = Portrait.Rect(parent, name, x, y, width, height);
             var image = host.gameObject.AddComponent<Image>();
@@ -3765,6 +3805,11 @@ namespace Quota
             image.preserveAspect = true;
             image.raycastTarget = false;
             image.color = Color.white;
+            if (name == "title-mark" || name == "title-catch")
+            {
+                if (logoInk == null) logoInk = new Material(Resources.Load<Shader>("Quota/LogoInk")) { hideFlags = HideFlags.HideAndDontSave };
+                image.material = logoInk;
+            }
         }
 
         void SetupButton(RectTransform parent, string caption, UnityAction action, float width, float height, int fontSize)
@@ -3772,7 +3817,7 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
-            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || parent.name == "table-list";
+            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || (parent.name == "table-list" || parent.name == "table-list-content");
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
             image.color = accent ? Accent : Ecru;
