@@ -180,7 +180,7 @@ def test_abandon_does_not_extend_turn_deadline():
     assert table.turn_deadline == deadline
 
 
-def test_all_humans_replaced_can_advance_remaining_rounds():
+def test_replaced_humans_wait_for_connected_leaders_ceremony():
     hall, table = playing_pair()
     table.game.round_count = 3
     table.game.awaiting_next_round = True
@@ -188,6 +188,8 @@ def test_all_humans_replaced_can_advance_remaining_rounds():
     hall.replace_human(table, 0)
     hall.replace_human(table, 1)
     hall.snapshot('a')
+    assert table.game.awaiting_next_round
+    hall.action({'key': 'next_round', 'revision': len(table.actions)}, 'a')
     assert not table.game.awaiting_next_round
     assert table.actions[-1] == 'next_round'
     assert all(not p.is_human for p in table.game.players)
@@ -358,3 +360,31 @@ def test_spectator_join_does_not_enable_a_single_humans_timer():
     hall.join({'table': table.id, 'name': '観戦者'}, 'spectator')
     assert table.participating_humans() == 1
     assert not table.recruiting('a')['turn_timeout_active']
+
+
+def test_four_cpu_start_after_increasing_lobby_size():
+    hall = UnityHall()
+    opened = hall.create({"players": 3, "name": "A"}, "a")
+    original = opened["cpu_cast"]
+    hall.set_players({"players": 4}, "a")
+    watched = hall.participation({"sit_out": True}, "a")
+    assert len(watched["cpu_cast"]) == len(watched["cpus"]) == 4
+    assert watched["cpu_cast"][:len(original)] == original
+    started = hall.begin("a")
+    assert len(started["cpus"]) == 4
+    assert not any(p.is_human for p in hall.tables[opened["table_id"]].game.players)
+
+
+def test_cpu_spectator_leader_controls_next_round_after_ceremony():
+    hall = UnityHall()
+    opened = hall.create({"players": 4, "name": "A", "ok_timeout": 0}, "a")
+    hall.participation({"sit_out": True}, "a")
+    hall.begin("a")
+    table = hall.tables[opened["table_id"]]
+    table.game.awaiting_next_round = True
+    table.round_at = 0
+    hall.snapshot("a")
+    assert table.game.awaiting_next_round
+    assert "next_round" not in table.actions
+    hall.action({"key": "next_round", "revision": len(table.actions)}, "a")
+    assert not table.game.awaiting_next_round
