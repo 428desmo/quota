@@ -198,6 +198,39 @@ namespace Quota.Tests
             Assert.IsNull(deck.Find("upper")); Assert.AreEqual("0", deck.Find("remaining").GetComponent<Text>().text);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SixTablesScrollInsideFourRowViewportAndLogosAreWhite(bool wide)
+        {
+            host = Open();
+            Set("widePreview", wide);
+            var view = host.GetComponent<TableView>();
+            var entries = new List<string>();
+            for (var i = 0; i < 6; i++) entries.Add("{\"id\":\"table" + i + "\",\"leader\":\"卓" + i + "\",\"players\":3,\"seated\":1,\"status\":\"募集中\"}");
+            typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, new object[] { "{\"phase\":\"hall\",\"tables\":[" + string.Join(",", entries) + "]}" });
+            Canvas.ForceUpdateCanvases();
+            var scroll = host.GetComponentInChildren<ScrollRect>();
+            Assert.IsNotNull(scroll);
+            Assert.IsTrue(scroll.vertical);
+            Assert.IsFalse(scroll.horizontal);
+            Assert.IsNotNull(scroll.viewport.GetComponent<RectMask2D>());
+            Assert.AreEqual(6, scroll.content.childCount);
+            var frame = host.transform.Find("Root/Frame") as RectTransform;
+            Assert.GreaterOrEqual(WorldBottom(FindButton("実装テスト").transform as RectTransform), WorldBottom(frame));
+            var first = scroll.content.GetChild(0).GetComponent<RectTransform>();
+            Assert.AreEqual(first.rect.height * 4f + 36f, scroll.viewport.rect.height, 1f);
+            scroll.verticalNormalizedPosition = 0f;
+            Canvas.ForceUpdateCanvases();
+            Assert.Greater(scroll.content.anchoredPosition.y, 0f);
+            foreach (var logo in new[] { "title-mark", "title-catch" })
+            {
+                var image = host.transform.Find("Root/Frame/" + logo).GetComponent<Image>();
+                Assert.AreEqual(Color.white, image.color);
+                Assert.AreEqual("Quota/LogoInk", image.material.shader.name);
+            }
+        }
+
         [Test]
         public void RefillCardStaysHiddenDuringAnimationStartupFrame()
         {
@@ -626,14 +659,14 @@ namespace Quota.Tests
                 if (label.text.StartsWith("場札から商品のカードを1枚選んで")) intro = label;
             Assert.IsNotNull(intro);
             Assert.AreEqual(36, intro.fontSize);
-            var quickScroll = host.GetComponentInChildren<ScrollRect>();
+            var quickScroll = host.transform.Find("Root/Frame/setup-dialog").GetComponentInChildren<ScrollRect>();
             Assert.IsNotNull(quickScroll);
             Click("OK");
             Assert.IsNull(host.transform.Find("Root/Frame/setup-dialog"));
 
             Click("ルール");
             Rebuild(host);
-            var rulesScroll = host.GetComponentInChildren<ScrollRect>();
+            var rulesScroll = host.transform.Find("Root/Frame/setup-dialog").GetComponentInChildren<ScrollRect>();
             Assert.IsNotNull(rulesScroll);
             Assert.Greater(rulesScroll.content.rect.height, rulesScroll.viewport.rect.height);
             Click("OK");
