@@ -81,6 +81,7 @@ namespace Quota
         public int TitleMinAchieves = 3;
         public int TitleMonoBonus = 15;
         public int TitlePuristBonus = 5;
+        public int TitleVarietyBonus = 5;
         public bool SpecialActionsRule;
         public int ReshuffleTakeUses = 1;
         public int DoubleActionUses = 1;
@@ -552,6 +553,11 @@ namespace Quota
         {
             var awards = new List<(string, int)>();
             if (!Config.TitleRule) return awards;
+            var achievedKinds = new HashSet<Suit>();
+            foreach (var card in player.Achieved) achievedKinds.Add(card.Suit);
+            if (achievedKinds.Contains(Suit.S) && achievedKinds.Contains(Suit.H)
+                && achievedKinds.Contains(Suit.D) && achievedKinds.Contains(Suit.C) && achievedKinds.Contains(Suit.Joker))
+                awards.Add(("五種の品揃え", Config.TitleVarietyBonus));
             if (player.Bundles.Count < Config.TitleMinAchieves) return awards;
             var kinds = new HashSet<string>();
             var wild = false;

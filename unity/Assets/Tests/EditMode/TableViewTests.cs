@@ -1314,6 +1314,7 @@ namespace Quota.Tests
                 var purist = names.Find("title-purist").GetComponent<Text>();
                 Assert.AreEqual("単色達成", mono.text);
                 Assert.AreEqual("生粋の買い付け", purist.text);
+                Assert.AreEqual("五種の品揃え", names.Find("title-variety").GetComponent<Text>().text);
                 var struck = i == expected[2];
                 if (struck) Assert.AreEqual(0.541f, mono.color.r, 0.02f);
                 else

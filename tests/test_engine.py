@@ -449,3 +449,21 @@ def _assert_invariants(game: Game, removed_ids: list[int]) -> None:
             assert 1 + len(p.collection) < p.quota.rank
             for card in p.collection:
                 assert card.suit == p.quota.suit or card.suit == "JOKER"
+
+
+@pytest.mark.parametrize("missing", [None, "S", "H", "D", "C", "JOKER"])
+def test_five_varieties_require_every_kind_in_achievements(missing):
+    game = Game.start(GameConfig(seed=1, title_rule=True))
+    player = game.players[0]
+    cards = [Card(9000+i, kind, None if kind == "JOKER" else 1)
+             for i, kind in enumerate(["S", "H", "D", "C", "JOKER"])]
+    player.achieved = [c for c in cards if c.suit != missing]
+    # An unfinished collection must not contribute to this title.
+    player.collection = [c for c in cards if c.suit == missing]
+    expected = [("五種の品揃え", 5)] if missing is None else []
+    assert game.title_awards(player) == expected
+    assert game.final_score(player) == player.score + (5 if missing is None else 0)
+    player.achieved += player.achieved
+    assert game.title_awards(player) == expected
+    game.config.title_rule = False
+    assert game.title_points(player) == 0
