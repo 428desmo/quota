@@ -205,3 +205,20 @@ def test_table_list_can_join_full_or_playing_table_as_observer(started):
     assert [s.name for s in table.humans] == seats
     hall.leave('watcher')
     assert hall.snapshot('a')['phase'] == ('playing' if started else 'recruiting')
+
+
+def test_countdown_is_authoritative_and_disabled_with_only_one_human():
+    hall = UnityHall()
+    opened = hall.create({"players": 3, "name": "A", "turn_timeout": 30}, "a")
+    hall.join({"table": opened["table_id"], "name": "B"}, "b")
+    hall.begin("a")
+    table = hall.tables[opened["table_id"]]
+    table.game.current = 0
+    hall.update_deadline(table)
+    state = table.recruiting("b")
+    assert state["turn_timeout_active"]
+    assert 29 < state["turn_remaining"] <= 30
+    hall.replace_human(table, 1)
+    assert not table.recruiting("a")["turn_timeout_active"]
+    table.game.current = 1
+    assert not table.recruiting("a")["turn_timeout_active"]

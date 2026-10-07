@@ -99,7 +99,10 @@ namespace Quota
         string webNetworkResponse;
         string draftOk = "5";
         string draftTurn = "30";
+        float networkTurnDeadline;
         bool draftSimple;
+        bool confirmActions = true;
+        bool draftConfirmActions = true;
         float okTimeout = 5f;
         float turnTimeout = 30f;
         Sprite titleMark;
@@ -309,6 +312,7 @@ namespace Quota
             Fit();
             if (!onSetup && match.Game != null && transform.Find("leave-button") != null) LeaveButton();
             UpdateNameplates();
+            UpdateTurnCountdown();
             if (!Application.isPlaying || frame == null) return;
             var wide = WideScreen();
             if (wide == laidOutWide) return;
@@ -671,6 +675,7 @@ namespace Quota
             if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
             okTimeout = PlayerPrefs.GetFloat("quota.okTimeout", 5f);
             turnTimeout = PlayerPrefs.GetFloat("quota.turnTimeout", 30f);
+            confirmActions = PlayerPrefs.GetInt("quota.confirmActions", 1) == 1;
             ApplyMode();
         }
 
@@ -685,6 +690,7 @@ namespace Quota
             PlayerPrefs.SetString("quota.name", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName.Trim());
             PlayerPrefs.SetFloat("quota.okTimeout", okTimeout);
             PlayerPrefs.SetFloat("quota.turnTimeout", turnTimeout);
+            PlayerPrefs.SetInt("quota.confirmActions", confirmActions ? 1 : 0);
             PlayerPrefs.Save();
         }
 
@@ -1045,6 +1051,7 @@ namespace Quota
             if (next == null || !string.IsNullOrEmpty(next.error)) return;
             var wasRecruiting = networkState != null && networkState.phase == "recruiting";
             networkState = next;
+            networkTurnDeadline = Time.unscaledTime + next.turn_remaining;
             if (next.phase == "hall")
             {
                 networkLeaving = false;
@@ -1326,6 +1333,7 @@ namespace Quota
         void OpenSettings()
         {
             draftSimple = simpleMode;
+            draftConfirmActions = confirmActions;
             draftOk = okTimeout.ToString("0.##");
             draftTurn = turnTimeout.ToString("0.##");
             setupPage = "settings";
@@ -1335,6 +1343,7 @@ namespace Quota
         void ApplySettings()
         {
             simpleMode = draftSimple;
+            confirmActions = draftConfirmActions;
             ApplyMode();
             okTimeout = ParseSeconds(draftOk, 5f, 0f);
             turnTimeout = ParseSeconds(draftTurn, 30f, 1f);
@@ -1564,6 +1573,8 @@ namespace Quota
         {
             public string phase;
             public string table_id;
+            public bool turn_timeout_active;
+            public float turn_remaining;
             public int players;
             public int seed;
             public string[] actions;
@@ -2634,6 +2645,7 @@ namespace Quota
             score.fontStyle = FontStyle.Bold;
             if (game.RoundIndex >= 2) ((RectTransform)score.transform).anchoredPosition += new Vector2(0f, -30f);
             DrawPreviousScore(seat, game, player, false);
+            DrawTurnCountdown(seat, index, false);
             if (game.Config.SpecialActionsRule)
             {
                 DrawSpecialCard(seat, "double-card", "ダブル", player.DoubleActionLeft > 0, 900f, 75f, 148f, 38f, Hex("#cfe9f5"));
@@ -2659,6 +2671,7 @@ namespace Quota
                 DrawSpecialCard(seat, "reshuffle-card", "配り直し", player.ReshuffleTakeLeft > 0, 1094f, 8f, 110f, 34f, Hex("#d9edcf"));
             }
 
+            DrawTurnCountdown(seat, index, true);
             var titled = game.Config.TitleRule;
             const float boxX = 28f;
             const float boxW = 176f;
@@ -3008,6 +3021,27 @@ namespace Quota
             button.onClick.AddListener(onClick);
         }
 
+        void DrawTurnCountdown(Transform seat, int index, bool wide)
+        {
+            var label = TextAt(seat, "", wide ? 840f : 660f, wide ? 58f : 75f, 130f, 38f, 26, Ink, nameFont, TextAnchor.MiddleRight);
+            label.gameObject.name = "turn-countdown";
+            label.fontStyle = FontStyle.Bold;
+            UpdateTurnCountdown();
+        }
+
+        void UpdateTurnCountdown()
+        {
+            var game = match.Game;
+            for (var i = 0; i < seatFrames.Count; i++)
+            {
+                if (seatFrames[i] == null) continue;
+                var host = seatFrames[i].Find("turn-countdown");
+                if (host == null) continue;
+                var active = !onSetup && NetworkPlaying && networkState.turn_timeout_active && game != null && !game.Finished && game.Current == i;
+                host.GetComponent<Text>().text = active ? Mathf.CeilToInt(Mathf.Max(0f, networkTurnDeadline - Time.unscaledTime)) + "秒" : "";
+            }
+        }
+
         void DrawControls(Game game)
         {
             var me = game.Players[game.Current];
@@ -3041,20 +3075,19 @@ namespace Quota
                 ShowTable();
             }));
             if (me.Quota != null) entries.Add(Item("放棄", () => Ask("abandon")));
-            var passLabel = me.Quota != null && game.TurnGain ? "次へ" : "パス";
+            const string passLabel = "パス";
             entries.Add(Item(passLabel, () =>
             {
                 if (!HasTakeable(game, me)) Play(new Pass());
-                else Ask(passLabel == "次へ" ? "next" : "pass");
+                else Ask("pass");
             }));
             var edge = wide ? LandWidth - LandButtonRight : ScreenWidth;
             var y = wide ? LandMarketY + LandMarketH + 16f : 0f;
             for (var i = 0; i < entries.Count; i++)
             {
                 var width = entries[i].Key.Length * 48f + 30f;
-                Pill(controls, entries[i].Key, edge - width, y + i * ActionStride, width, 72f, 40, entries[i].Value);
+                Pill(controls, entries[i].Key, edge - width, y + i * ActionStride, width, 72f, 40, entries[i].Value, fill: Hex("#D6B98C"));
                 var actionButton = controls.Find(entries[i].Key);
-                actionButton.GetComponent<Image>().color = Hex("#D6B98C");
                 foreach (var label in actionButton.GetComponentsInChildren<Text>()) label.fontStyle = FontStyle.Bold;
             }
         }
@@ -3102,6 +3135,11 @@ namespace Quota
             if (kind == "leave" && IsSpectating)
             {
                 LeaveMatch();
+                return;
+            }
+            if (!confirmActions && (kind == "abandon" || kind == "pass"))
+            {
+                Play(kind == "abandon" ? (GameAction)new Abandon() : new Pass());
                 return;
             }
             confirm = kind;
@@ -3462,9 +3500,9 @@ namespace Quota
             label.raycastTarget = false;
         }
 
-        void Pill(Transform parent, string caption, float x, float y, float width, float height, int size, UnityAction action, bool accent = false)
+        void Pill(Transform parent, string caption, float x, float y, float width, float height, int size, UnityAction action, bool accent = false, Color? fill = null)
         {
-            var host = Portrait.Box(parent, caption, x, y, width, height, 7f, 1f, accent ? Accent : Ecru, Ink, false);
+            var host = Portrait.Box(parent, caption, x, y, width, height, 7f, 1f, fill ?? (accent ? Accent : Ecru), Ink, false);
             var hit = host.GetComponent<Image>();
             hit.raycastTarget = true;
             var button = host.gameObject.AddComponent<Button>();
@@ -3547,6 +3585,11 @@ namespace Quota
             turn.onValueChanged.AddListener(value => draftTurn = value);
             TextAt(panel, "数値をクリックして秒数を入力", 32f, 310f, panelW - 64f, 40f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
 #endif
+            Pill(panel, "放棄などに確認を求める: " + (draftConfirmActions ? "YES" : "NO"), 32f, 362f, panelW - 64f, 64f, 28, () =>
+            {
+                draftConfirmActions = !draftConfirmActions;
+                ShowSetup();
+            });
             var decideW = 200f;
             var cancelW = 240f;
             var buttonGap = 20f;

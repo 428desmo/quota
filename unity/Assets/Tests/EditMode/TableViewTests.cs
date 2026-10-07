@@ -1013,6 +1013,28 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void ActionFillIsOpaqueAndDisabledConfirmationPassesImmediately()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Begin();
+            var button = FindButton("パス");
+            var fill = button.transform.Find("fill").GetComponent<Image>().color;
+            Assert.AreEqual(214f / 255f, fill.r, 0.001f);
+            Assert.AreEqual(185f / 255f, fill.g, 0.001f);
+            Assert.AreEqual(140f / 255f, fill.b, 0.001f);
+            Assert.AreEqual(1f, fill.a);
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            var previous = game.Current;
+            Set("confirmActions", false);
+            typeof(TableView).GetMethod("Ask", flags).Invoke(view, new object[] { "pass" });
+            Assert.IsNull(FindText("本当にパスしますか？"));
+            Assert.AreNotEqual(previous, game.Current);
+        }
+
+        [Test]
         public void AbandonPassNextAndLeaveAskBeforeActing()
         {
             host = Open();
@@ -1039,9 +1061,9 @@ namespace Quota.Tests
 
             game.TurnGain = true;
             Show(view);
-            Click("次へ");
+            Click("パス");
             AssertConfirmInside("seat0");
-            Assert.IsNotNull(FindText("本当に次へ進みますか？"));
+            Assert.IsNotNull(FindText("本当にパスしますか？"));
             Click("キャンセル");
 
             game.TurnGain = false;
@@ -1320,7 +1342,7 @@ namespace Quota.Tests
                 .Invoke(view, new object[] { 1 });
             Drive(run);
 
-            Assert.IsNotNull(FindButton("次へ"));
+            Assert.IsNotNull(FindButton("パス"));
             Assert.IsNotNull(FindButton("放棄"));
             var second = host.transform.Find("Root/Frame/card9102");
             Assert.IsNotNull(second);
