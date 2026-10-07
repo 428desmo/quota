@@ -219,7 +219,7 @@ def test_countdown_is_authoritative_and_disabled_with_only_one_human():
     state = table.recruiting("b")
     assert state["turn_timeout_active"]
     assert 29 < state["turn_remaining"] <= 30
-    hall.replace_human(table, 1)
+    hall.leave("b")
     assert not table.recruiting("a")["turn_timeout_active"]
     table.game.current = 1
     assert not table.recruiting("a")["turn_timeout_active"]
@@ -290,3 +290,29 @@ def test_timeout_proxy_returns_to_connected_human_on_next_turn(connected):
         assert not table.recruiting('b')['you']['observer']
     else:
         assert table.humans[1].resume_after is not None
+
+
+def test_other_human_timer_survives_temporary_cpu_substitution():
+    hall, table = playing_pair()
+    game = table.game
+    game.current = 0
+    game.order_cursor = game.turn_order.index(0)
+    hall.update_deadline(table)
+    table.turn_deadline = 0
+    hall.snapshot('a')
+    assert not game.players[0].is_human
+    assert table.participating_humans() == 2
+    hall.apply_action(table, 'pass')
+    for _ in range(3):
+        hall.update_deadline(table)
+        if game.current == 1: break
+        hall.apply_action(table, 'pass')
+    assert game.current == 1
+    state = table.recruiting('b')
+    assert state['turn_timeout_active']
+    assert 0 < state['turn_remaining'] <= 1
+    table.turn_deadline = 0
+    state = hall.snapshot('b')
+    assert 'timeout:1' in state['actions']
+    assert not game.players[1].is_human
+    assert table.participating_humans() == 2

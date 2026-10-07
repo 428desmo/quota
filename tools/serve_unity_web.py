@@ -72,6 +72,10 @@ class UnityTable:
     def seated(self) -> int:
         return len(self.humans)
 
+    def participating_humans(self) -> int:
+        # CPU substitution is temporary; only EXIT removes a participant.
+        return sum(not seat.departed and seat.client in self.members for seat in self.humans)
+
     def leader_name(self) -> str:
         return self.host.name
 
@@ -105,7 +109,7 @@ class UnityTable:
             "cpu_cast": self.cpu_cast[:max(0, self.players - self.seated())],
             "table_id": self.id,
             "event_n": 1,
-            "turn_timeout_active": bool(self.game and not self.game.finished and not self.game.awaiting_next_round and sum(not seat.cpu for seat in self.humans) > 1 and self.game.players[self.game.current].is_human),
+            "turn_timeout_active": bool(self.game and not self.game.finished and not self.game.awaiting_next_round and self.participating_humans() > 1 and self.game.players[self.game.current].is_human),
             "turn_remaining": max(0.0, self.turn_deadline - time.monotonic()),
             "players": self.players,
             "seats": [
@@ -335,7 +339,7 @@ class UnityHall:
             return
         table.round_at = None
         self.update_deadline(table)
-        if sum(not seat.cpu for seat in table.humans) > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
+        if table.participating_humans() > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
             table.actions.append(f"timeout:{game.current}")
             self.replace_human(table, game.current)
             table.humans[game.current].resume_after = table.turn_key
