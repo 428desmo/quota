@@ -37,7 +37,7 @@ namespace Quota.Tests
             var figure = typeof(TableView).GetMethod("FigureText", flags);
             foreach (var seat in order) Assert.AreEqual("", figure.Invoke(view, new object[] { seat }));
             Set("ceremonyNamesOnly", false);
-            foreach (var seat in order) Assert.AreEqual("0点", figure.Invoke(view, new object[] { seat }));
+            foreach (var seat in order) Assert.AreEqual("0", figure.Invoke(view, new object[] { seat }));
         }
 
         [TestCase(false)]
@@ -196,6 +196,37 @@ namespace Quota.Tests
             game.Deck.Clear(); Show(view);
             deck = host.transform.Find("Root/Frame/deck") as RectTransform;
             Assert.IsNull(deck.Find("upper")); Assert.AreEqual("0", deck.Find("remaining").GetComponent<Text>().text);
+        }
+
+        [TestCase(42, 39, 22, 1, 2, 3)]
+        [TestCase(42, 22, 22, 1, 2, 2)]
+        [TestCase(42, 42, 22, 1, 1, 3)]
+        [TestCase(22, 22, 22, 1, 1, 1)]
+        public void CeremonyKeepsEquationAndCompetitionRanks(int a, int b, int c, int ra, int rb, int rc)
+        {
+            host = Open(); Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Set("dialogOrder", new List<int> { 0, 1, 2 });
+            var rounds = new Dictionary<int, int> { [0] = a, [1] = b, [2] = c };
+            Set("scoreOverride", rounds);
+            Set("roundScores", rounds);
+            Set("previousScores", new Dictionary<int, int> { [0] = 26, [1] = 36, [2] = 26 });
+            Set("ceremonyNamesOnly", false);
+            typeof(TableView).GetMethod("AssignPlaces", flags).Invoke(view, new object[] { (System.Func<int, int>)(seat => rounds[seat]) });
+            var places = (Dictionary<int, int>)typeof(TableView).GetField("ceremonyPlaces", flags).GetValue(view);
+            CollectionAssert.AreEqual(new[] { ra, rb, rc }, new[] { places[0], places[1], places[2] });
+            Set("plusOverride", rounds);
+            var figure = typeof(TableView).GetMethod("FigureText", flags);
+            Assert.AreEqual("26 + " + a, figure.Invoke(view, new object[] { 0 }));
+            Set("scoreOverride", new Dictionary<int, int> { [0] = 26 + a, [1] = 36 + b, [2] = 26 + c });
+            Set("ceremonyEquation", true);
+            Assert.AreEqual("26 + " + a + " = " + (26 + a), figure.Invoke(view, new object[] { 0 }));
+            var box = typeof(TableView).GetMethod("CeremonyFrame", flags);
+            var expanded = (Rect)box.Invoke(view, new object[] { 1f });
+            var retained = (Rect)box.Invoke(view, new object[] { 0f });
+            Assert.AreEqual(expanded.height, retained.height);
+            Assert.AreEqual(expanded.position, retained.position);
         }
 
         [TestCase(false)]
@@ -993,11 +1024,10 @@ namespace Quota.Tests
             Assert.IsNull(host.transform.Find("Root/Frame/seat0/chip-tray/coin"));
             Assert.IsNotNull(FindText("第2ラウンド終了"));
             Assert.IsNotNull(FindText("山札切れでラウンド終了。"));
-            Assert.IsNotNull(FindText("最終順位"));
-            Assert.IsNotNull(FindText("2+1=3"));
+            Assert.IsNotNull(FindText("2 + 1 = 3"));
             var panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
-            Assert.AreEqual(640f, -panel.anchoredPosition.y, 1f);
-            Assert.AreEqual(640f, panel.sizeDelta.y, 1f);
+            Assert.AreEqual(56f, -panel.anchoredPosition.y, 1f);
+            Assert.GreaterOrEqual(panel.sizeDelta.y, 340f);
             var leave = panel.Find("抜ける") as RectTransform;
             Assert.IsNotNull(leave);
             Assert.AreEqual((panel.sizeDelta.x - leave.sizeDelta.x) * 0.5f, leave.anchoredPosition.x, 1f);
@@ -1203,7 +1233,7 @@ namespace Quota.Tests
         }
 
         [Test]
-        public void RoundEndDialogListsTheReasonAndTitlesInsideANarrowWindow()
+        public void RoundEndDialogKeepsItsTopPositionAndOnlyExpandsDownward()
         {
             host = Open();
             Set("seedText", "0");
@@ -1243,15 +1273,15 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("山札切れでラウンド終了。"));
             var panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
             Assert.IsNotNull(panel);
-            Assert.AreEqual(460f, panel.sizeDelta.x, 0.1f);
-            Assert.AreEqual(180f, panel.sizeDelta.y, 0.1f);
-            Assert.AreEqual(168f, -panel.anchoredPosition.y, 0.1f);
-            Assert.LessOrEqual(panel.anchoredPosition.x + panel.sizeDelta.x, 770f);
+            Assert.AreEqual(1040f, panel.sizeDelta.x, 0.1f);
+            Assert.AreEqual(340f, panel.sizeDelta.y, 0.1f);
+            Assert.AreEqual(56f, -panel.anchoredPosition.y, 0.1f);
+            Assert.LessOrEqual(panel.anchoredPosition.x + panel.sizeDelta.x, 1060f);
             var compactLeft = panel.anchoredPosition.x;
             var compactRight = panel.anchoredPosition.x + panel.sizeDelta.x;
             var tray = host.transform.Find("Root/Frame/seat0/chip-tray") as RectTransform;
             Assert.IsNotNull(tray);
-            Assert.GreaterOrEqual(tray.anchoredPosition.x, compactRight);
+            Assert.Less(-panel.anchoredPosition.y + panel.sizeDelta.y, 400f);
             Assert.AreEqual(0, CountRows(panel));
             Assert.IsNull(panel.Find("bonus0"));
             AssertHeadingFont(panel, 36);
@@ -1284,8 +1314,8 @@ namespace Quota.Tests
             panel = host.transform.Find("Root/Frame/ceremony") as RectTransform;
             Assert.LessOrEqual(panel.anchoredPosition.x, compactLeft);
             Assert.AreEqual(compactRight, panel.anchoredPosition.x + panel.sizeDelta.x, 0.1f);
-            Assert.AreEqual(640f, -panel.anchoredPosition.y, 1f);
-            Assert.AreEqual(640f, panel.sizeDelta.y, 1f);
+            Assert.AreEqual(56f, -panel.anchoredPosition.y, 1f);
+            Assert.GreaterOrEqual(panel.sizeDelta.y, 340f);
             var ok = panel.Find("OK") as RectTransform;
             Assert.IsNotNull(ok);
             Assert.AreEqual((panel.sizeDelta.x - ok.sizeDelta.x) * 0.5f, ok.anchoredPosition.x, 1f);
