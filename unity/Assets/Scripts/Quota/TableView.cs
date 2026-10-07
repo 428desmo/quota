@@ -2896,7 +2896,7 @@ namespace Quota
                 }
                 return;
             }
-            if (reviewMode) return;
+            if (reviewMode || (acknowledgedRound == game.RoundIndex && (game.AwaitingNextRound || game.Finished))) return;
             var slides = new List<CoinSlide>();
             for (var i = 0; i < bank.Count; i++)
             {
