@@ -314,6 +314,7 @@ class UnityHall:
         table.round_at = None
         self.update_deadline(table)
         if sum(not seat.cpu for seat in table.humans) > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
+            table.actions.append(f"timeout:{game.current}")
             self.replace_human(table, game.current)
 
         game = table.game
