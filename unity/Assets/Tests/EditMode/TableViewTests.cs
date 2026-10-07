@@ -37,6 +37,28 @@ namespace Quota.Tests
             Assert.IsTrue((bool)typeof(TableView).GetField("ceremonyDialog", flags).GetValue(view));
         }
 
+        [Test]
+        public void UnacknowledgedRoundNeverFallsThroughToCompletedResults()
+        {
+            host = Open();
+            Set("seedText", "0");
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            game.RoundCount = 3;
+            game.AwaitingNextRound = true;
+            // Edit mode cannot start the coroutine; this exercises the same waiting branch
+            // used while the final card animation is still running in play mode.
+            Show(view);
+            Assert.AreEqual(0, typeof(TableView).GetField("acknowledgedRound", flags).GetValue(view));
+            Assert.IsFalse((bool)typeof(TableView).GetField("ceremonyDialog", flags).GetValue(view));
+            Set("acknowledgedRound", game.RoundIndex);
+            Show(view);
+            Assert.IsTrue((bool)typeof(TableView).GetField("ceremonyDialog", flags).GetValue(view));
+            Assert.IsNotNull(FindText("OK"));
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         public void RoundPanelStartsWithEachNetworkViewersOwnPlayerAndNoScores(int viewer)
