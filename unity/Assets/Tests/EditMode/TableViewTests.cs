@@ -59,6 +59,40 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("OK"));
         }
 
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void CompletedRoundResultsHaveEmptyChipTrays(bool wide, bool finished)
+        {
+            host = Open();
+            Set("widePreview", wide);
+            Set("seedText", "0");
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            game.Config.TitleRule = true;
+            game.Config.SequenceRule = true;
+            foreach (var player in game.Players)
+            {
+                player.Achieved.Add(new Card(9000, Suit.S, 13));
+                player.Achieved.Add(new Card(9001, Suit.S, 13));
+            }
+            Show(view);
+            var trayName = wide ? "bonus-box" : "chip-tray";
+            Assert.Greater(host.transform.Find("Root/Frame/seat0/" + trayName).GetComponentsInChildren<BonusChipLab>().Length, 0);
+            game.AwaitingNextRound = !finished;
+            game.Finished = finished;
+            typeof(TableView).GetMethod("ShowCompletedCeremony", flags).Invoke(view, null);
+            foreach (var player in game.Players)
+            {
+                var seat = game.Players.IndexOf(player);
+                var tray = host.transform.Find("Root/Frame/seat" + seat + "/" + trayName);
+                Assert.AreEqual(0, tray.GetComponentsInChildren<BonusChipLab>().Length);
+            }
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         public void RoundPanelStartsWithEachNetworkViewersOwnPlayerAndNoScores(int viewer)
