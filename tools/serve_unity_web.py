@@ -98,6 +98,8 @@ class UnityTable:
             "cpu_cast": self.cpu_cast[:max(0, self.players - self.seated())],
             "table_id": self.id,
             "event_n": 1,
+            "turn_timeout_active": bool(self.game and not self.game.finished and not self.game.awaiting_next_round and sum(not seat.cpu for seat in self.humans) > 1 and self.game.players[self.game.current].is_human),
+            "turn_remaining": max(0.0, self.turn_deadline - time.monotonic()),
             "players": self.players,
             "seats": [
                 {"name": seat.name, "leader": seat.client == self.leader_id(), "cpu": seat.cpu}
@@ -311,7 +313,7 @@ class UnityHall:
             return
         table.round_at = None
         self.update_deadline(table)
-        if len(table.humans) > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
+        if sum(not seat.cpu for seat in table.humans) > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
             self.replace_human(table, game.current)
 
         game = table.game
