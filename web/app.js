@@ -176,7 +176,7 @@ function trayTitles(player) {
   if (!state || !state.title_rule) return "";
   const voids = player.title_void || {};
   const mark = (key, name) => `<span class="tray-title${voids[key] ? " void" : ""}" data-title="${key}">${name}</span>`;
-  return `<div class="tray-titles">${mark("mono", "単色達成")}${mark("purist", "生粋の買い付け")}</div>`;
+  return `<div class="tray-titles">${mark("mono", "単色達成")}${mark("purist", "生粋の買い付け")}${mark("variety", "五種の品揃え")}</div>`;
 }
 
 function trayPile(index, coins) {
@@ -251,6 +251,7 @@ const GUIDES = {
         "達成の記録の並びで、前後する数字なら＋1点、同じ数字なら＋2点（組をまたいでもよい）。ラウンド終了時に加算する。**（シンプルルールでは無し）**",
         "**ワイルド**不使用で3組以上達成したら、ラウンド終了時に＋5点。**（シンプルルールでは無し）**",
         "同じ種類だけ（ワイルドは可）で3組以上達成したら、ラウンド終了時に＋15点。**（シンプルルールでは無し）**",
+        "実績に4種類の商品と金貨がすべて揃うと「五種の品揃え」でラウンド終了時に＋5点。**（シンプルルールでは無し）**",
       ] },
       { heading: "こんなときは？" },
       { list: [
@@ -1311,7 +1312,7 @@ function launchDueFlights() {
 
 function flyTitleCoin(job) {
   const line = ceremony && ceremony.lines[job.index];
-  const kind = line && line.text.includes("単色") ? "mono" : "purist";
+  const kind = line && line.text.includes("単色") ? "mono" : line && line.text.includes("五種") ? "variety" : "purist";
   const source = document.querySelector(`[data-seat="${job.seat}"] [data-title="${kind}"]`);
   const from = source ? source.getBoundingClientRect() : { left: 40, top: 40, width: 14, height: 14 };
   flyDot(from, () => {

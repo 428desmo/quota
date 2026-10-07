@@ -2703,7 +2703,7 @@ namespace Quota
             const float trayW = 220f;
             const float trayH = 105f;
             var tray = Portrait.Box(seat, "chip-tray", trayX, trayY, trayW, trayH, 7f, 1f, Ecru, Ink, false);
-            if (game.Config.TitleRule) DrawTrayTitles(seat, player, trayX, trayY - 42f, trayW, 40f, 16);
+            if (game.Config.TitleRule) DrawTrayTitles(seat, player, trayX, trayY - 62f, trayW, 60f, 16);
             float coinX, coinY, coinW, coinH, coinD;
             CoinSpot(false, out coinX, out coinY, out coinW, out coinH, out coinD);
             Portrait.Rect(tray, "coin-area", coinX, coinY, coinW, coinH);
@@ -2743,10 +2743,10 @@ namespace Quota
             var titled = game.Config.TitleRule;
             const float boxX = 28f;
             const float boxW = 176f;
-            var boxY = titled ? 88f : 66f;
-            var boxH = titled ? 126f : 148f;
+            var boxY = titled ? 104f : 66f;
+            var boxH = titled ? 110f : 148f;
             Portrait.Box(seat, "bonus-box", boxX, boxY, boxW, boxH, 7f, 1f, Ecru, Ink, false);
-            if (titled) DrawTrayTitles(seat, player, boxX, boxY - 34f, boxW, 32f, 12);
+            if (titled) DrawTrayTitles(seat, player, boxX, boxY - 50f, boxW, 48f, 12);
             Bold(TextAt(seat, "ボーナス", 36f, boxY + 4f, 120f, 24f, 14, Ink, nameFont, TextAnchor.MiddleLeft));
 
 
@@ -2805,9 +2805,10 @@ namespace Quota
         void DrawTrayTitles(Transform seat, Player player, float x, float y, float width, float band, int font)
         {
             var host = Portrait.Rect(seat, "title-names", x, y, width, band);
-            var lineH = band * 0.5f;
+            var lineH = band / 3f;
             DrawTitleName(host, "title-mono", "単色達成", 0f, 0f, width, lineH, font, TitleMonoOut(player));
             DrawTitleName(host, "title-purist", "生粋の買い付け", 0f, lineH, width, lineH, font, TitlePuristOut(player));
+            DrawTitleName(host, "title-variety", "五種の品揃え", 0f, lineH * 2f, width, lineH, font, false);
         }
 
         static bool TitleMonoOut(Player player)

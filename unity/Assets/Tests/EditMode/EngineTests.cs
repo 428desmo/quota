@@ -249,6 +249,31 @@ namespace Quota.Tests
             Assert.AreEqual(game.MarketSize() - 1, game.Market.Count(item => item != null));
         }
 
+        [TestCase(-1)]
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(4)]
+        public void FiveVarietiesRequireEveryKindInAchievements(int missing)
+        {
+            var game = Game.Start(new GameConfig { Seed = 1, TitleRule = true });
+            var player = game.Players[0];
+            var suits = new[] { Suit.S, Suit.H, Suit.D, Suit.C, Suit.Joker };
+            for (var i = 0; i < suits.Length; i++)
+            {
+                var card = new Card(9000 + i, suits[i], i == 4 ? (int?)null : 1);
+                if (i == missing) player.Collection.Add(card);
+                else player.Achieved.Add(card);
+            }
+            Assert.AreEqual(missing < 0 ? 5 : 0, game.TitlePoints(player));
+            if (missing < 0) CollectionAssert.AreEqual(new[] { ("五種の品揃え", 5) }, game.TitleAwards(player));
+            player.Achieved.AddRange(new System.Collections.Generic.List<Card>(player.Achieved));
+            Assert.AreEqual(missing < 0 ? 5 : 0, game.TitlePoints(player));
+            game.Config.TitleRule = false;
+            Assert.AreEqual(0, game.TitlePoints(player));
+        }
+
         [Test]
         public void TitleBonusNeedsThreeAchievesAndScoresEachAward()
         {

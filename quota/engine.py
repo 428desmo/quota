@@ -80,6 +80,7 @@ class GameConfig:
     title_min_achieves: int = 3
     title_mono_bonus: int = 15
     title_purist_bonus: int = 5
+    title_variety_bonus: int = 5
     special_actions_rule: bool = False
     reshuffle_take_uses: int = 1
     double_action_uses: int = 1
@@ -533,10 +534,12 @@ class Game:
     def title_awards(self, player: Player) -> list[tuple[str, int]]:
         if not self.config.title_rule:
             return []
+        awards: list[tuple[str, int]] = []
+        if {"S", "H", "D", "C", "JOKER"}.issubset({card.suit for card in player.achieved}):
+            awards.append(("五種の品揃え", self.config.title_variety_bonus))
         bundles = player.bundles
         if len(bundles) < self.config.title_min_achieves:
-            return []
-        awards: list[tuple[str, int]] = []
+            return awards
         if len({bundle.kind for bundle in bundles}) == 1:
             awards.append(("単色達成", self.config.title_mono_bonus))
         if not any(bundle.has_wild for bundle in bundles):
