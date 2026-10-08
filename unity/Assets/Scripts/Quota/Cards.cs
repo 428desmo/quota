@@ -49,18 +49,26 @@ namespace Quota
             return rank + Bonus(rank);
         }
 
+        public static int SequenceAt(IReadOnlyList<Card> cards, int index, int same = 2, int adjacent = 1)
+        {
+            if (index < 1) return 0;
+            var left = cards[index - 1];
+            var right = cards[index];
+            if (right.Suit == Suit.Joker)
+            {
+                var count = 0;
+                for (var i = index - 1; i >= 0 && cards[i].Suit == Suit.Joker; i--) count++;
+                return count;
+            }
+            if (left.Suit == Suit.Joker) return 0;
+            if (left.Rank == right.Rank) return same;
+            return left.Rank != null && right.Rank != null && Math.Abs(left.Rank.Value - right.Rank.Value) == 1 ? adjacent : 0;
+        }
+
         public static int SequenceBonus(IReadOnlyList<Card> cards, int same = 2, int adjacent = 1)
         {
             var total = 0;
-            for (var i = 1; i < cards.Count; i++)
-            {
-                var left = cards[i - 1];
-                var right = cards[i];
-                if (left.Suit == Suit.Joker || right.Suit == Suit.Joker) continue;
-                if (left.Rank == right.Rank) total += same;
-                else if (left.Rank != null && right.Rank != null && Math.Abs(left.Rank.Value - right.Rank.Value) == 1)
-                    total += adjacent;
-            }
+            for (var i = 1; i < cards.Count; i++) total += SequenceAt(cards, i, same, adjacent);
             return total;
         }
 

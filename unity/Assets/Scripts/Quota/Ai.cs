@@ -86,32 +86,24 @@ namespace Quota
 
         static List<Card> OrderForSequenceCore(Player player, List<Card> cards)
         {
-            int? tail = player.Quota != null ? player.Quota.Rank : null;
-            if (player.Collection.Count > 0)
-            {
-                var last = player.Collection[player.Collection.Count - 1];
-                tail = last.Suit == Suit.Joker ? (int?)null : last.Rank;
-            }
+            var line = new List<Card>(player.Achieved);
+            if (player.Quota != null) line.Add(player.Quota);
+            line.AddRange(player.Collection);
             var remaining = new List<Card>(cards);
             var ordered = new List<Card>();
             while (remaining.Count > 0)
             {
-                var current = tail;
-                remaining = remaining.OrderByDescending(card => SequenceValue(card, current)).ToList();
+                remaining = remaining.OrderByDescending(card =>
+                {
+                    var candidate = new List<Card>(line) { card };
+                    return Cards.SequenceAt(candidate, candidate.Count - 1);
+                }).ToList();
                 var pick = remaining[0];
                 remaining.RemoveAt(0);
                 ordered.Add(pick);
-                tail = pick.Suit == Suit.Joker ? (int?)null : pick.Rank;
+                line.Add(pick);
             }
             return ordered;
-        }
-
-        static int SequenceValue(Card card, int? current)
-        {
-            if (card.Suit == Suit.Joker || current == null || card.Rank == null) return 0;
-            if (card.Rank == current) return 2;
-            if (Abs(card.Rank.Value - current.Value) == 1) return 1;
-            return 0;
         }
 
         static Card CardInMarket(Game game, int cardId)

@@ -39,9 +39,10 @@ namespace Quota
             AddGreens(quotaLine, false);
             if (sequence)
             {
-                for (var i = 1; i < achieved.Count; i++) AddPair(achieved[i - 1], achieved[i], true);
-                if (achieved.Count > 0 && quotaLine.Count > 0) AddPair(achieved[achieved.Count - 1], quotaLine[0], false);
-                for (var i = 1; i < quotaLine.Count; i++) AddPair(quotaLine[i - 1], quotaLine[i], false);
+                var line = new List<Card>(achieved);
+                line.AddRange(quotaLine);
+                for (var i = 1; i < line.Count; i++)
+                    Add(line, i, CoinKind.Purple, Cards.SequenceAt(line, i), i < achieved.Count);
             }
             for (var i = 0; i < titleCoins; i++) coins.Add(new BonusCoin(CoinKind.Blue, -1, true, serial++, i));
             return coins;
@@ -66,14 +67,7 @@ namespace Quota
                 for (var i = 0; i < count; i++) coins.Add(new BonusCoin(kind, cardId, bank, serial++, i));
             }
 
-            void AddPair(Card left, Card right, bool bank)
-            {
-                if (left.Suit == Suit.Joker || right.Suit == Suit.Joker) return;
-                if (left.Rank == null || right.Rank == null) return;
-                var count = left.Rank == right.Rank ? 2 : (System.Math.Abs(left.Rank.Value - right.Rank.Value) == 1 ? 1 : 0);
-                if (count == 0) return;
-                for (var i = 0; i < count; i++) coins.Add(new BonusCoin(CoinKind.Purple, right.Id, bank, serial++, i));
-            }
+
         }
     }
 }

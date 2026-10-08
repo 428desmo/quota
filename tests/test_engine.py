@@ -467,3 +467,26 @@ def test_five_varieties_require_every_kind_in_achievements(missing):
     assert game.title_awards(player) == expected
     game.config.title_rule = False
     assert game.title_points(player) == 0
+
+
+@pytest.mark.parametrize("count,total", [(1, 0), (2, 1), (3, 3), (4, 6)])
+def test_consecutive_gold_bonus(count, total):
+    wilds = [Card(9000+i, "JOKER", None) for i in range(count)]
+    assert sequence_bonus(wilds) == total
+    assert sequence_bonus(wilds + [Card(9100, "S", 5)] + wilds) == total * 2
+    game = Game.start(GameConfig(seed=1, sequence_rule=True))
+    game.players[0].achieved = wilds
+    assert game.sequence_points(game.players[0]) == total
+    game.config.sequence_rule = False
+    assert game.sequence_points(game.players[0]) == 0
+
+
+def test_cpu_values_third_following_gold_above_same_number():
+    from quota.ai import _order_for_sequence
+    game = Game.start(GameConfig(seed=1))
+    player = game.players[0]
+    player.quota = Card(9000, "S", 13)
+    player.collection = [Card(9001+i, "JOKER", None) for i in range(3)]
+    wild = Card(9010, "JOKER", None)
+    normal = Card(9011, "S", 13)
+    assert _order_for_sequence(player, [normal, wild])[0] == wild

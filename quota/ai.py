@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from quota.cards import score_for
+from quota.cards import score_for, sequence_at
 from quota.engine import Abandon, Action, Collect, Game, Pass, TakeQuota
 
 
@@ -99,24 +99,15 @@ def _worth_double(game: Game, player) -> bool:
 
 def _order_for_sequence(player, cards):
     """Greedy order that continues the shipment list."""
-    tail = player.quota.rank if player.quota is not None else None
-    if player.collection:
-        last = player.collection[-1]
-        tail = None if last.suit == "JOKER" else last.rank
+    line = list(player.achieved)
+    if player.quota is not None:
+        line.append(player.quota)
+    line.extend(player.collection)
     remaining = list(cards)
     ordered = []
     while remaining:
-        def value(card, current=tail):
-            if card.suit == "JOKER" or current is None or card.rank is None:
-                return 0
-            if card.rank == current:
-                return 2
-            if abs(card.rank - current) == 1:
-                return 1
-            return 0
-
-        remaining.sort(key=value, reverse=True)
+        remaining.sort(key=lambda card: sequence_at(line + [card], len(line)), reverse=True)
         picked = remaining.pop(0)
         ordered.append(picked)
-        tail = None if picked.suit == "JOKER" else picked.rank
+        line.append(picked)
     return ordered
