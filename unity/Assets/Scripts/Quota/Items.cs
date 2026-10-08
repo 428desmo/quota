@@ -148,7 +148,7 @@ namespace Quota
                 faces[SlotKinds[i]] = new ItemFace(SlotKinds[i], good.name, "", SlotColors[i], good.file);
             }
             faces["WILD"] = new ItemFace("WILD", wild.name, "", WildColor, wild.file);
-            return new ItemSet("trade", "交易品", "交易品。対局ごとに4品目。", true, faces, RankLabels, "＊");
+            return new ItemSet("trade", "交易品", "交易品。ラウンドごとに4品目。", true, faces, RankLabels, "＊");
         }
 
         public static ItemSet Default()

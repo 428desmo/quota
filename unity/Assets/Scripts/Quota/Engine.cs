@@ -432,6 +432,10 @@ namespace Quota
             AwaitingNextRound = false;
             RoundEndReason = null;
             Characters.Forget(this);
+            var order = new List<int>();
+            for (var i = 0; i < ItemCatalog.Count; i++) order.Add(i);
+            Rng.Shuffle(order);
+            for (var i = 0; i < Goods.Length; i++) Goods[i] = order[i];
             OpenRound();
         }
 

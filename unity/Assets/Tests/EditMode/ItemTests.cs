@@ -14,6 +14,20 @@ namespace Quota.Tests
         };
 
         [Test]
+        public void GoodsAreRedrawnEachRoundWithDeterministicSeed()
+        {
+            var game = Game.Start(new GameConfig { Seed = 1, Rounds = 3 });
+            var again = Game.Start(new GameConfig { Seed = 1, Rounds = 3 });
+            var first = (int[])game.Goods.Clone();
+            game.AwaitingNextRound = true; again.AwaitingNextRound = true;
+            game.BeginNextRound(); again.BeginNextRound();
+            CollectionAssert.AreEqual(game.Goods, again.Goods);
+            CollectionAssert.AreNotEqual(first, game.Goods);
+            Assert.AreEqual(4, new HashSet<int>(game.Goods).Count);
+            Assert.AreEqual(ItemCatalog.NameAt(game.Goods[0]), game.Theme().FaceFor(new Card(9000, Suit.S, 1)).Name);
+        }
+
+        [Test]
         public void TradeGoodsAreTheOnlySet()
         {
             Assert.AreEqual(27, ItemCatalog.Count);
