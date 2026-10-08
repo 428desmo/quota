@@ -402,6 +402,9 @@ class Game:
         self.awaiting_next_round = False
         self.round_end_reason = None
         self.cpu_takes = {}
+        from quota.items import deal_goods
+
+        self.goods = deal_goods(self.rng)
         self._open_round()
 
     def _end_round(self, reason: EndReason) -> None:

@@ -87,3 +87,16 @@ def test_web_cards_point_at_the_icon():
     assert payload["image"].endswith(".png")
     assert (ROOT / "web" / payload["image"]).is_file()
     assert payload["goods"] in NAMES or payload["goods"] == "金貨"
+
+
+def test_goods_are_redrawn_each_round_with_deterministic_seed():
+    game = Game.start(GameConfig(seed=1, rounds=3))
+    again = Game.start(GameConfig(seed=1, rounds=3))
+    first = game.goods
+    for current in (game, again):
+        current.awaiting_next_round = True
+        current.begin_next_round()
+    assert game.goods == again.goods
+    assert game.goods != first
+    assert len(set(game.goods)) == 4
+    assert game.theme().face_for(Card(9000, "S", 1)).name == goods_pool()[game.goods[0]].name

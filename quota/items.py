@@ -94,7 +94,7 @@ def theme_for(indices: tuple[int, ...]) -> ItemSet:
     return ItemSet(
         id="trade",
         name="交易品",
-        description="交易品。対局ごとに4品目。",
+        description="交易品。ラウンドごとに4品目。",
         default=True,
         faces=faces,
         rank_labels=RANK_LABELS,
