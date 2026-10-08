@@ -178,7 +178,10 @@ function achievementCoins(rank) {
 function trayTitles(player) {
   if (!state || !state.title_rule) return "";
   const voids = player.title_void || {};
-  const mark = (key, name) => `<span class="tray-title${voids[key] ? " void" : ""}" data-title="${key}">${name}</span>`;
+  const finalized = (state.finished || state.awaiting_next_round) &&
+    (!ceremony || ceremony.review || ceremony.phase !== "reason");
+  const awards = new Set((player.titles || []).map((title) => title.name));
+  const mark = (key, name) => `<span class="tray-title${(finalized ? !awards.has(name) : voids[key]) ? " void" : ""}" data-title="${key}">${name}</span>`;
   return `<div class="tray-titles">${mark("mono", "単色達成")}${mark("purist", "生粋の買い付け")}${mark("variety", "五種の品揃え")}</div>`;
 }
 
