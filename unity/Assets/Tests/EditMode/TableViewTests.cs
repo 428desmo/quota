@@ -859,6 +859,12 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("ゲーム設定"));
             Assert.IsNotNull(FindText("個人設定"));
             Assert.IsNotNull(FindText("OKタイムアウト（秒）"));
+            foreach (var caption in new[] { "ゲーム設定", "個人設定", "OKタイムアウト（秒）", "手番タイムアウト（秒）", "プレイヤーの数：" })
+            {
+                var label = FindText(caption);
+                Assert.AreEqual(Color.white, label.color, caption);
+                Assert.AreEqual(FontStyle.Bold, label.fontStyle, caption);
+            }
             Assert.IsNotNull(ButtonNamed("放棄などに確認を求める: YES"));
 
             Click("自分は参加せずに参戦: NO");
@@ -874,6 +880,19 @@ namespace Quota.Tests
             var match = (OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view);
             Assert.AreEqual(4, match.Game.Players.Count);
             foreach (var player in match.Game.Players) Assert.IsFalse(player.IsHuman);
+        }
+
+        [Test]
+        public void GuideBulletsStayWithTheirText()
+        {
+            host = Open();
+            var play = GuideCopy.Body("play");
+            var details = GuideCopy.Body("details");
+            StringAssert.Contains("•\u00a0プレイヤーは", play);
+            StringAssert.Contains("\n  •\u00a0単色達成", play);
+            StringAssert.Contains("•\u00a0集めるカードは", details);
+            Assert.IsFalse(play.Contains("\n- "));
+            Assert.IsFalse(details.Contains("\n- "));
         }
 
         [Test]

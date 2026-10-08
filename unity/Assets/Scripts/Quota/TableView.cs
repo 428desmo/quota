@@ -885,7 +885,7 @@ namespace Quota
             var rowW = screenW * 0.60f;
             var actionW = screenW * 0.35f;
             var labelW = LabelSlot(font, "プレイヤーの数：");
-            SetupNotice(column, "ゲーム設定", rowW, buttonH, font);
+            SetupNotice(column, "ゲーム設定", rowW, buttonH, font, true);
             if (leader) SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
             {
                 var next = playerCount == 3 ? 4 : 3;
@@ -896,8 +896,8 @@ namespace Quota
                     SaveRules();
                     ShowSetup();
                 }
-            });
-            else SetupNotice(column, $"プレイヤーの数：{playerCount}人", rowW, buttonH, font);
+            }, true);
+            else SetupNotice(column, $"プレイヤーの数：{playerCount}人", rowW, buttonH, font, true);
             SetupGap(column, innerGap);
             var seatNumber = 1;
             foreach (var seat in LobbySeats())
@@ -920,16 +920,16 @@ namespace Quota
             SetupGap(column, innerGap);
             DrawLobbyTimeout(column, "手番タイムアウト（秒）", false, leader, rowW, buttonH, font);
             SetupGap(column, buttonH);
-            SetupNotice(column, "個人設定", rowW, buttonH, font);
+            SetupNotice(column, "個人設定", rowW, buttonH, font, true);
             SetupButton(column, "放棄などに確認を求める: " + (confirmActions ? "YES" : "NO"), () =>
             {
                 confirmActions = !confirmActions; SaveRules(); ShowSetup();
-            }, rowW, buttonH, font);
+            }, rowW, buttonH, font, true);
             SetupGap(column, buttonH);
             if (NetworkJoined)
             {
                 if (leader) SetupButton(column, "ゲーム開始", StartNetworkMatch, actionW, buttonH * 2f, font * 2);
-                else SetupNotice(column, "ゲーム開始待ち", rowW, buttonH, font);
+                else SetupNotice(column, "ゲーム開始待ち", rowW, buttonH, font, true);
             }
             else SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
             SetupGap(column, innerGap);
@@ -3621,14 +3621,14 @@ namespace Quota
         void DrawLobbyTimeout(RectTransform column, string caption, bool ok, bool leader, float width, float height, int font)
         {
             var value = (ok ? okTimeout : turnTimeout).ToString("0.##");
-            if (!leader) { SetupNotice(column, caption + ": " + value, width, height, font); return; }
+            if (!leader) { SetupNotice(column, caption + ": " + value, width, height, font, true); return; }
 #if UNITY_WEBGL && !UNITY_EDITOR
-            SetupButton(column, caption + ": " + value + "　✎", () => QuotaEditTimeout(value, ok ? "ok" : "turn", gameObject.name), width, height, font);
+            SetupButton(column, caption + ": " + value + "　✎", () => QuotaEditTimeout(value, ok ? "ok" : "turn", gameObject.name), width, height, font, true);
 #else
             var row = Portrait.Rect(column, caption + "-row", 0, 0, width, 88f);
             var layout = row.gameObject.AddComponent<LayoutElement>();
             layout.preferredWidth = width; layout.preferredHeight = 88f;
-            var field = DialogField(row, caption, value, 0, 0, width);
+            var field = DialogField(row, caption, value, 0, 0, width, true);
             field.onEndEdit.AddListener(text => { if (ok) OnOkTimeoutEdited(text); else OnTurnTimeoutEdited(text); });
 #endif
         }
@@ -3692,9 +3692,11 @@ namespace Quota
             });
         }
 
-        InputField DialogField(Transform parent, string caption, string value, float x, float y, float width)
+        InputField DialogField(Transform parent, string caption, string value, float x, float y, float width, bool lightCaption = false)
         {
-            TextAt(parent, caption, x, y, width, 28f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+            var label = TextAt(parent, caption, x, y, width, 28f, 22, lightCaption ? Color.white : Ink, nameFont, TextAnchor.MiddleLeft);
+            if (lightCaption) Bold(label);
+            if (lightCaption) Shade(label);
             var host = Portrait.Box(parent, caption, x, y + 32f, width, 56f, 4f, 1f, Field, Ink, false);
             host.GetComponent<Image>().raycastTarget = true;
             var textGo = new GameObject("text", typeof(RectTransform), typeof(Text));
@@ -3765,7 +3767,7 @@ namespace Quota
             }
         }
 
-        void SetupButton(RectTransform parent, string caption, UnityAction action, float width, float height, int fontSize)
+        void SetupButton(RectTransform parent, string caption, UnityAction action, float width, float height, int fontSize, bool light = false)
         {
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
@@ -3773,7 +3775,7 @@ namespace Quota
             var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || (parent.name == "table-list" || parent.name == "table-list-content");
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
-            image.color = accent ? Accent : Ecru;
+            image.color = accent || light ? Accent : Ecru;
             SizeElement(go.GetComponent<LayoutElement>(), width, height);
             var label = new GameObject("caption", typeof(RectTransform), typeof(Text));
             label.transform.SetParent(go.transform, false);
@@ -3781,7 +3783,8 @@ namespace Quota
             var text = label.GetComponent<Text>();
             text.font = nameFont;
             text.fontSize = fontSize;
-            text.color = accent ? Cream : Ink;
+            text.color = light ? Color.white : accent ? Cream : Ink;
+            if (light) text.fontStyle = FontStyle.Bold;
             text.alignment = TextAnchor.MiddleCenter;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
@@ -3792,9 +3795,17 @@ namespace Quota
             button.onClick.AddListener(action);
         }
 
-        void SetupChoiceRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize, UnityAction action)
+        void SetupChoiceRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize, UnityAction action, bool light = false)
         {
             var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
+            if (light)
+            {
+                row.GetComponent<Image>().color = new Color(0.19f, 0.12f, 0.09f, 0.7f);
+                var label = row.GetComponentInChildren<Text>();
+                label.color = Color.white;
+                label.fontStyle = FontStyle.Bold;
+                Shade(label);
+            }
             SetupButton(row, value, action, fieldW, height, fontSize);
         }
 
@@ -3823,7 +3834,7 @@ namespace Quota
             text.raycastTarget = false;
         }
 
-        void SetupNotice(RectTransform parent, string caption, float width, float height, int fontSize)
+        void SetupNotice(RectTransform parent, string caption, float width, float height, int fontSize, bool light = false)
         {
             var go = new GameObject("notice", typeof(RectTransform), typeof(LayoutElement), typeof(Text));
             go.transform.SetParent(parent, false);
@@ -3832,7 +3843,9 @@ namespace Quota
             text.text = caption;
             text.font = nameFont;
             text.fontSize = fontSize;
-            text.color = Ink;
+            text.color = light ? Color.white : Ink;
+            if (light) text.fontStyle = FontStyle.Bold;
+            if (light) Shade(text);
             text.alignment = TextAnchor.MiddleCenter;
             text.raycastTarget = false;
         }
