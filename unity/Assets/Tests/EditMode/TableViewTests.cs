@@ -93,6 +93,36 @@ namespace Quota.Tests
             }
         }
 
+        [Test]
+        public void TitleVerdictStrikesUnwonTitlesOnlyAfterFinalization()
+        {
+            host = Open(); Set("seedText", "0"); Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            game.Config.TitleRule = true;
+            Show(view);
+            var path = "Root/Frame/seat0/title-names/";
+            Assert.IsNull(host.transform.Find(path + "title-mono-strike"));
+            Assert.IsNull(host.transform.Find(path + "title-purist-strike"));
+            Assert.IsNull(host.transform.Find(path + "title-variety-strike"));
+            game.AwaitingNextRound = true;
+            Set("titleVerdictRound", game.RoundIndex);
+            Show(view);
+            Assert.IsNotNull(host.transform.Find(path + "title-mono-strike"));
+            Assert.IsNotNull(host.transform.Find(path + "title-purist-strike"));
+            Assert.IsNotNull(host.transform.Find(path + "title-variety-strike"));
+            var player = game.Players[0];
+            player.Achieved.AddRange(new[] { new Card(9000, Suit.S, 1), new Card(9001, Suit.H, 1), new Card(9002, Suit.D, 1), new Card(9003, Suit.C, 2), new Card(9004, Suit.Joker, null) });
+            Show(view);
+            Assert.IsNull(host.transform.Find(path + "title-variety-strike"));
+            game.RoundIndex++;
+            game.AwaitingNextRound = false;
+            player.Achieved.Clear();
+            Show(view);
+            Assert.IsNull(host.transform.Find(path + "title-variety-strike"));
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         public void RoundPanelStartsWithEachNetworkViewersOwnPlayerAndNoScores(int viewer)

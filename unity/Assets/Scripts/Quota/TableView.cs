@@ -134,6 +134,7 @@ namespace Quota
         int ceremonyRoundIndex;
         int roundLeaderSeat;
         bool ceremonyLast;
+        int titleVerdictRound;
         bool ceremonyTitles;
         float ceremonyMaxHeight;
         bool ceremonyOverall;
@@ -746,6 +747,7 @@ namespace Quota
             ceremonyRankSlots = null;
             ceremonyEquation = false;
             ceremonyTitles = false;
+            titleVerdictRound = 0;
             ceremonyMaxHeight = 0f;
             ceremonyOverall = false;
             ceremonyOverallSlot = false;
@@ -1726,6 +1728,7 @@ namespace Quota
             ceremonyRankSlots = null;
             ceremonyEquation = false;
             ceremonyTitles = false;
+            titleVerdictRound = 0;
             ceremonyMaxHeight = 0f;
             ceremonyOverall = false;
             ceremonyOverallSlot = game.RoundIndex >= 2;
@@ -1784,6 +1787,7 @@ namespace Quota
             cpuRun++;
             PrepareCeremony(match.Game);
             ceremonyRunning = false;
+            titleVerdictRound = match.Game.RoundIndex;
             acknowledgedRound = match.Game.RoundIndex;
             ceremonyDialog = true;
             ceremonyNamesOnly = false;
@@ -1814,6 +1818,8 @@ namespace Quota
             yield return new WaitForSeconds(1f);
             if (serial != cpuRun || match.Game == null) yield break;
             ceremonyReasonShown = false;
+            titleVerdictRound = match.Game.RoundIndex;
+            ShowTable();
             ceremonyTitles = titleLines.Count > 0;
             yield return ExpandCeremony(serial);
             if (serial != cpuRun) yield break;
@@ -2806,9 +2812,16 @@ namespace Quota
         {
             var host = Portrait.Rect(seat, "title-names", x, y, width, band);
             var lineH = band / 3f;
-            DrawTitleName(host, "title-mono", "単色達成", 0f, 0f, width, lineH, font, TitleMonoOut(player));
-            DrawTitleName(host, "title-purist", "生粋の買い付け", 0f, lineH, width, lineH, font, TitlePuristOut(player));
-            DrawTitleName(host, "title-variety", "五種の品揃え", 0f, lineH * 2f, width, lineH, font, false);
+            var finalized = reviewMode || titleVerdictRound == match.Game.RoundIndex;
+            bool Missing(string name)
+            {
+                foreach (var award in match.Game.TitleAwards(player))
+                    if (award.name == name) return false;
+                return true;
+            }
+            DrawTitleName(host, "title-mono", "単色達成", 0f, 0f, width, lineH, font, finalized ? Missing("単色達成") : TitleMonoOut(player));
+            DrawTitleName(host, "title-purist", "生粋の買い付け", 0f, lineH, width, lineH, font, finalized ? Missing("生粋の買い付け") : TitlePuristOut(player));
+            DrawTitleName(host, "title-variety", "五種の品揃え", 0f, lineH * 2f, width, lineH, font, finalized && Missing("五種の品揃え"));
         }
 
         static bool TitleMonoOut(Player player)
