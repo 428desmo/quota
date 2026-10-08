@@ -1,8 +1,8 @@
-"""Crop trade-good photos to 72px icons.
+"""Crop trade-good photos to 288px icons.
 
 The source JPEGs are objects on a white field. Background is the near-white
 region connected to the image edge. The largest remaining object is scaled
-so its longer side is 72px and centered on a transparent 72×72 PNG.
+so its longer side is 288px and centered on a transparent 288×288 PNG.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 VISUAL = ROOT / "visual"
 CATALOG = ROOT / "quota_goods_v1.0.json"
 DESTINATIONS = (ROOT / "web" / "goods", ROOT / "unity" / "Assets" / "StreamingAssets" / "goods")
-SIZE = 72
+SIZE = 288
 LIGHT = 250
 
 

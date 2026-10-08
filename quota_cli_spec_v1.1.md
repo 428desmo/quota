@@ -14,7 +14,7 @@
 python -m quota.cli --players 3 --humans 1
 python -m quota.cli --players 4 --humans 2 --seed 7
 python -m quota.cli --auto --seed 1
-python -m quota.cli --sequence --auto --seed 1
+python -m quota.cli --auto --seed 1
 ```
 
 | 引数 | 既定 | 意味 |
@@ -79,3 +79,7 @@ python -m quota.cli --sequence --auto --seed 1
 ### 2026-10-08 商品をラウンドごとに再抽選
 
 ルールv1.19：各ラウンド開始時に27品目から4種類を選ぶ。金貨は固定。
+
+### 2026-10-08 シンプルモード廃止
+
+ターミナル版も並び順・称号・特殊アクションを常時適用し、人数と同じ回数のラウンドを行う。

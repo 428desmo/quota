@@ -92,6 +92,12 @@ namespace Quota.EditorTools
             CopyResource("title2.png");
             File.Copy(Path.GetFullPath("../visual/card_back.png"), Path.Combine(StreamingRoot, "card_back.png"), true);
             CopyResource("card_back.png");
+            foreach (var name in new[] { "how_to_play_v1.0.txt", "detailed_rule_v1.0.txt" })
+            {
+                var source = Path.GetFullPath("../" + name);
+                if (File.Exists(source)) File.Copy(source, Path.Combine(StreamingRoot, name), true);
+                CopyResource(name);
+            }
             CopyResource("quota_goods_v1.0.json");
             CopyResource("cpu_ranking_v1.2.json");
             var sourceGoods = Path.Combine(StreamingRoot, "goods");
@@ -107,6 +113,8 @@ namespace Quota.EditorTools
                 if (importer == null) continue;
                 importer.npotScale = TextureImporterNPOTScale.None;
                 importer.maxTextureSize = 4096;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.filterMode = FilterMode.Bilinear;
                 importer.SaveAndReimport();
             }
         }

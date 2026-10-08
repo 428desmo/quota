@@ -70,12 +70,12 @@ def test_each_game_deals_four_goods_from_the_pool():
     assert game.theme().faces["WILD"].name == "金貨"
 
 
-def test_goods_icons_fit_in_72_pixels():
+def test_goods_icons_fit_in_288_pixels():
     for good in (*goods_pool(), wild_good()):
         data = (ROOT / "web" / "goods" / f"{good.file}.png").read_bytes()
         assert data.startswith(b"\x89PNG\r\n\x1a\n")
         width, height = struct.unpack(">II", data[16:24])
-        assert (width, height, data[25]) == (72, 72, 6)
+        assert (width, height, data[25]) == (288, 288, 6)
 
 
 def test_web_cards_point_at_the_icon():

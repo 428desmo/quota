@@ -159,7 +159,8 @@ class UnityHall:
         self.leave(client)
         players = int(body.get("players") or 3)
         table = UnityTable(client, str(body.get("name") or "あなた"), players)
-        table.options = {key: body.get(key, default) for key, default in {"simple": True, "sequence": False, "title": False, "special": False, "ok_timeout": 5, "turn_timeout": 30}.items()}
+        table.options = {key: body.get(key, default) for key, default in {"simple": False, "sequence": True, "title": True, "special": True, "ok_timeout": 5, "turn_timeout": 30}.items()}
+        table.options.update(simple=False, sequence=True, title=True, special=True)
         if body.get("sit_out"):
             table.humans.clear()
         self.tables[table.id] = table
@@ -219,6 +220,7 @@ class UnityHall:
         if table.phase != "recruiting":
             raise ValueError("募集中だけ変更できます")
         seated = any(seat.client == client for seat in table.humans)
+        table.options.update(simple=False, sequence=True, title=True, special=True)
         if body.get("sit_out"):
             table.humans = [seat for seat in table.humans if seat.client != client]
         elif not seated:
@@ -247,6 +249,21 @@ class UnityHall:
         table.touch()
         return table.recruiting(client)
 
+    def settings(self, body: dict, client: str) -> dict:
+        table = self._require(client)
+        if table.phase != "recruiting" or table.leader_id() != client:
+            raise ValueError("募集中のリーダーだけが変更できます")
+        import math
+        values = {}
+        for key, minimum in (("ok_timeout", 0), ("turn_timeout", 1)):
+            value = float(body.get(key, table.options[key]))
+            if not math.isfinite(value) or value < minimum:
+                raise ValueError("タイムアウトの値が不正です")
+            values[key] = value
+        table.options.update(values)
+        table.touch()
+        return table.recruiting(client)
+
     def begin(self, client: str, body: dict | None = None) -> dict:
         table = self._require(client)
         if table.leader_id() != client:
@@ -255,13 +272,14 @@ class UnityHall:
             return table.recruiting(client)
         if body:
             table.options.update({k: body[k] for k in table.options if k in body})
+        table.options.update(simple=False, sequence=True, title=True, special=True)
         options = table.options
         table.game = Game.start(GameConfig(
             num_players=table.players, seed=table.seed,
             names=[seat.name for seat in table.humans] + [display_name(cid) for cid in table.cpu_cast[:table.players-table.seated()]],
             human_seats=list(range(table.seated())),
             sequence_rule=options["sequence"], title_rule=options["title"],
-            special_actions_rule=options["special"], rounds=1 if options["simple"] else table.players,
+            special_actions_rule=options["special"], rounds=table.players,
         ))
         seat_cast(table.game, table.cpu_cast)
         table.cpu_at = time.monotonic() + 0.7
@@ -448,6 +466,8 @@ class Handler(SimpleHTTPRequestHandler):
                     payload = HALL.participation(body, client)
                 elif self.path == "/api/players":
                     payload = HALL.set_players(body, client)
+                elif self.path == "/api/settings":
+                    payload = HALL.settings(body, client)
                 elif self.path == "/api/action":
                     payload = HALL.action(body, client)
                 elif self.path == "/api/start":

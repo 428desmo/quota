@@ -194,6 +194,7 @@
         webglContextAttributes: { alpha: false, preserveDrawingBuffer: false },
         // Let Unity track the browser pixel ratio, including Retina DPR 3.
         matchWebGLToCanvasSize: true,
+        devicePixelRatio: window.devicePixelRatio || 1,
         // errorHandler: function(err, url, line) {
         //    alert("error " + err + " occurred at line " + line);
         //    // Return 'true' if you handled this error and don't want Unity
