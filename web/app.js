@@ -141,12 +141,15 @@ function coinPlan(player, index) {
   if (state && state.sequence_rule) {
     const line = recorded.concat(parkedCards, open);
     const waiting = new Set(parkedCards.concat(open).map((card) => card.id));
+    let wildRun = line.length && line[0].joker ? 1 : 0;
     for (let i = 1; i < line.length; i += 1) {
       const prev = line[i - 1];
       const card = line[i];
-      if (!prev || !card || prev.joker || card.joker || prev.rank == null || card.rank == null) continue;
-      const purple = prev.rank === card.rank ? 2 : Math.abs(prev.rank - card.rank) === 1 ? 1 : 0;
-      if (purple) add(card, "purple", purple, !waiting.has(card.id));
+      wildRun = card && card.joker ? wildRun + 1 : 0;
+      const purple = card && card.joker ? wildRun - 1 :
+        !prev || !card || prev.joker || prev.rank == null || card.rank == null ? 0 :
+        prev.rank === card.rank ? 2 : Math.abs(prev.rank - card.rank) === 1 ? 1 : 0;
+      if (purple > 0) add(card, "purple", purple, !waiting.has(card.id));
     }
   }
   if (state && state.finished && titleCoinsVisible(index)) {
@@ -249,6 +252,7 @@ const GUIDES = {
       { note: "（6枚以下はボーナスなし）" },
       { list: [
         "達成の記録の並びで、前後する数字なら＋1点、同じ数字なら＋2点（組をまたいでもよい）。ラウンド終了時に加算する。**（シンプルルールでは無し）**",
+        "金貨が連続すると、2枚目に＋1、3枚目に＋2、4枚目に＋3点。商品札が挟まると連続はリセット。ラウンド終了時に加算。**（シンプルルールでは無し）**",
         "**ワイルド**不使用で3組以上達成したら、ラウンド終了時に＋5点。**（シンプルルールでは無し）**",
         "同じ種類だけ（ワイルドは可）で3組以上達成したら、ラウンド終了時に＋15点。**（シンプルルールでは無し）**",
         "実績に4種類の商品と金貨がすべて揃うと「五種の品揃え」でラウンド終了時に＋5点。**（シンプルルールでは無し）**",

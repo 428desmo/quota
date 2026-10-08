@@ -327,6 +327,38 @@ namespace Quota.Tests
             Assert.Greater(achieved[achieved.Count - 1].Serial, achieved[0].Serial);
         }
 
+        [TestCase(1, 0)]
+        [TestCase(2, 1)]
+        [TestCase(3, 3)]
+        [TestCase(4, 6)]
+        public void ConsecutiveGoldBonusesResetAtGoods(int count, int total)
+        {
+            var cards = new List<Card>();
+            for (var i = 0; i < count; i++) cards.Add(new Card(9000 + i, Suit.Joker, null));
+            Assert.AreEqual(total, Cards.SequenceBonus(cards));
+            var twice = new List<Card>(cards) { new Card(9100, Suit.S, 5) };
+            twice.AddRange(cards);
+            Assert.AreEqual(total * 2, Cards.SequenceBonus(twice));
+        }
+
+        [Test]
+        public void GoldChipsContinueAcrossAchievementBoundaryAndCpuPrefersChain()
+        {
+            var achieved = new List<Card> { new Card(9000, Suit.S, 3), new Card(9001, Suit.Joker, null), new Card(9002, Suit.Joker, null) };
+            var open = new List<Card> { new Card(9003, Suit.Joker, null), new Card(9004, Suit.Joker, null) };
+            var chips = BonusCoins.Plan(achieved, open, true, 0);
+            Assert.AreEqual(1, chips.FindAll(c => c.Kind == CoinKind.Purple && c.InTray).Count);
+            Assert.AreEqual(2, chips.FindAll(c => c.Kind == CoinKind.Purple && c.CardId == 9003 && !c.InTray).Count);
+            Assert.AreEqual(3, chips.FindAll(c => c.Kind == CoinKind.Purple && c.CardId == 9004 && !c.InTray).Count);
+            Assert.AreEqual(0, BonusCoins.Plan(achieved, open, false, 0).FindAll(c => c.Kind == CoinKind.Purple).Count);
+            var game = Game.Start(new GameConfig { Seed = 1 });
+            var player = game.Players[0];
+            player.Quota = new Card(9100, Suit.S, 13);
+            player.Collection.AddRange(new[] { achieved[1], achieved[2], open[0] });
+            var normal = new Card(9101, Suit.S, 13);
+            Assert.AreEqual(open[1], Cpu.OrderForSequence(player, new List<Card> { normal, open[1] })[0]);
+        }
+
         [Test]
         public void SequenceBonusExamples()
         {
