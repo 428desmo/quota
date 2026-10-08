@@ -29,7 +29,6 @@ namespace Quota
         const float ActionStride = 74f;
         const float SplashSeconds = 3f;
         const float SplashFadeSeconds = 0.5f;
-        const int AdvancedPromptAfter = 3;
         const string SplashCopy = "あなたは港で働く仲買人だ。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
         const string BuildStamp = "UNITY-WEBGL splash-harbor";
         const float MarketScale = 144f / 95f;
@@ -73,12 +72,10 @@ namespace Quota
         bool busy;
         string confirm;
         int playerCount = 3;
-        bool simpleMode = true;
-        bool sequenceRule;
-        bool titleRule;
-        bool specialRule;
-        bool finishCounted;
-        bool offerStandard;
+        bool simpleMode = false;
+        bool sequenceRule = true;
+        bool titleRule = true;
+        bool specialRule = true;
         Coroutine splashRun;
         string seedText = "";
         string playerName = "あなた";
@@ -99,15 +96,11 @@ namespace Quota
         bool MyHumanTurn => match.IsHumanTurn && (!NetworkPlaying || (networkState.you != null && networkState.you.seat == match.Game.Current));
         bool webNetworkDone;
         string webNetworkResponse;
-        string draftOk = "5";
-        string draftTurn = "30";
         double networkTurnDeadline;
         readonly HashSet<int> departedSeats = new HashSet<int>();
         readonly HashSet<int> timedOutSeats = new HashSet<int>();
         readonly HashSet<int> timeoutNoticeSeats = new HashSet<int>();
-        bool draftSimple;
         bool confirmActions = true;
-        bool draftConfirmActions = true;
         float okTimeout = 5f;
         float turnTimeout = 30f;
         Sprite titleMark;
@@ -680,23 +673,15 @@ namespace Quota
 
         void ApplyMode()
         {
-            sequenceRule = !simpleMode;
-            titleRule = !simpleMode;
-            specialRule = !simpleMode;
+            simpleMode = false;
+            sequenceRule = titleRule = specialRule = true;
         }
 
         void LoadRules()
         {
             if (!Application.isPlaying) return;
-            if (PlayerPrefs.GetInt("quota.saved", 0) == 0)
-            {
-                simpleMode = true;
-                ApplyMode();
-                SaveRules();
-                return;
-            }
-            if (PlayerPrefs.HasKey("quota.simple")) simpleMode = PlayerPrefs.GetInt("quota.simple", 1) == 1;
-            else simpleMode = PlayerPrefs.GetInt("quota.sequence", 0) == 0 && PlayerPrefs.GetInt("quota.title", 0) == 0 && PlayerPrefs.GetInt("quota.special", 0) == 0;
+            simpleMode = false;
+            playerCount = PlayerPrefs.GetInt("quota.players", 3);
             playerName = PlayerPrefs.GetString("quota.name", "あなた");
             if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
             okTimeout = PlayerPrefs.GetFloat("quota.okTimeout", 5f);
@@ -709,13 +694,16 @@ namespace Quota
         {
             if (!Application.isPlaying) return;
             PlayerPrefs.SetInt("quota.saved", 1);
-            PlayerPrefs.SetInt("quota.simple", simpleMode ? 1 : 0);
             PlayerPrefs.SetInt("quota.sequence", sequenceRule ? 1 : 0);
             PlayerPrefs.SetInt("quota.title", titleRule ? 1 : 0);
             PlayerPrefs.SetInt("quota.special", specialRule ? 1 : 0);
             PlayerPrefs.SetString("quota.name", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName.Trim());
-            PlayerPrefs.SetFloat("quota.okTimeout", okTimeout);
-            PlayerPrefs.SetFloat("quota.turnTimeout", turnTimeout);
+            if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
+            {
+                PlayerPrefs.SetInt("quota.players", playerCount);
+                PlayerPrefs.SetFloat("quota.okTimeout", okTimeout);
+                PlayerPrefs.SetFloat("quota.turnTimeout", turnTimeout);
+            }
             PlayerPrefs.SetInt("quota.confirmActions", confirmActions ? 1 : 0);
             PlayerPrefs.Save();
         }
@@ -799,18 +787,16 @@ namespace Quota
             const float innerGap = 16f;
             var tableCount = Mathf.Min(4, networkTables.Count);
             var fixedSpace = 80f + Mathf.Max(1, tableCount) * 12f + (showReview ? 16f : 0f);
-            var buttonH = Mathf.Clamp((available - fixedSpace) / (14f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f)), 28f, 72f);
+            var buttonH = Mathf.Clamp((available - fixedSpace) / (13f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f)), 28f, 72f);
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
             var column = SetupColumn(screenW, columnTop, available + 24f);
             var guideW = screenW * 0.40f;
             var rowW = screenW * 0.60f;
             var actionW = screenW * 0.35f;
             var section = buttonH * 2f;
-            SetupButton(column, "QuickStartガイド", () => OpenPage("quick"), guideW, buttonH, font);
+            SetupButton(column, "遊び方", () => OpenPage("play"), guideW, buttonH, font);
             SetupGap(column, innerGap);
-            SetupButton(column, "ルール", () => OpenPage("rules"), guideW, buttonH, font);
-            SetupGap(column, innerGap);
-            SetupButton(column, "勝つためのヒント", () => OpenPage("hint"), guideW, buttonH, font);
+            SetupButton(column, "詳細ルール", () => OpenPage("details"), guideW, buttonH, font);
             SetupGap(column, section);
             var labelW = LabelSlot(font, "あなたの名前：");
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -885,24 +871,33 @@ namespace Quota
         void DrawLobby(float screenW, float columnTop, float available, bool showReview)
         {
             const float innerGap = 16f;
+            var leader = !NetworkJoined || (networkState.you != null && networkState.you.leader);
             var seats = playerCount;
-            var buttonH = SetupButtonHeight(available, 12f + seats + (showReview ? 1f : 0f), seats + 3 + (showReview ? 1 : 0));
+            var buttonH = Mathf.Clamp((available - 176f - (seats + 9) * 16f) / (seats + 11f), 24f, 60f);
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
-            var column = SetupColumn(screenW, columnTop, available + 24f);
+            var viewport = Portrait.Rect(frame, "lobby-viewport", 0f, columnTop, screenW, available + 24f);
+            viewport.gameObject.AddComponent<RectMask2D>();
+            var column = Portrait.Rect(viewport, "setup", 0f, 0f, screenW, available + 24f);
+            var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
             var rowW = screenW * 0.60f;
             var actionW = screenW * 0.35f;
-            var section = buttonH * 2f;
             var labelW = LabelSlot(font, "プレイヤーの数：");
-            SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
+            SetupNotice(column, "ゲーム設定", rowW, buttonH, font);
+            if (leader) SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
             {
                 var next = playerCount == 3 ? 4 : 3;
                 if (NetworkJoined) SetNetworkPlayers(next);
                 else
                 {
                     playerCount = next;
+                    SaveRules();
                     ShowSetup();
                 }
             });
+            else SetupNotice(column, $"プレイヤーの数：{playerCount}人", rowW, buttonH, font);
             SetupGap(column, innerGap);
             var seatNumber = 1;
             foreach (var seat in LobbySeats())
@@ -920,14 +915,21 @@ namespace Quota
                     StartCoroutine(NetworkPost("/api/participation", JsonUtility.ToJson(new NetworkCreate { sit_out = !sitOut })));
                 else { sitOut = !sitOut; ShowSetup(); }
             }, rowW, buttonH, font);
-            SetupGap(column, section);
-            SetupButton(column, "その他の設定", OpenSettings, actionW, buttonH, font);
-            SetupGap(column, section);
+            SetupGap(column, innerGap);
+            DrawLobbyTimeout(column, "OKタイムアウト（秒）", true, leader, rowW, buttonH, font);
+            SetupGap(column, innerGap);
+            DrawLobbyTimeout(column, "手番タイムアウト（秒）", false, leader, rowW, buttonH, font);
+            SetupGap(column, buttonH);
+            SetupNotice(column, "個人設定", rowW, buttonH, font);
+            SetupButton(column, "放棄などに確認を求める: " + (confirmActions ? "YES" : "NO"), () =>
+            {
+                confirmActions = !confirmActions; SaveRules(); ShowSetup();
+            }, rowW, buttonH, font);
+            SetupGap(column, buttonH);
             if (NetworkJoined)
             {
-                var leader = networkState.you != null && networkState.you.leader;
                 if (leader) SetupButton(column, "ゲーム開始", StartNetworkMatch, actionW, buttonH * 2f, font * 2);
-                else SetupNotice(column, "リーダーがゲーム開始するのを待っています", rowW, buttonH, font);
+                else SetupNotice(column, "ゲーム開始待ち", rowW, buttonH, font);
             }
             else SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
             SetupGap(column, innerGap);
@@ -937,6 +939,20 @@ namespace Quota
                 SetupGap(column, innerGap);
                 SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
             }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(column);
+            var contentH = Mathf.Max(available + 24f, LayoutUtility.GetPreferredHeight(column));
+            column.anchorMin = new Vector2(0f, 1f);
+            column.anchorMax = new Vector2(1f, 1f);
+            column.pivot = new Vector2(0.5f, 1f);
+            column.sizeDelta = new Vector2(0f, contentH);
+            column.anchoredPosition = Vector2.zero;
+            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
+            scroll.viewport = viewport;
+            scroll.content = column;
+            scroll.horizontal = false;
+            scroll.vertical = contentH > available + 24f;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 48f;
         }
 
         List<KeyValuePair<string, bool>> LobbySeats()
@@ -976,6 +992,12 @@ namespace Quota
         void OpenLobby()
         {
             lobbyOpen = true;
+            if (Application.isPlaying)
+            {
+                playerCount = PlayerPrefs.GetInt("quota.players", 3);
+                okTimeout = PlayerPrefs.GetFloat("quota.okTimeout", 5f);
+                turnTimeout = PlayerPrefs.GetFloat("quota.turnTimeout", 30f);
+            }
             EnsureCast();
             ShowSetup();
             if (SharedNetwork && !NetworkJoined) StartCoroutine(CreateNetworkTable());
@@ -1121,6 +1143,11 @@ namespace Quota
                 lobbyOpen = true;
                 playerCount = next.players;
                 if (next.you != null) sitOut = next.you.observer;
+                if (next.options != null)
+                {
+                    okTimeout = next.options.ok_timeout;
+                    turnTimeout = next.options.turn_timeout;
+                }
             }
             else if (next.phase == "playing")
             {
@@ -1139,7 +1166,7 @@ namespace Quota
                         seedText = next.seed.ToString();
                         if (next.options != null)
                         {
-                            simpleMode = next.options.simple;
+                            simpleMode = false;
                             sequenceRule = next.options.sequence;
                             titleRule = next.options.title;
                             specialRule = next.options.special;
@@ -1285,6 +1312,7 @@ namespace Quota
 
         void SetNetworkPlayers(int players)
         {
+            playerCount = players; SaveRules();
             StartCoroutine(NetworkPost("/api/players", JsonUtility.ToJson(new NetworkPlayers { players = players })));
         }
 
@@ -1409,33 +1437,9 @@ namespace Quota
             ShowSetup();
         }
 
-        void OpenSettings()
-        {
-            draftSimple = simpleMode;
-            draftConfirmActions = confirmActions;
-            draftOk = okTimeout.ToString("0.##");
-            draftTurn = turnTimeout.ToString("0.##");
-            setupPage = "settings";
-            ShowSetup();
-        }
-
-        void ApplySettings()
-        {
-            simpleMode = draftSimple;
-            confirmActions = draftConfirmActions;
-            ApplyMode();
-            okTimeout = ParseSeconds(draftOk, 5f, 0f);
-            turnTimeout = ParseSeconds(draftTurn, 30f, 1f);
-            draftOk = okTimeout.ToString("0.##");
-            draftTurn = turnTimeout.ToString("0.##");
-            SaveRules();
-            setupPage = null;
-            ShowSetup();
-        }
-
         static float ParseSeconds(string text, float fallback, float minimum)
         {
-            if (!float.TryParse(text, out var value)) return fallback;
+            if (!float.TryParse(text, out var value) || float.IsNaN(value) || float.IsInfinity(value)) return fallback;
             return value < minimum ? minimum : value;
         }
 
@@ -1506,13 +1510,11 @@ namespace Quota
                 SequenceRule = sequenceRule,
                 TitleRule = titleRule,
                 SpecialActionsRule = specialRule,
-                Rounds = simpleMode ? 1 : playerCount,
+                Rounds = playerCount,
             }, pumpCpus: !Application.isPlaying && !shared);
             Characters.BindInOrder(match.Game, characters);
             BeginCardPresentation();
             confirm = null;
-            finishCounted = false;
-            offerStandard = false;
             cpuNotBefore = Application.isPlaying ? Time.time + 1f : 0f;
             ShowTable();
             if (Application.isPlaying) StartCoroutine(RunCpus(++cpuRun));
@@ -1595,7 +1597,6 @@ namespace Quota
             if (!showCeremony && game.Finished && !ceremonyBreak && !CardsAnimating)
             {
                 Result(game);
-                if (offerStandard) DrawStandardOffer();
             }
             else if (confirm != null && (confirm == "leave" || (!ceremonyRunning && !showCeremony && !reviewMode))) Confirm();
         }
@@ -3307,52 +3308,8 @@ namespace Quota
             foreach (var label in panel.GetComponentsInChildren<Text>()) label.fontStyle = FontStyle.Bold;
         }
 
-        void NoteFinish()
-        {
-            if (!Application.isPlaying || finishCounted) return;
-            finishCounted = true;
-            if (PlayerPrefs.GetInt("quota.prompted", 0) == 1) return;
-            var games = PlayerPrefs.GetInt("quota.games", 0) + 1;
-            PlayerPrefs.SetInt("quota.games", games);
-            PlayerPrefs.Save();
-            if (games >= AdvancedPromptAfter && simpleMode) offerStandard = true;
-        }
-
-        void DrawStandardOffer()
-        {
-            var veilW = WideScreen() ? LandWidth : ScreenWidth;
-            var veilH = WideScreen() ? LandHeight : ScreenHeight;
-            var veil = Portrait.Rect(frame, "offer", 0f, 0f, veilW, veilH);
-            var shade = veil.gameObject.AddComponent<Image>();
-            shade.sprite = Portrait.White;
-            shade.color = new Color(0.10f, 0.07f, 0.05f, 0.5f);
-            shade.raycastTarget = true;
-            var offerX = WideScreen() ? (LandWidth - 800f) * 0.5f : 140f;
-            var offerY = WideScreen() ? (LandHeight - 340f) * 0.5f : 760f;
-            var panel = Portrait.Box(veil, "offer-card", offerX, offerY, 800f, 340f, 7f, 1f, Paper, Ink, false);
-            TextAt(panel, "シンプルモードをオフにして標準ルールに戻しますか？", 32f, 36f, 736f, 140f, 28, Ink, nameFont, TextAnchor.MiddleCenter);
-            Pill(panel, "はい", 48f, 210f, 200f, 72f, 32, () =>
-            {
-                simpleMode = false;
-                ApplyMode();
-                SaveRules();
-                PlayerPrefs.SetInt("quota.prompted", 1);
-                PlayerPrefs.Save();
-                offerStandard = false;
-                ShowTable();
-            });
-            Pill(panel, "いいえ", 800f - 48f - 240f, 210f, 240f, 72f, 32, () =>
-            {
-                PlayerPrefs.SetInt("quota.prompted", 1);
-                PlayerPrefs.Save();
-                offerStandard = false;
-                ShowTable();
-            });
-        }
-
         void Result(Game game, string button = "もう一局")
         {
-            NoteFinish();
             var resultX = WideScreen() ? (LandWidth - 900f) * 0.5f : 90f;
             var resultY = WideScreen() ? 80f : 430f;
             var resultH = WideScreen() ? 920f : 1100f;
@@ -3659,57 +3616,43 @@ namespace Quota
             else DrawGuide(screenW, screenH);
         }
 
-        void DrawSettings(float screenW, float screenH)
+        void DrawSettings(float screenW, float screenH) { setupPage = null; }
+
+        void DrawLobbyTimeout(RectTransform column, string caption, bool ok, bool leader, float width, float height, int font)
         {
-            const float panelW = 860f;
-            const float panelH = 560f;
-            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Paper, Ink, false);
-            TextAt(panel, "設定", 32f, 24f, panelW - 64f, 48f, 32, Ink, nameFont, TextAnchor.MiddleLeft);
-            Pill(panel, draftSimple ? "シンプルモード　オン" : "シンプルモード　オフ", 32f, 96f, panelW - 64f, 72f, 28, () =>
-            {
-                draftSimple = !draftSimple;
-                ShowSetup();
-            });
+            var value = (ok ? okTimeout : turnTimeout).ToString("0.##");
+            if (!leader) { SetupNotice(column, caption + ": " + value, width, height, font); return; }
 #if UNITY_WEBGL && !UNITY_EDITOR
-            TextAt(panel, "OKタイムアウト（秒）", 32f, 196f, 380f, 28f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
-            Pill(panel, draftOk + "秒　✎ 変更", 32f, 228f, 380f, 64f, 28, () => QuotaEditTimeout(draftOk, "ok", gameObject.name));
-            TextAt(panel, "手番タイムアウト（秒）", 440f, 196f, 380f, 28f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
-            Pill(panel, draftTurn + "秒　✎ 変更", 440f, 228f, 380f, 64f, 28, () => QuotaEditTimeout(draftTurn, "turn", gameObject.name));
-            TextAt(panel, "変更をタップして秒数を入力", 32f, 310f, panelW - 64f, 40f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+            SetupButton(column, caption + ": " + value + "　✎", () => QuotaEditTimeout(value, ok ? "ok" : "turn", gameObject.name), width, height, font);
 #else
-            var ok = DialogField(panel, "OKタイムアウト（秒）", draftOk, 32f, 196f, 380f);
-            ok.onValueChanged.AddListener(value => draftOk = value);
-            var turn = DialogField(panel, "手番タイムアウト（秒）", draftTurn, 440f, 196f, 380f);
-            turn.onValueChanged.AddListener(value => draftTurn = value);
-            TextAt(panel, "数値をクリックして秒数を入力", 32f, 310f, panelW - 64f, 40f, 22, Ink, nameFont, TextAnchor.MiddleLeft);
+            var row = Portrait.Rect(column, caption + "-row", 0, 0, width, 88f);
+            var layout = row.gameObject.AddComponent<LayoutElement>();
+            layout.preferredWidth = width; layout.preferredHeight = 88f;
+            var field = DialogField(row, caption, value, 0, 0, width);
+            field.onEndEdit.AddListener(text => { if (ok) OnOkTimeoutEdited(text); else OnTurnTimeoutEdited(text); });
 #endif
-            Pill(panel, "放棄などに確認を求める: " + (draftConfirmActions ? "YES" : "NO"), 32f, 362f, panelW - 64f, 64f, 28, () =>
-            {
-                draftConfirmActions = !draftConfirmActions;
-                ShowSetup();
-            });
-            var decideW = 200f;
-            var cancelW = 240f;
-            var buttonGap = 20f;
-            var buttonsX = (panelW - decideW - buttonGap - cancelW) * 0.5f;
-            Pill(panel, "決定", buttonsX, panelH - 112f, decideW, 72f, 28, ApplySettings, true);
-            Pill(panel, "キャンセル", buttonsX + decideW + buttonGap, panelH - 112f, cancelW, 72f, 28, () =>
-            {
-                setupPage = null;
-                ShowSetup();
-            });
+        }
+
+        void SaveLobbyTimeouts()
+        {
+            if (NetworkJoined && (networkState.you == null || !networkState.you.leader)) return;
+            SaveRules();
+            if (NetworkJoined) StartCoroutine(NetworkPost("/api/settings", JsonUtility.ToJson(new NetworkCreate { ok_timeout = okTimeout, turn_timeout = turnTimeout })));
+            ShowSetup();
         }
 
         public void OnOkTimeoutEdited(string value)
         {
-            draftOk = ParseSeconds(value, ParseSeconds(draftOk, 5f, 0f), 0f).ToString("0.##");
-            if (setupPage == "settings") ShowSetup();
+            if (NetworkJoined && (networkState.you == null || !networkState.you.leader)) return;
+            okTimeout = ParseSeconds(value, okTimeout, 0f);
+            SaveLobbyTimeouts();
         }
 
         public void OnTurnTimeoutEdited(string value)
         {
-            draftTurn = ParseSeconds(value, ParseSeconds(draftTurn, 30f, 1f), 1f).ToString("0.##");
-            if (setupPage == "settings") ShowSetup();
+            if (NetworkJoined && (networkState.you == null || !networkState.you.leader)) return;
+            turnTimeout = ParseSeconds(value, turnTimeout, 1f);
+            SaveLobbyTimeouts();
         }
 
         void DrawGuide(float screenW, float screenH)

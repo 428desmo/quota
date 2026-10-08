@@ -16,9 +16,6 @@ def main() -> None:
     parser.add_argument("--humans", type=int, default=1, help="人間の人数。残りはCPU")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--auto", action="store_true", help="全員CPUで1ゲーム進める")
-    parser.add_argument("--sequence", action="store_true", help="上級ルール（並び順ボーナス）")
-    parser.add_argument("--title", action="store_true", help="上級ルール（称号ボーナス）")
-    parser.add_argument("--special", action="store_true", help="上級ルール（特殊アクション）")
     args = parser.parse_args()
     humans = 0 if args.auto else args.humans
     if humans > args.players:
@@ -34,10 +31,10 @@ def main() -> None:
             seed=args.seed,
             names=names,
             human_seats=list(range(humans)),
-            sequence_rule=args.sequence,
-            title_rule=args.title,
-            special_actions_rule=args.special,
-            rounds=args.players if args.sequence or args.title or args.special else 1,
+            sequence_rule=True,
+            title_rule=True,
+            special_actions_rule=True,
+            rounds=args.players,
         )
     )
     assign_seats(game)

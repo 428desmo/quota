@@ -67,7 +67,7 @@ def test_cpu_moves_are_shared_and_game_finishes(advanced):
     hall.join({"table": opened["table_id"], "name": "B"}, "b")
     hall.begin("a")
     table = hall.tables[opened["table_id"]]
-    replay = Game.start(GameConfig(num_players=3, seed=table.seed, names=[p.name for p in table.game.players], human_seats=[0, 1], sequence_rule=advanced, title_rule=advanced, special_actions_rule=advanced, rounds=3 if advanced else 1))
+    replay = Game.start(GameConfig(num_players=3, seed=table.seed, names=[p.name for p in table.game.players], human_seats=[0, 1], sequence_rule=True, title_rule=True, special_actions_rule=True, rounds=3))
     for _ in range(1500):
         if table.game.finished: break
         if table.game.awaiting_next_round:
@@ -388,3 +388,19 @@ def test_cpu_spectator_leader_controls_next_round_after_ceremony():
     assert "next_round" not in table.actions
     hall.action({"key": "next_round", "revision": len(table.actions)}, "a")
     assert not table.game.awaiting_next_round
+
+
+def test_lobby_settings_are_shared_and_leader_only():
+    hall = UnityHall()
+    opened = hall.create({"players": 3, "simple": True}, "a")
+    hall.join({"table": opened["table_id"], "name": "B"}, "b")
+    hall.settings({"ok_timeout": 12, "turn_timeout": 45}, "a")
+    guest = hall.snapshot("b")
+    assert guest["options"]["ok_timeout"] == 12
+    assert guest["options"]["turn_timeout"] == 45
+    assert not guest["options"]["simple"]
+    with pytest.raises(ValueError): hall.settings({"turn_timeout": 99}, "b")
+    with pytest.raises(ValueError): hall.set_players({"players": 4}, "b")
+    with pytest.raises(ValueError): hall.settings({"turn_timeout": float("nan")}, "a")
+    hall.begin("a")
+    with pytest.raises(ValueError): hall.settings({"turn_timeout": 99}, "a")

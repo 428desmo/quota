@@ -123,6 +123,26 @@ namespace Quota.Tests
             Assert.IsNull(host.transform.Find(path + "title-variety-strike"));
         }
 
+        [Test]
+        public void GuestLobbyShowsRulesReadOnlyAndKeepsPersonalConfirmationEditable()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var json = "{\"phase\":\"recruiting\",\"table_id\":\"test\",\"players\":4,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"C\",\"D\"],\"you\":{\"seat\":1,\"leader\":false},\"options\":{\"ok_timeout\":12,\"turn_timeout\":45}}";
+            typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
+            Assert.IsNull(FindButton("CPUプレイヤー入れ替え"));
+            Assert.IsNull(FindButton("ゲーム開始"));
+            Assert.IsNull(FindButton("4人"));
+            Assert.IsNotNull(FindText("ゲーム開始待ち"));
+            Assert.IsNotNull(FindText("OKタイムアウト（秒）: 12"));
+            Assert.IsNotNull(FindText("手番タイムアウト（秒）: 45"));
+            Assert.IsNotNull(FindButton("放棄などに確認を求める: YES"));
+            Assert.AreEqual(0, host.GetComponentsInChildren<InputField>().Length);
+            view.OnTurnTimeoutEdited("99");
+            Assert.AreEqual(45f, typeof(TableView).GetField("turnTimeout", flags).GetValue(view));
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         public void RoundPanelStartsWithEachNetworkViewersOwnPlayerAndNoScores(int viewer)
@@ -501,7 +521,7 @@ namespace Quota.Tests
             var apply = typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic);
             apply.Invoke(view, new object[] { "{\"phase\":\"recruiting\",\"table_id\":\"test\",\"players\":3,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"CPU\"],\"you\":{\"seat\":1,\"leader\":false}}" });
             Assert.IsNull(FindText("CPUプレイヤー入れ替え"));
-            Assert.IsNotNull(FindText("リーダーがゲーム開始するのを待っています"));
+            Assert.IsNotNull(FindText("ゲーム開始待ち"));
         }
 
         [Test]
@@ -738,13 +758,11 @@ namespace Quota.Tests
             Assert.IsNotNull(name);
             Rebuild(host);
 
-            var guide = ButtonNamed("QuickStartガイド").GetComponent<RectTransform>();
-            var rules = ButtonNamed("ルール").GetComponent<RectTransform>();
-            var hint = ButtonNamed("勝つためのヒント").GetComponent<RectTransform>();
+            var guide = ButtonNamed("遊び方").GetComponent<RectTransform>();
+            var rules = ButtonNamed("詳細ルール").GetComponent<RectTransform>();
             var start = ButtonNamed("新規ゲーム卓の準備").GetComponent<RectTransform>();
             Assert.AreEqual(1080f * 0.40f, guide.rect.width, 2f);
             Assert.AreEqual(guide.rect.width, rules.rect.width, 1f);
-            Assert.AreEqual(guide.rect.width, hint.rect.width, 1f);
             Assert.AreEqual(1080f * 0.60f, start.rect.width, 2f);
             Assert.AreEqual(guide.rect.height * 2f, start.rect.height, 2f);
             Assert.AreEqual(Mathf.RoundToInt(guide.GetComponentInChildren<Text>().fontSize * 1.3f), start.GetComponentInChildren<Text>().fontSize);
@@ -768,7 +786,7 @@ namespace Quota.Tests
             Assert.AreEqual(WorldMidY(nameLabel.rectTransform), WorldMidY(nameBox), 2f);
             var section = guide.rect.height * 2f;
             var scaleY = Mathf.Abs(WorldTop(guide) - WorldBottom(guide)) / guide.rect.height;
-            Assert.AreEqual(section, (WorldBottom(hint) - WorldTop(nameRow)) / scaleY, 3f);
+            Assert.AreEqual(section, (WorldBottom(rules) - WorldTop(nameRow)) / scaleY, 3f);
             Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(start)) / scaleY, 3f);
 
             Assert.AreEqual(WorldMidX(frame), WorldMidX(guide), 2f);
@@ -787,11 +805,11 @@ namespace Quota.Tests
             ColorUtility.TryParseHtmlString("#8C3D2A", out accent);
             Assert.AreEqual(accent, start.GetComponent<Image>().color);
 
-            Click("QuickStartガイド");
-            Assert.IsNotNull(FindText("QuickStartガイド"));
+            Click("遊び方");
+            Assert.IsNotNull(FindText("遊び方"));
             Text intro = null;
             foreach (var label in host.GetComponentsInChildren<Text>())
-                if (label.text.StartsWith("場札から商品のカードを1枚選んで")) intro = label;
+                if (label.text.StartsWith("遊び方")) intro = label;
             Assert.IsNotNull(intro);
             Assert.AreEqual(36, intro.fontSize);
             var quickScroll = host.transform.Find("Root/Frame/setup-dialog").GetComponentInChildren<ScrollRect>();
@@ -799,7 +817,7 @@ namespace Quota.Tests
             Click("OK");
             Assert.IsNull(host.transform.Find("Root/Frame/setup-dialog"));
 
-            Click("ルール");
+            Click("詳細ルール");
             Rebuild(host);
             var rulesScroll = host.transform.Find("Root/Frame/setup-dialog").GetComponentInChildren<ScrollRect>();
             Assert.IsNotNull(rulesScroll);
@@ -837,16 +855,11 @@ namespace Quota.Tests
             CollectionAssert.AreNotEqual(before, cast);
             Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(cast[0])));
 
-            Click("その他の設定");
-            Assert.IsNotNull(ButtonNamed("シンプルモード　オン"));
-            var decide = ButtonNamed("決定").GetComponent<RectTransform>();
-            var cancel = ButtonNamed("キャンセル").GetComponent<RectTransform>();
-            var dialog = host.transform.Find("Root/Frame/setup-dialog") as RectTransform;
-            var pairLeft = Mathf.Min(WorldLeft(decide), WorldLeft(cancel));
-            var pairRight = Mathf.Max(WorldRight(decide), WorldRight(cancel));
-            Assert.AreEqual(WorldMidX(dialog), (pairLeft + pairRight) * 0.5f, 3f);
-            Click("キャンセル");
-            Assert.IsNull(FindButton("シンプルモード　オン"));
+            Assert.IsNull(FindButton("その他の設定"));
+            Assert.IsNotNull(FindText("ゲーム設定"));
+            Assert.IsNotNull(FindText("個人設定"));
+            Assert.IsNotNull(FindText("OKタイムアウト（秒）"));
+            Assert.IsNotNull(ButtonNamed("放棄などに確認を求める: YES"));
 
             Click("自分は参加せずに参戦: NO");
             Assert.IsNotNull(FindText("自分は参加せずに参戦: YES"));
@@ -1368,7 +1381,7 @@ namespace Quota.Tests
             Assert.AreEqual("山札切れでラウンド終了。", typeof(TableView).GetField("ceremonyReason", flags).GetValue(view));
             Assert.IsNull(typeof(TableView).GetField("ceremonyPlaces", flags).GetValue(view));
             var scores = (Dictionary<int, int>)typeof(TableView).GetField("scoreOverride", flags).GetValue(view);
-            Assert.AreEqual(9, scores[leader]);
+            Assert.AreEqual(10, scores[leader]);
             typeof(TableView).GetField("ceremonyDialog", flags).SetValue(view, true);
             typeof(TableView).GetField("ceremonyReasonShown", flags).SetValue(view, true);
             Show(view);
