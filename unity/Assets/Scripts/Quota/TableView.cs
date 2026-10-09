@@ -996,28 +996,69 @@ namespace Quota
 
         void DrawLobbyChoice(float screenW, float screenH)
         {
+            var caption = lobbyChoice == "round" ? "ラウンド数：" : lobbyChoice == "players" ? "プレイヤーの数："
+                : lobbyChoice == "ok" ? "OKタイムアウト（秒）：" : lobbyChoice == "turn" ? "手番タイムアウト（秒）："
+                : lobbyChoice == "observer" ? "自分は参加せずに観戦：" : "放棄などに確認を求める：";
+            var row = frame.Find("lobby-viewport/setup/" + caption);
+            var triggerButton = row == null ? null : row.GetComponentInChildren<Button>();
+            var trigger = triggerButton == null ? null : triggerButton.transform as RectTransform;
+            if (trigger == null) { lobbyChoice = null; return; }
+            Canvas.ForceUpdateCanvases();
+            var corners = new Vector3[4];
+            trigger.GetWorldCorners(corners);
+            var topLeft = frame.InverseTransformPoint(corners[1]);
+            var bottomRight = frame.InverseTransformPoint(corners[3]);
+            var fieldX = topLeft.x - frame.rect.xMin;
+            var fieldY = frame.rect.yMax - topLeft.y;
             var options = LobbyChoiceOptions(lobbyChoice);
+            var selected = LobbyChoiceSelected(lobbyChoice);
+            var selectedIndex = System.Array.IndexOf(options, selected);
+            const float optionH = 60f;
+            var panelW = Mathf.Min(screenW - 24f, bottomRight.x - topLeft.x + 12f);
+            var panelH = options.Length * optionH + 4f;
+            var panelX = Mathf.Clamp(fieldX - 6f, 12f, screenW - panelW - 12f);
+            var panelY = Mathf.Clamp(fieldY - Mathf.Max(0, selectedIndex) * optionH - 2f,
+                12f, screenH - panelH - 12f);
             var scrim = Portrait.Rect(frame, "lobby-choice-scrim", 0f, 0f, screenW, screenH);
             var scrimImage = scrim.gameObject.AddComponent<Image>();
-            scrimImage.color = new Color(0f, 0f, 0f, 0.55f);
+            scrimImage.color = new Color(0.94f, 0.91f, 0.86f, 0.66f);
             scrimImage.raycastTarget = true;
-            var panelW = Mathf.Min(680f, screenW - 48f);
-            var panelH = 172f + options.Length * 68f;
-            var panel = Portrait.Box(frame, "lobby-choice", (screenW - panelW) * 0.5f,
-                (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Paper, Ink, false);
-            var title = lobbyChoice == "round" ? "ラウンド数" : lobbyChoice == "players" ? "プレイヤーの数"
-                : lobbyChoice == "ok" ? "OKタイムアウト（秒）" : lobbyChoice == "turn" ? "手番タイムアウト（秒）"
-                : lobbyChoice == "observer" ? "自分は参加せずに観戦" : "放棄などに確認を求める";
-            Bold(TextAt(panel, title, 24f, 18f, panelW - 48f, 48f, 30, Ink, nameFont, TextAnchor.MiddleCenter));
-            var selected = LobbyChoiceSelected(lobbyChoice);
+            var outside = scrim.gameObject.AddComponent<Button>();
+            outside.targetGraphic = scrimImage;
+            outside.onClick.AddListener(() => { lobbyChoice = null; ShowSetup(); });
+            var label = row.Find("label") as RectTransform;
+            if (label != null)
+            {
+                var rowCorners = new Vector3[4];
+                var labelCorners = new Vector3[4];
+                (row as RectTransform).GetWorldCorners(rowCorners);
+                label.GetWorldCorners(labelCorners);
+                var rowTopLeft = frame.InverseTransformPoint(rowCorners[1]);
+                var labelTopLeft = frame.InverseTransformPoint(labelCorners[1]);
+                var rowX = rowTopLeft.x - frame.rect.xMin;
+                var rowY = frame.rect.yMax - rowTopLeft.y;
+                var labelX = labelTopLeft.x - frame.rect.xMin;
+                var labelPanel = Portrait.Box(frame, "lobby-choice-label", rowX, rowY,
+                    Mathf.Max(1f, fieldX - rowX), (row as RectTransform).rect.height,
+                    7f, 0f, new Color(0.19f, 0.12f, 0.09f, 0.86f), Ink, false);
+                var source = label.GetComponent<Text>();
+                var captionText = TextAt(labelPanel, caption, labelX - rowX, 0f,
+                    fieldX - labelX, labelPanel.rect.height, source.fontSize, Color.white, nameFont, TextAnchor.MiddleLeft);
+                Bold(captionText);
+            }
+            var panel = Portrait.Box(frame, "lobby-choice", panelX, panelY, panelW, panelH, 8f, 1f, Paper, Ink, false);
             for (var i = 0; i < options.Length; i++)
             {
                 var option = options[i];
-                Pill(panel, option, 24f, 78f + i * 68f, panelW - 48f, 58f, 28,
-                    () => SelectLobbyChoice(option), accent: option == selected);
+                var item = Portrait.Rect(panel, option, 2f, 2f + i * optionH, panelW - 4f, optionH - 1f);
+                var fill = item.gameObject.AddComponent<Image>();
+                fill.color = option == selected ? Accent : Ecru;
+                var button = item.gameObject.AddComponent<Button>();
+                button.targetGraphic = fill;
+                button.onClick.AddListener(() => SelectLobbyChoice(option));
+                TextAt(item, option, 6f, 0f, panelW - 16f, optionH - 1f, 28,
+                    option == selected ? Cream : Ink, nameFont, TextAnchor.MiddleCenter);
             }
-            Pill(panel, "キャンセル", 24f, panelH - 78f, panelW - 48f, 56f, 25,
-                () => { lobbyChoice = null; ShowSetup(); });
         }
 
         void SelectLobbyChoice(string value)
