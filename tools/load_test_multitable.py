@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from http import HTTPStatus
 from http.client import HTTPConnection, HTTPException, HTTPSConnection
 import json
 from pathlib import Path
@@ -90,10 +91,18 @@ def request(base: str, path: str, client: str, timeout: float, body: dict | None
         else:
             with urlopen(Request(base + path, data=data, headers=headers), timeout=timeout) as response:
                 status, payload = response.status, response.read()
-        result = json.loads(payload)
         if status >= 400:
-            error = str(result.get("error", "HTTP error"))
-            raise RuntimeError(f"{path}: HTTP {status}: {error}")
+            try:
+                detail = json.loads(payload).get("error", "")
+            except (ValueError, UnicodeDecodeError, AttributeError):
+                detail = ""
+            try:
+                reason = HTTPStatus(status).phrase
+            except ValueError:
+                reason = "HTTP error"
+            error = f"HTTP {status} {reason}"
+            raise RuntimeError(f"{path}: {error}" + (f": {detail}" if detail else ""))
+        result = json.loads(payload)
         if "error" in result:
             error = str(result["error"])
             raise RuntimeError(f"{path}: {error}")
@@ -101,10 +110,11 @@ def request(base: str, path: str, client: str, timeout: float, body: dict | None
     except HTTPError as exc:
         status, payload = exc.code, exc.read()
         try:
-            error = str(json.loads(payload).get("error", "HTTP error"))
+            detail = str(json.loads(payload).get("error", ""))
         except (ValueError, UnicodeDecodeError):
-            error = "HTTP error"
-        raise RuntimeError(f"{path}: HTTP {status}: {error}") from exc
+            detail = ""
+        error = f"HTTP {status} {exc.reason}"
+        raise RuntimeError(f"{path}: {error}" + (f": {detail}" if detail else "")) from exc
     except (URLError, TimeoutError, OSError, HTTPException) as exc:
         error = type(exc).__name__
         if session is not None:
@@ -187,7 +197,12 @@ def print_server_delta(before: dict, after: dict) -> None:
     print(f"server process: cpu_decisions={cpu} cpu_think_total={cpu_ms:.1f}ms "
           f"user_cpu={user_cpu:.2f}s system_cpu={system_cpu:.2f}s "
           f"rss={after['process']['rss_bytes']}B peak_rss={after['process']['peak_rss_bytes']}B "
-          f"threads={after['process']['threads']} action_entries={after['hall']['action_history_entries']}")
+          f"threads={after['process']['threads']} peak_inflight_since_start={after.get('peak_inflight_api', 'n/a')} "
+          f"action_entries={after['hall']['action_history_entries']}")
+    if before.get("kernel_tcp") and after.get("kernel_tcp"):
+        overflow = after["kernel_tcp"]["listen_overflows"] - before["kernel_tcp"]["listen_overflows"]
+        dropped = after["kernel_tcp"]["listen_drops"] - before["kernel_tcp"]["listen_drops"]
+        print(f"server kernel TCP: listen_overflows={overflow} listen_drops={dropped} (host-wide)")
 
 
 def main() -> int:
