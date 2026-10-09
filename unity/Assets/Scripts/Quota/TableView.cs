@@ -102,6 +102,7 @@ namespace Quota
         readonly HashSet<int> timedOutSeats = new HashSet<int>();
         readonly HashSet<int> timeoutNoticeSeats = new HashSet<int>();
         bool confirmActions = true;
+        string lobbyChoice;
         float okTimeout = 5f;
         float turnTimeout = 30f;
         static readonly float[] OkTimeoutChoices = { 1f, 2f, 3f, 4f, 5f };
@@ -715,6 +716,7 @@ namespace Quota
 
         void ShowSetup()
         {
+            if (!lobbyOpen) lobbyChoice = null;
             ResetCardMotion();
             pulsingSeat = -1;
             RemoveLeaveButton();
@@ -770,6 +772,7 @@ namespace Quota
             var available = screenH - columnTop - 24f;
             if (lobbyOpen) DrawLobby(screenW, columnTop, available, showReview);
             else DrawStartMenu(screenW, columnTop, available, showReview);
+            if (lobbyOpen && !string.IsNullOrEmpty(lobbyChoice)) DrawLobbyChoice(screenW, screenH);
             if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
             Shade(TextAt(frame, BuildStamp, 24f, screenH - 56f, screenW - 48f, 40f, 24, Cream, nameFont, TextAnchor.MiddleCenter));
         }
@@ -864,13 +867,28 @@ namespace Quota
                 SetupButton(content, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
             }
             if (tableCount == 0) SetupNotice(content, "現在、卓はありません", rowW - 40f, buttonH, font);
-            SetupGap(column, section);
-            SetupButton(column, "実装テスト", () => OpenPage("tests"), actionW, buttonH, font);
+            if (ShowImplementationTest(Application.absoluteURL, Application.isEditor))
+            {
+                SetupGap(column, section);
+                SetupButton(column, "実装テスト", () => OpenPage("tests"), actionW, buttonH, font);
+            }
             if (showReview)
             {
                 SetupGap(column, innerGap);
                 SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
             }
+        }
+
+        static bool ShowImplementationTest(string absoluteUrl, bool isEditor)
+        {
+            if (isEditor) return true;
+            System.Uri uri;
+            System.Net.IPAddress address;
+            if (!System.Uri.TryCreate(absoluteUrl, System.UriKind.Absolute, out uri)
+                || (uri.Scheme != "http" && uri.Scheme != "https")
+                || !System.Net.IPAddress.TryParse(uri.Host, out address)) return false;
+            var bytes = address.GetAddressBytes();
+            return bytes.Length == 4 && bytes[0] == 192 && bytes[1] == 168 && bytes[2] == 0;
         }
 
         void DrawLobby(float screenW, float columnTop, float available, bool showReview)
@@ -891,24 +909,10 @@ namespace Quota
             var actionW = screenW * 0.35f;
             var labelW = LabelSlot(font, "自分は参加せずに観戦：", "放棄などに確認を求める：", "手番タイムアウト（秒）：");
             SetupNotice(column, "ゲーム設定", rowW, buttonH, font, true);
-            if (leader) SetupChoiceRow(column, "ラウンド数：", RoundModeLabel(), rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
-            {
-                roundMode = (roundMode + 1) % 3;
-                SaveLobbySettings();
-            }, true);
+            if (leader) SetupChoiceRow(column, "ラウンド数：", RoundModeLabel(), rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("round"), true);
             else SetupNotice(column, "ラウンド数：" + RoundModeLabel(), rowW, buttonH, font, true);
             SetupGap(column, innerGap);
-            if (leader) SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
-            {
-                var next = playerCount == 3 ? 4 : 3;
-                if (NetworkJoined) SetNetworkPlayers(next);
-                else
-                {
-                    playerCount = next;
-                    SaveRules();
-                    ShowSetup();
-                }
-            }, true);
+            if (leader) SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("players"), true);
             else SetupNotice(column, $"プレイヤーの数：{playerCount}人", rowW, buttonH, font, true);
             SetupGap(column, innerGap);
             var seatNumber = 1;
@@ -921,22 +925,14 @@ namespace Quota
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
                 SetupButton(column, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, rowW, buttonH, font);
             SetupGap(column, innerGap);
-            SetupChoiceRow(column, "自分は参加せずに観戦：", sitOut ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
-            {
-                if (NetworkJoined)
-                    StartCoroutine(NetworkPost("/api/participation", JsonUtility.ToJson(new NetworkCreate { sit_out = !sitOut })));
-                else { sitOut = !sitOut; ShowSetup(); }
-            }, true);
+            SetupChoiceRow(column, "自分は参加せずに観戦：", sitOut ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("observer"), true);
             SetupGap(column, innerGap);
             DrawLobbyTimeout(column, "OKタイムアウト（秒）", true, leader, rowW, buttonH, font);
             SetupGap(column, innerGap);
             DrawLobbyTimeout(column, "手番タイムアウト（秒）", false, leader, rowW, buttonH, font);
             SetupGap(column, buttonH);
             SetupNotice(column, "個人設定", rowW, buttonH, font, true);
-            SetupChoiceRow(column, "放棄などに確認を求める：", confirmActions ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
-            {
-                confirmActions = !confirmActions; SaveRules(); ShowSetup();
-            }, true);
+            SetupChoiceRow(column, "放棄などに確認を求める：", confirmActions ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("confirm"), true);
             SetupGap(column, buttonH);
             if (NetworkJoined)
             {
@@ -965,6 +961,102 @@ namespace Quota
             scroll.vertical = contentH > available + 24f;
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 48f;
+        }
+
+        void OpenLobbyChoice(string key)
+        {
+            lobbyChoice = key;
+            ShowSetup();
+        }
+
+        static string[] LobbyChoiceOptions(string key)
+        {
+            switch (key)
+            {
+                case "round": return new[] { "1", "人数分", "人数分×2" };
+                case "players": return new[] { "3人", "4人" };
+                case "ok": return new[] { "1", "2", "3", "4", "5" };
+                case "turn": return new[] { "5", "10", "15", "20", "25", "30" };
+                default: return new[] { "YES", "NO" };
+            }
+        }
+
+        string LobbyChoiceSelected(string key)
+        {
+            switch (key)
+            {
+                case "round": return RoundModeLabel();
+                case "players": return playerCount + "人";
+                case "ok": return okTimeout.ToString("0");
+                case "turn": return turnTimeout.ToString("0");
+                case "observer": return sitOut ? "YES" : "NO";
+                default: return confirmActions ? "YES" : "NO";
+            }
+        }
+
+        void DrawLobbyChoice(float screenW, float screenH)
+        {
+            var options = LobbyChoiceOptions(lobbyChoice);
+            var scrim = Portrait.Rect(frame, "lobby-choice-scrim", 0f, 0f, screenW, screenH);
+            var scrimImage = scrim.gameObject.AddComponent<Image>();
+            scrimImage.color = new Color(0f, 0f, 0f, 0.55f);
+            scrimImage.raycastTarget = true;
+            var panelW = Mathf.Min(680f, screenW - 48f);
+            var panelH = 172f + options.Length * 68f;
+            var panel = Portrait.Box(frame, "lobby-choice", (screenW - panelW) * 0.5f,
+                (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Paper, Ink, false);
+            var title = lobbyChoice == "round" ? "ラウンド数" : lobbyChoice == "players" ? "プレイヤーの数"
+                : lobbyChoice == "ok" ? "OKタイムアウト（秒）" : lobbyChoice == "turn" ? "手番タイムアウト（秒）"
+                : lobbyChoice == "observer" ? "自分は参加せずに観戦" : "放棄などに確認を求める";
+            Bold(TextAt(panel, title, 24f, 18f, panelW - 48f, 48f, 30, Ink, nameFont, TextAnchor.MiddleCenter));
+            var selected = LobbyChoiceSelected(lobbyChoice);
+            for (var i = 0; i < options.Length; i++)
+            {
+                var option = options[i];
+                Pill(panel, option, 24f, 78f + i * 68f, panelW - 48f, 58f, 28,
+                    () => SelectLobbyChoice(option), accent: option == selected);
+            }
+            Pill(panel, "キャンセル", 24f, panelH - 78f, panelW - 48f, 56f, 25,
+                () => { lobbyChoice = null; ShowSetup(); });
+        }
+
+        void SelectLobbyChoice(string value)
+        {
+            var key = lobbyChoice;
+            lobbyChoice = null;
+            if (key != "observer" && key != "confirm" && NetworkJoined
+                && (networkState.you == null || !networkState.you.leader)) { ShowSetup(); return; }
+            switch (key)
+            {
+                case "round":
+                    roundMode = value == "1" ? 0 : value == "人数分×2" ? 2 : 1;
+                    SaveLobbySettings();
+                    return;
+                case "players":
+                    var players = value == "4人" ? 4 : 3;
+                    if (NetworkJoined) SetNetworkPlayers(players);
+                    else { playerCount = players; SaveRules(); ShowSetup(); }
+                    return;
+                case "ok":
+                    okTimeout = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                    SaveLobbySettings();
+                    return;
+                case "turn":
+                    turnTimeout = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                    SaveLobbySettings();
+                    return;
+                case "observer":
+                    var observe = value == "YES";
+                    if (NetworkJoined) StartCoroutine(NetworkPost("/api/participation", JsonUtility.ToJson(new NetworkCreate { sit_out = observe })));
+                    else { sitOut = observe; ShowSetup(); }
+                    return;
+                case "confirm":
+                    confirmActions = value == "YES";
+                    SaveRules();
+                    ShowSetup();
+                    return;
+            }
+            ShowSetup();
         }
 
         List<KeyValuePair<string, bool>> LobbySeats()
@@ -1004,6 +1096,7 @@ namespace Quota
         void OpenLobby()
         {
             lobbyOpen = true;
+            lobbyChoice = null;
             if (Application.isPlaying)
             {
                 playerCount = PlayerPrefs.GetInt("quota.players", 3);
@@ -1019,6 +1112,7 @@ namespace Quota
         void CloseLobby()
         {
             lobbyOpen = false;
+            lobbyChoice = null;
             ShowSetup();
         }
 
@@ -3640,12 +3734,7 @@ namespace Quota
             var value = (ok ? okTimeout : turnTimeout).ToString("0");
             if (!leader) { SetupNotice(column, caption + ": " + value, width, height, font, true); return; }
             var labelW = LabelSlot(font, "自分は参加せずに観戦：", "放棄などに確認を求める：", "手番タイムアウト（秒）：");
-            SetupChoiceRow(column, caption + "：", value, width, height, labelW, width - labelW - 12f - font, font, () =>
-            {
-                if (ok) okTimeout = NextChoice(okTimeout, OkTimeoutChoices);
-                else turnTimeout = NextChoice(turnTimeout, TurnTimeoutChoices);
-                SaveLobbySettings();
-            }, true);
+            SetupChoiceRow(column, caption + "：", value, width, height, labelW, width - labelW - 12f - font, font, () => OpenLobbyChoice(ok ? "ok" : "turn"), true);
         }
 
         string RoundModeLabel() => roundMode == 0 ? "1" : roundMode == 2 ? "人数分×2" : "人数分";
@@ -3658,13 +3747,6 @@ namespace Quota
             foreach (var choice in choices)
                 if (Mathf.Abs(choice - value) < Mathf.Abs(nearest - value)) nearest = choice;
             return nearest;
-        }
-
-        static float NextChoice(float current, float[] choices)
-        {
-            for (var i = 0; i < choices.Length; i++)
-                if (Mathf.Approximately(choices[i], current)) return choices[(i + 1) % choices.Length];
-            return choices[0];
         }
 
         void SaveLobbySettings()

@@ -34,7 +34,7 @@ namespace Quota
                 switch (block.Kind)
                 {
                     case GuideCopy.BlockKind.Section: y = DrawGuideSection(content, block.Text, viewW, y); break;
-                    case GuideCopy.BlockKind.Bullet: y = DrawGuideBullet(content, block.Text, block.Rows, viewW, y); break;
+                    case GuideCopy.BlockKind.Bullet: y = DrawGuideBullet(content, block.Text, block.Note, block.Rows, viewW, y); break;
                     case GuideCopy.BlockKind.Table: y = DrawGuideTable(content, block.Rows, viewW, y); break;
                     default: y = DrawGuideParagraph(content, block.Text, viewW, y); break;
                 }
@@ -106,7 +106,7 @@ namespace Quota
             return y + h + 8f;
         }
 
-        float DrawGuideBullet(RectTransform content, string value, List<string[]> rows, float viewW, float y)
+        float DrawGuideBullet(RectTransform content, string value, string note, List<string[]> rows, float viewW, float y)
         {
             var width = viewW - 100f;
             var wrapped = WrapGuideText(value, 30, width);
@@ -115,6 +115,11 @@ namespace Quota
             var card = GuideFill(content, "guide-bullet", 12f, y, cardWidth, textH, new Color(1f, 1f, 1f, 0.56f));
             TextAt(card, "•", 14f, 6f, 38f, 42f, 36, Accent, nameFont, TextAnchor.UpperLeft);
             GuideText(card, wrapped, 58f, 8f, width, textH - 12f, 30, Ink);
+            if (!string.IsNullOrEmpty(note))
+            {
+                GuideText(card, note, 58f, textH, width, 42f, 27, Ink);
+                textH += 42f;
+            }
             var h = rows == null ? textH : DrawGuideTable(card, rows, cardWidth - 70f, textH, 58f) + 8f;
             card.sizeDelta = new Vector2(cardWidth, h);
             return y + h + 8f;
