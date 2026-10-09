@@ -90,6 +90,7 @@ namespace Quota.EditorTools
             CopyResource("horizontal_base.jpg");
             CopyResource("title1.png");
             CopyResource("title2.png");
+            File.Copy(Path.GetFullPath("../sound/play_bgm_01.mp3"), Path.Combine(StreamingRoot, "play_bgm_01.mp3"), true);
             File.Copy(Path.GetFullPath("../visual/card_back.png"), Path.Combine(StreamingRoot, "card_back.png"), true);
             CopyResource("card_back.png");
             foreach (var name in new[] { "how_to_play_v1.0.txt", "detailed_rule_v1.0.txt" })

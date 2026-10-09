@@ -20,6 +20,34 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void UnityEditorPrefersTheSameLocalServerAsTheLanWebClient()
+        {
+            host = Open();
+            var view = host.GetComponent<TableView>();
+            var old = System.Environment.GetEnvironmentVariable("QUOTA_SERVER_URL");
+            try
+            {
+                System.Environment.SetEnvironmentVariable("QUOTA_SERVER_URL", null);
+                var roots = (IEnumerable<string>)typeof(TableView).GetMethod("NetworkRoots", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(view, null);
+                Assert.AreEqual("http://127.0.0.1:8080", new List<string>(roots)[0]);
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                typeof(TableView).GetField("nativeNetworkRoot", flags).SetValue(view, "http://133.88.122.153");
+                roots = (IEnumerable<string>)typeof(TableView).GetMethod("NetworkRoots", flags).Invoke(view, null);
+                Assert.AreEqual("http://127.0.0.1:8080", new List<string>(roots)[0]);
+                var snapshotType = typeof(TableView).GetNestedType("NetworkSnapshot", BindingFlags.NonPublic);
+                var snapshot = System.Activator.CreateInstance(snapshotType, true);
+                snapshotType.GetField("phase").SetValue(snapshot, "playing");
+                typeof(TableView).GetField("networkState", flags).SetValue(view, snapshot);
+                roots = (IEnumerable<string>)typeof(TableView).GetMethod("NetworkRoots", flags).Invoke(view, null);
+                CollectionAssert.AreEqual(new[] { "http://133.88.122.153" }, new List<string>(roots));
+                System.Environment.SetEnvironmentVariable("QUOTA_SERVER_URL", "http://192.168.0.10:8080");
+                roots = (IEnumerable<string>)typeof(TableView).GetMethod("NetworkRoots", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(view, null);
+                CollectionAssert.AreEqual(new[] { "http://192.168.0.10:8080" }, new List<string>(roots));
+            }
+            finally { System.Environment.SetEnvironmentVariable("QUOTA_SERVER_URL", old); }
+        }
+
+        [Test]
         public void InternetModeUsesTheOriginThatServedTheWebApp()
         {
             var origin = typeof(TableView).GetMethod("NetworkOrigin", BindingFlags.Static | BindingFlags.NonPublic);
