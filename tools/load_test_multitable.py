@@ -8,15 +8,39 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from http.client import HTTPConnection, HTTPException, HTTPSConnection
 import json
 from pathlib import Path
 import threading
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 BUCKETS_MS = (10, 25, 50, 100, 200, 400, 800, 1600, 3200, 6400)
+
+
+class ApiSession:
+    """Keep one HTTP connection per virtual client when the server supports it."""
+
+    def __init__(self, base: str, timeout: float) -> None:
+        address = urlsplit(base)
+        if address.scheme not in ("http", "https") or not address.hostname or address.path not in ("", "/"):
+            raise ValueError("base URL must be an http(s) origin without a path")
+        connection_type = HTTPSConnection if address.scheme == "https" else HTTPConnection
+        self.connection = connection_type(address.hostname, address.port, timeout=timeout)
+
+    def exchange(self, path: str, client: str, body: bytes | None) -> tuple[int, bytes]:
+        headers = {"X-Quota-Client": client}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        self.connection.request("POST" if body is not None else "GET", path, body=body, headers=headers)
+        response = self.connection.getresponse()
+        return response.status, response.read()
+
+    def close(self) -> None:
+        self.connection.close()
 
 
 class Stats:
@@ -55,15 +79,21 @@ def percentile_bound(row: dict, percentile: float) -> str:
 
 
 def request(base: str, path: str, client: str, timeout: float, body: dict | None = None,
-            stats: Stats | None = None) -> dict:
+            stats: Stats | None = None, session: ApiSession | None = None) -> dict:
     data = json.dumps(body, ensure_ascii=False).encode() if body is not None else None
     headers = {"X-Quota-Client": client, "Content-Type": "application/json"}
     started = time.perf_counter()
     status, payload, error = 0, b"", ""
     try:
-        with urlopen(Request(base + path, data=data, headers=headers), timeout=timeout) as response:
-            status, payload = response.status, response.read()
+        if session is not None:
+            status, payload = session.exchange(path, client, data)
+        else:
+            with urlopen(Request(base + path, data=data, headers=headers), timeout=timeout) as response:
+                status, payload = response.status, response.read()
         result = json.loads(payload)
+        if status >= 400:
+            error = str(result.get("error", "HTTP error"))
+            raise RuntimeError(f"{path}: HTTP {status}: {error}")
         if "error" in result:
             error = str(result["error"])
             raise RuntimeError(f"{path}: {error}")
@@ -75,8 +105,10 @@ def request(base: str, path: str, client: str, timeout: float, body: dict | None
         except (ValueError, UnicodeDecodeError):
             error = "HTTP error"
         raise RuntimeError(f"{path}: HTTP {status}: {error}") from exc
-    except (URLError, TimeoutError, OSError) as exc:
+    except (URLError, TimeoutError, OSError, HTTPException) as exc:
         error = type(exc).__name__
+        if session is not None:
+            session.close()
         raise RuntimeError(f"{path}: {exc}") from exc
     except (ValueError, UnicodeDecodeError) as exc:
         error = "invalid JSON response"
@@ -87,6 +119,7 @@ def request(base: str, path: str, client: str, timeout: float, body: dict | None
 
 
 def worker(base: str, client: str, leader: bool, mode: str, start_at: float, stop_at: float,
+           session: ApiSession,
            interval: float, timeout: float, stats: Stats, finished: set[str], finished_lock: threading.Lock) -> None:
     delay = start_at - time.monotonic()
     if delay > 0:
@@ -94,16 +127,16 @@ def worker(base: str, client: str, leader: bool, mode: str, start_at: float, sto
     next_poll = max(start_at, time.monotonic())
     while time.monotonic() < stop_at:
         try:
-            state = request(base, "/api/state", client, timeout, stats=stats)
+            state = request(base, "/api/state", client, timeout, stats=stats, session=session)
             if leader and mode == "cpu" and state.get("awaiting_next_round") and not state.get("finished"):
                 request(base, "/api/action", client, timeout,
-                        {"key": "next_round", "revision": len(state["actions"])}, stats)
+                        {"key": "next_round", "revision": len(state["actions"])}, stats, session)
             elif mode == "human" and state.get("phase") == "playing" and not state.get("finished") and not state.get("awaiting_next_round") and not state["you"]["observer"] and state["you"]["seat"] == state.get("current_seat"):
                 request(base, "/api/action", client, timeout,
-                        {"key": "pass", "revision": len(state["actions"])}, stats)
+                        {"key": "pass", "revision": len(state["actions"])}, stats, session)
             elif leader and mode == "human" and state.get("awaiting_next_round") and not state.get("finished"):
                 request(base, "/api/action", client, timeout,
-                        {"key": "next_round", "revision": len(state["actions"])}, stats)
+                        {"key": "next_round", "revision": len(state["actions"])}, stats, session)
             if leader and state.get("finished"):
                 with finished_lock:
                     finished.add(state.get("table_id", ""))
@@ -177,6 +210,7 @@ def main() -> int:
     base = args.base_url.rstrip("/")
     run_id = uuid4().hex[:10]
     clients: list[tuple[str, bool, int]] = []
+    sessions: dict[str, ApiSession] = {}
     stats = Stats()
     finished: set[str] = set()
     finished_lock = threading.Lock()
@@ -185,29 +219,34 @@ def main() -> int:
         # Setup is excluded from the steady-state latency report.
         for table_index in range(args.tables):
             leader = f"load-{run_id}-{table_index}-0"
+            sessions[leader] = ApiSession(base, args.timeout)
             state = request(base, "/api/table", leader, args.timeout,
                             {"name": f"load-{table_index}", "players": args.players,
-                             "sit_out": args.mode == "cpu", "round_mode": args.round_mode})
+                             "sit_out": args.mode == "cpu", "round_mode": args.round_mode},
+                            session=sessions[leader])
             clients.append((leader, True, table_index))
             table_id = state["table_id"]
             if args.mode == "cpu":
-                request(base, "/api/start", leader, args.timeout, {})
+                request(base, "/api/start", leader, args.timeout, {}, session=sessions[leader])
             for client_index in range(1, args.clients_per_table):
                 client = f"load-{run_id}-{table_index}-{client_index}"
                 if args.mode == "human" and client_index == args.players:
                     # The remaining virtual clients join an ongoing game as observers.
-                    request(base, "/api/start", leader, args.timeout, {})
+                    request(base, "/api/start", leader, args.timeout, {}, session=sessions[leader])
+                sessions[client] = ApiSession(base, args.timeout)
                 request(base, "/api/join", client, args.timeout,
-                        {"table": table_id, "name": f"load-{table_index}-{client_index}"})
+                        {"table": table_id, "name": f"load-{table_index}-{client_index}"},
+                        session=sessions[client])
                 clients.append((client, False, table_index))
             if args.mode == "human" and args.clients_per_table <= args.players:
-                request(base, "/api/start", leader, args.timeout, {})
+                request(base, "/api/start", leader, args.timeout, {}, session=sessions[leader])
         print(f"created {args.tables} tables / {len(clients)} clients; mode={args.mode}")
         started = time.monotonic()
         stop_at = started + args.duration
         with ThreadPoolExecutor(max_workers=len(clients)) as executor:
             futures = [executor.submit(worker, base, client, leader, args.mode,
                                        started + args.ramp_seconds * table_index / max(1, args.tables - 1), stop_at,
+                                       sessions[client],
                                        args.poll_interval, args.timeout, stats, finished, finished_lock)
                        for client, leader, table_index in clients]
             for future in futures:
@@ -227,9 +266,11 @@ def main() -> int:
     finally:
         for client, _, _ in reversed(clients):
             try:
-                request(base, "/api/leave", client, args.timeout, {})
+                request(base, "/api/leave", client, args.timeout, {}, session=sessions[client])
             except RuntimeError:
                 pass
+        for session in sessions.values():
+            session.close()
 
 
 if __name__ == "__main__":
