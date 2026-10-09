@@ -31,14 +31,23 @@ class ApiSession:
             raise ValueError("base URL must be an http(s) origin without a path")
         connection_type = HTTPSConnection if address.scheme == "https" else HTTPConnection
         self.connection = connection_type(address.hostname, address.port, timeout=timeout)
+        self.phase = "idle"
 
     def exchange(self, path: str, client: str, body: bytes | None) -> tuple[int, bytes]:
         headers = {"X-Quota-Client": client}
         if body is not None:
             headers["Content-Type"] = "application/json"
+        self.phase = "connect"
+        if self.connection.sock is None:
+            self.connection.connect()
+        self.phase = "send"
         self.connection.request("POST" if body is not None else "GET", path, body=body, headers=headers)
+        self.phase = "response_headers"
         response = self.connection.getresponse()
-        return response.status, response.read()
+        self.phase = "response_body"
+        payload = response.read()
+        self.phase = "idle"
+        return response.status, payload
 
     def close(self) -> None:
         self.connection.close()
@@ -116,7 +125,7 @@ def request(base: str, path: str, client: str, timeout: float, body: dict | None
         error = f"HTTP {status} {exc.reason}"
         raise RuntimeError(f"{path}: {error}" + (f": {detail}" if detail else "")) from exc
     except (URLError, TimeoutError, OSError, HTTPException) as exc:
-        error = type(exc).__name__
+        error = type(exc).__name__ + (f" during {session.phase}" if session is not None else "")
         if session is not None:
             session.close()
         raise RuntimeError(f"{path}: {exc}") from exc
