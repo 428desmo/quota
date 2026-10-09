@@ -32,6 +32,8 @@ python tools/serve_unity_web.py
 
 Python の HTML 版と 8000 番ポートは廃止した。ブラウザ版は Unity WebGL の 8080 番だけを使用する。
 
+複数卓のAPI負荷を測る手順と評価方法は [`docs/load_testing.md`](docs/load_testing.md) を参照。
+
 ## 遊び方
 
 ```bash

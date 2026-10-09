@@ -6,18 +6,97 @@ Port 8080 serves Unity and its authoritative multiplayer action history.
 from __future__ import annotations
 
 import argparse
+from collections import Counter, OrderedDict, deque
 import json
+import os
+import resource
 import secrets
 import threading
 import time
+import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DIR = ROOT / "unity" / "Builds" / "WebGL"
 PORT = 8080
+LATENCY_BUCKETS_MS = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000)
 
-import sys
+
+class ServerMetrics:
+    """Bounded, process-local counters; no client names or request bodies."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.started_at = time.time()
+        self.routes: dict[str, dict] = {}
+        self.cpu_decisions = 0
+        self.cpu_decision_ms = 0.0
+        self.cpu_decision_max_ms = 0.0
+
+    def observe(self, route: str, status: int, duration_ms: float,
+                lock_wait_ms: float, lock_held_ms: float,
+                serialization_ms: float, response_bytes: int) -> None:
+        with self.lock:
+            row = self.routes.setdefault(route, {
+                "requests": 0, "statuses": Counter(), "duration_ms_total": 0.0,
+                "duration_ms_max": 0.0, "duration_ms_buckets": [0] * (len(LATENCY_BUCKETS_MS) + 1),
+                "lock_wait_ms_total": 0.0, "lock_wait_ms_max": 0.0,
+                "lock_wait_ms_buckets": [0] * (len(LATENCY_BUCKETS_MS) + 1),
+                "lock_held_ms_total": 0.0, "lock_held_ms_max": 0.0,
+                "serialization_ms_total": 0.0, "response_bytes": 0,
+            })
+            row["requests"] += 1
+            row["statuses"][str(status)] += 1
+            row["duration_ms_total"] += duration_ms
+            row["duration_ms_max"] = max(row["duration_ms_max"], duration_ms)
+            bucket = next((i for i, bound in enumerate(LATENCY_BUCKETS_MS) if duration_ms <= bound), len(LATENCY_BUCKETS_MS))
+            row["duration_ms_buckets"][bucket] += 1
+            wait_bucket = next((i for i, bound in enumerate(LATENCY_BUCKETS_MS) if lock_wait_ms <= bound), len(LATENCY_BUCKETS_MS))
+            row["lock_wait_ms_buckets"][wait_bucket] += 1
+            for key, value in (("lock_wait", lock_wait_ms), ("lock_held", lock_held_ms)):
+                row[f"{key}_ms_total"] += value
+                row[f"{key}_ms_max"] = max(row[f"{key}_ms_max"], value)
+            row["serialization_ms_total"] += serialization_ms
+            row["response_bytes"] += response_bytes
+
+    def observe_cpu(self, duration_ms: float) -> None:
+        with self.lock:
+            self.cpu_decisions += 1
+            self.cpu_decision_ms += duration_ms
+            self.cpu_decision_max_ms = max(self.cpu_decision_max_ms, duration_ms)
+
+    def snapshot(self) -> dict:
+        with self.lock:
+            return {
+                "started_at": self.started_at,
+                "latency_buckets_ms": LATENCY_BUCKETS_MS,
+                "routes": {key: {**row, "statuses": dict(row["statuses"]),
+                                 "duration_ms_buckets": row["duration_ms_buckets"][:],
+                                 "lock_wait_ms_buckets": row["lock_wait_ms_buckets"][:]} for key, row in self.routes.items()},
+                "cpu": {"decisions": self.cpu_decisions, "decision_ms_total": self.cpu_decision_ms,
+                        "decision_ms_max": self.cpu_decision_max_ms},
+            }
+
+
+METRICS = ServerMetrics()
+
+
+class TimedLock:
+    def __init__(self, lock: threading.Lock, result: dict) -> None:
+        self.lock = lock
+        self.result = result
+
+    def __enter__(self) -> None:
+        waiting_at = time.perf_counter()
+        self.lock.acquire()
+        self.entered_at = time.perf_counter()
+        self.result["wait_ms"] = (self.entered_at - waiting_at) * 1000
+
+    def __exit__(self, *_error) -> None:
+        self.result["held_ms"] = (time.perf_counter() - self.entered_at) * 1000
+        self.lock.release()
+
 sys.path.insert(0, str(ROOT))
 from quota.characters import pick_cast, display_name, seat_cast, mind_for, bind_replacement
 from quota.engine import Game, GameConfig, TakeQuota, Collect, Abandon, Pass
@@ -104,6 +183,9 @@ class UnityTable:
     def recruiting(self, client: str) -> dict:
         return {
             "phase": self.phase,
+            "awaiting_next_round": bool(self.game and self.game.awaiting_next_round),
+            "finished": bool(self.game and self.game.finished),
+            "current_seat": self.game.current if self.game else -1,
             "seed": self.seed,
             "options": self.options,
             "actions": self.actions,
@@ -384,7 +466,11 @@ class UnityHall:
         if game is None or game.finished or game.awaiting_next_round or game.players[game.current].is_human or time.monotonic() < table.cpu_at:
             return
         plan = game.plan
-        action = mind_for(game.players[game.current]).choose(game)
+        thinking_at = time.perf_counter()
+        try:
+            action = mind_for(game.players[game.current]).choose(game)
+        finally:
+            METRICS.observe_cpu((time.perf_counter() - thinking_at) * 1000)
         if game.plan != plan:
             table.actions.append(game.plan)
         if isinstance(action, TakeQuota): key = "take:" + str(action.card_id)
@@ -402,8 +488,50 @@ class UnityHall:
 
 
 HALL = UnityHall()
-DIAGNOSTICS: list[dict] = []
-CLIENT_STATES: dict[str, str] = {}
+DIAGNOSTICS: deque[dict] = deque(maxlen=200)
+CLIENT_STATES: OrderedDict[str, tuple] = OrderedDict()
+
+
+def diagnostic_signature(payload: dict) -> tuple:
+    """Ignore the changing countdown and avoid retaining complete game states."""
+    return (payload.get("phase"), payload.get("table_id"),
+            len(payload.get("actions", ())),
+            tuple((item.get("id"), item.get("status"), item.get("seated"))
+                  for item in payload.get("tables", ())),
+            tuple((item.get("name"), item.get("cpu"), item.get("departed"))
+                  for item in payload.get("seats", ())),
+            str(payload.get("options", {})))
+
+
+def current_rss_bytes() -> int | None:
+    try:
+        with open("/proc/self/statm", encoding="ascii") as statm:
+            return int(statm.read().split()[1]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def metrics_snapshot() -> dict:
+    result = METRICS.snapshot()
+    with HALL.lock:
+        tables = list(HALL.tables.values())
+        result["hall"] = {
+            "tables": len(tables),
+            "playing_tables": sum(table.phase == "playing" for table in tables),
+            "connected_clients": len(HALL.where),
+            "action_history_entries": sum(len(table.actions) for table in tables),
+            "diagnostic_entries": len(DIAGNOSTICS),
+            "diagnostic_clients": len(CLIENT_STATES),
+        }
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    result["process"] = {
+        "rss_bytes": current_rss_bytes(),
+        "peak_rss_bytes": usage.ru_maxrss * (1024 if sys.platform.startswith("linux") else 1),
+        "cpu_user_seconds": usage.ru_utime,
+        "cpu_system_seconds": usage.ru_stime,
+        "threads": threading.active_count(),
+    }
+    return result
 
 
 def content_encoding(path: Path) -> str:
@@ -444,14 +572,33 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_error(404)
 
     def api(self) -> None:
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length else b"{}"
-        client = self.headers.get("X-Quota-Client", "")
+        started_at = time.perf_counter()
+        status = 200
+        response_bytes = 0
+        serialization_ms = 0.0
+        lock_timing = {"wait_ms": 0.0, "held_ms": 0.0}
+        route = self.path if self.path in {
+            "/api/state", "/api/table", "/api/join", "/api/leave", "/api/participation",
+            "/api/players", "/api/settings", "/api/action", "/api/start", "/api/shuffle",
+            "/api/diagnostic", "/api/metrics",
+        } else "/api/unknown"
         try:
+            if self.path == "/api/metrics":
+                # Nginx overrides X-Real-IP for forwarded requests; only local reads are allowed.
+                forwarded = self.headers.get("X-Real-IP")
+                if self.command != "GET" or (forwarded and forwarded not in ("127.0.0.1", "::1")) or self.client_address[0] not in ("127.0.0.1", "::1"):
+                    status = 403
+                    response_bytes, serialization_ms = self.json({"error": "local access only"}, status)
+                else:
+                    response_bytes, serialization_ms = self.json(metrics_snapshot())
+                return
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b"{}"
+            client = self.headers.get("X-Quota-Client", "")
             body = json.loads(raw.decode() or "{}")
-            with HALL.lock:
+            with TimedLock(HALL.lock, lock_timing):
                 if self.command == "GET" and self.path == "/api/diagnostic":
-                    payload = {"events": DIAGNOSTICS[-100:]}
+                    payload = {"events": list(DIAGNOSTICS)[-100:]}
                 elif self.command == "POST" and self.path == "/api/diagnostic":
                     event = {
                         "at": time.time(),
@@ -487,35 +634,53 @@ class Handler(SimpleHTTPRequestHandler):
                     table.cpu_cast = pick_cast(table.players)
                     payload = HALL.snapshot(client)
                 else:
+                    status = 404
                     self.send_error(404)
                     return
                 if self.path != "/api/diagnostic":
-                    signature = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                    signature = diagnostic_signature(payload)
                     changed = CLIENT_STATES.get(client) != signature
                     if self.command == "POST" or changed:
                         CLIENT_STATES[client] = signature
+                        CLIENT_STATES.move_to_end(client)
+                        if len(CLIENT_STATES) > 2048:
+                            CLIENT_STATES.popitem(last=False)
                         event = {
                             "at": time.time(),
                             "client": self.client_address[0],
                             "user_agent": self.headers.get("User-Agent", ""),
                             "id": client,
                             "stage": f"api-{self.command.lower()} {self.path}",
-                            "detail": signature,
+                            "detail": {"phase": payload.get("phase"), "table_id": payload.get("table_id"),
+                                       "actions": len(payload.get("actions", ()))},
                         }
                         DIAGNOSTICS.append(event)
-                        print("WebGL diagnostic:", json.dumps(event, ensure_ascii=False), flush=True)
-            self.json(payload)
+                        if self.command == "POST":
+                            print("WebGL diagnostic:", json.dumps(event, ensure_ascii=False), flush=True)
+            response_bytes, serialization_ms = self.json(payload)
         except (ValueError, KeyError, json.JSONDecodeError) as error:
-            self.json({"error": str(error)}, status=400)
+            status = 400
+            response_bytes, serialization_ms = self.json({"error": str(error)}, status)
+        except Exception:
+            status = 500
+            raise
+        finally:
+            if self.path != "/api/metrics":
+                METRICS.observe(f"{self.command} {route}", status,
+                                (time.perf_counter() - started_at) * 1000,
+                                lock_timing["wait_ms"], lock_timing["held_ms"], serialization_ms, response_bytes)
 
-    def json(self, payload: dict, status: int = 200) -> None:
+    def json(self, payload: dict, status: int = 200) -> tuple[int, float]:
+        serialization_at = time.perf_counter()
         data = json.dumps(payload, ensure_ascii=False).encode()
+        serialization_ms = (time.perf_counter() - serialization_at) * 1000
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+        return len(data), serialization_ms
 
     def end_headers(self) -> None:
         path = Path(self.translate_path(self.path.split("?", 1)[0]))
