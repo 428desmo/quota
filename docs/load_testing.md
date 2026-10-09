@@ -84,4 +84,15 @@ sudo journalctl -u quota --since '15 minutes ago' --no-pager | tail -n 50
 
 `peak_inflight_api` が表示されなければ旧バックエンドが動いている。`ss` の8080番LISTEN行で `Send-Q` が128程度になっているか確認する（`Recv-Q` はその時点の待ち件数）。`kernel_tcp.listen_overflows` / `listen_drops` が負荷試験中に増えるなら、接続の受け付けで溢れている。数値はホスト全体の累積なので、試験前後を比較する。バックエンドが再起動していないか、ファイル記述子上限やサービスログに異常がないかも併せて調べる。接続待ち行列が128で溢れもない場合は、Nginxと直接接続を比較して別の要因を切り分ける。
 
+接続待ち行列の溢れがなくても、VPS内の `127.0.0.1:8080` への接続そのものがタイムアウトするなら、接続追跡も調べる。AlmaLinux 10.2 / 512MB VPSで10卓×4端末を試した際は、`nf_conntrack_max=4096` に達し、カーネルに `nf_conntrack: table full, dropping packet` が出た。試験後に `nf_conntrack_count` が小さく戻っても、試験中に満杯でなかった証拠にはならない。Nginxの504も、ローカル直結の5秒タイムアウトも、この段階でのパケット破棄と整合する。
+
+```sh
+sysctl net.netfilter.nf_conntrack_count net.netfilter.nf_conntrack_max
+sudo journalctl -k --since '20 minutes ago' --no-pager | grep -i 'nf_conntrack.*table full'
+# 再試験の間だけ上限を増やす。再起動すると元に戻る。
+sudo sysctl -w net.netfilter.nf_conntrack_max=32768
+```
+
+その後、VPS自身からNginxの80番へ同じ10卓×4端末の試験を再実行し、504・接続タイムアウト・カーネルの `table full` が消えるか確かめる。同時に `free -m` と `nf_conntrack_count` を見て512MBのメモリ余裕も確認する。上限値を増やしても、ゲーム側のHTTP接続を毎回作り直す設計は残る。恒久策では接続の再利用を検討する。接続追跡をVPS全体で無効化するとfirewalldのステートフルな通信制御にも影響するため、この試験では行わない。
+
 Nginxを通さずPython側だけを比較する場合は、別のSSHトンネルを `ssh -N -L 18081:127.0.0.1:8080 user@vps` で開き、負荷試験の `--base-url` と `--metrics-url` を `http://127.0.0.1:18081` に変えて実行する。直接接続では504を生成するNginxを経由しない。既存卓への影響を避けるため、対局している人がいないときに試す。
