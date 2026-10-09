@@ -3655,43 +3655,6 @@ namespace Quota
             SaveLobbyTimeouts();
         }
 
-        void DrawGuide(float screenW, float screenH)
-        {
-            var panelW = Mathf.Min(980f, screenW - 48f);
-            var panelH = Mathf.Min(screenH - 80f, screenW > screenH ? 820f : 1400f);
-            var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Paper, Ink, false);
-            TextAt(panel, GuideCopy.Title(setupPage), 32f, 16f, panelW - 64f, 56f, 40, Ink, nameFont, TextAnchor.MiddleLeft);
-            var viewW = panelW - 64f;
-            const float viewTop = 84f;
-            var viewH = panelH - viewTop - 100f;
-            var viewport = Portrait.Rect(panel, "guide-view", 32f, viewTop, viewW, viewH);
-            viewport.gameObject.AddComponent<RectMask2D>();
-            var hit = viewport.gameObject.AddComponent<Image>();
-            hit.color = new Color(1f, 1f, 1f, 0.01f);
-            hit.raycastTarget = true;
-            var content = Portrait.Rect(viewport, "guide-body", 0f, 0f, viewW, viewH);
-            var text = TextAt(content, GuideCopy.Body(setupPage), 0f, 0f, viewW, viewH, 36, Ink, nameFont, TextAnchor.UpperLeft);
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            text.raycastTarget = true;
-            Canvas.ForceUpdateCanvases();
-            var bodyH = Mathf.Max(viewH, text.preferredHeight + 24f);
-            content.sizeDelta = new Vector2(viewW, bodyH);
-            text.rectTransform.sizeDelta = new Vector2(viewW, bodyH);
-            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
-            scroll.content = content;
-            scroll.viewport = viewport;
-            scroll.horizontal = false;
-            scroll.vertical = true;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 48f;
-            Pill(panel, "OK", 32f, panelH - 84f, 160f, 64f, 28, () =>
-            {
-                setupPage = null;
-                ShowSetup();
-            });
-        }
-
         InputField DialogField(Transform parent, string caption, string value, float x, float y, float width, bool lightCaption = false)
         {
             var label = TextAt(parent, caption, x, y, width, 28f, 22, lightCaption ? Color.white : Ink, nameFont, TextAnchor.MiddleLeft);
