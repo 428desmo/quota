@@ -34,6 +34,8 @@ python3 tools/load_test_multitable.py --base-url http://127.0.0.1:18080 \
 
 `--ramp-seconds` は仮想端末のポーリング開始を卓ごとに指定秒数へ分散する。指定値は `--duration` より短くする。表示される毎秒リクエスト数は試験全体の平均なので、立ち上げ後の定常区間は別に評価する。
 
+終了時の `/api/metrics` 取得がタイムアウトしても、ツールは3回まで再試行し、端末側の結果を `--json-out` に保存する。この場合 `server_after` は `null`、`server_after_error` に理由が入る。サーバー側の前後差は表示できないので、VPSで直接メトリクスを読み、Nginxのログとも突き合わせる。
+
 負荷発生器は仮想端末ごとにHTTP接続を再利用する。SSHトンネルに `accept: Too many open files` が出た場合、まず負荷試験とトンネルをそれぞれCtrl-Cで終了し、Macのターミナルで `ulimit -n` を確認する。256程度なら、そのターミナルで `ulimit -n 4096` を実行してからSSHトンネルを開き直す。接続ごとに新しいトンネルを作る必要はない。このエラーがMac側のSSHに出ているときは、VPSのファイル記述子上限を変えても解消しない。
 
 まず1卓で動作を確認し、5、10、25卓と段階的に増やす。CPU・human・lobbyをそれぞれ実行する。短い試験だけでは履歴やメモリの増加は見えないため、想定最大規模で20〜30分の継続試験も行う。`--tables` と `--clients-per-table` の積が端末数であり、0.4秒間隔なら基礎リクエスト数は概ね「端末数×2.5/秒」。例えば10卓×4端末で約100回/秒となる。
@@ -68,5 +70,16 @@ sudo grep -E 'upstream timed out|worker_connections|Too many open files|connect\
 ```
 
 `while connecting to upstream` はNginxからPythonへの接続待ち、`while reading response header from upstream` は接続後の応答待ちを示す。既存設定の `proxy_connect_timeout` は3秒なので、約3秒の504は前者を疑う根拠になるが、ログで確認する。Pythonサーバーの接続待ち行列は128件に増やし、`/api/metrics` には `peak_inflight_api` とLinuxの `kernel_tcp.listen_overflows` / `listen_drops` を追加した。後者はVPS全体の累積カウンターなので、負荷試験スクリプトは開始前後の差を表示する。
+
+接続待ちで504が続く場合、まずVPS上で稼働中のバージョンと待ち行列を確認する（以下は読み取り専用）。
+
+```sh
+curl -fsS http://127.0.0.1:8080/api/metrics | python3 -c 'import json,sys; m=json.load(sys.stdin); print("peak_inflight_api:",m.get("peak_inflight_api")); print("kernel_tcp:",m.get("kernel_tcp"))'
+ss -ltn '( sport = :8080 )'
+systemctl show quota -p MainPID -p LimitNOFILE -p NRestarts
+sudo journalctl -u quota --since '15 minutes ago' --no-pager | tail -n 50
+```
+
+`peak_inflight_api` が表示されなければ旧バックエンドが動いている。`ss` の8080番LISTEN行で `Send-Q` が128程度になっているか確認する（`Recv-Q` はその時点の待ち件数）。`kernel_tcp.listen_overflows` / `listen_drops` が負荷試験中に増えるなら、接続の受け付けで溢れている。数値はホスト全体の累積なので、試験前後を比較する。バックエンドが再起動していないか、ファイル記述子上限やサービスログに異常がないかも併せて調べる。接続待ち行列が128で溢れもない場合は、Nginxと直接接続を比較して別の要因を切り分ける。
 
 Nginxを通さずPython側だけを比較する場合は、別のSSHトンネルを `ssh -N -L 18081:127.0.0.1:8080 user@vps` で開き、負荷試験の `--base-url` と `--metrics-url` を `http://127.0.0.1:18081` に変えて実行する。直接接続では504を生成するNginxを経由しない。既存卓への影響を避けるため、対局している人がいないときに試す。

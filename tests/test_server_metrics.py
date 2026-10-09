@@ -1,3 +1,6 @@
+import argparse
+import json
+
 from tools import load_test_multitable
 from tools.load_test_multitable import ApiSession, Stats, percentile_bound, request
 from tools.serve_unity_web import QuotaHTTPServer, ServerMetrics, diagnostic_signature
@@ -97,3 +100,24 @@ def test_html_504_is_reported_as_gateway_timeout():
     snapshot = stats.snapshot()
     assert snapshot["routes"]["/api/state"]["statuses"] == {504: 1}
     assert snapshot["errors"] == {"HTTP 504 Gateway Timeout": 1}
+
+
+def test_metrics_timeout_does_not_lose_client_results(monkeypatch, tmp_path):
+    def timeout(_url, _seconds):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(load_test_multitable, "fetch_metrics", timeout)
+    monkeypatch.setattr(load_test_multitable.time, "sleep", lambda _seconds: None)
+    after, error = load_test_multitable.fetch_metrics_optional("http://127.0.0.1/api/metrics", 1)
+    assert after is None
+    assert error == "TimeoutError: timed out"
+
+    stats = Stats()
+    stats.add("/api/state", 504, 3000, 0, "HTTP 504 Gateway Timeout")
+    path = tmp_path / "result.json"
+    args = argparse.Namespace(tables=10, clients_per_table=4, mode="cpu", duration=120, poll_interval=.4)
+    load_test_multitable.save_results(path, args, stats, 0, {"routes": {}}, after, None, error)
+    saved = json.loads(path.read_text())
+    assert saved["client"]["routes"]["/api/state"]["statuses"] == {"504": 1}
+    assert saved["server_after"] is None
+    assert saved["server_after_error"] == error

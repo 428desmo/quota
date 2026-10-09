@@ -178,6 +178,31 @@ def fetch_metrics(url: str, timeout: float) -> dict:
         return json.load(response)
 
 
+def fetch_metrics_optional(url: str | None, timeout: float) -> tuple[dict | None, str | None]:
+    if not url:
+        return None, None
+    for attempt in range(3):
+        try:
+            return fetch_metrics(url, timeout), None
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, UnicodeDecodeError) as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            if attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+    return None, error
+
+
+def save_results(path: Path, args: argparse.Namespace, stats: Stats, finished: int,
+                 before: dict | None, after: dict | None,
+                 before_error: str | None, after_error: str | None) -> None:
+    path.write_text(json.dumps({
+        "config": {"tables": args.tables, "clients_per_table": args.clients_per_table,
+                   "mode": args.mode, "duration": args.duration, "poll_interval": args.poll_interval},
+        "client": stats.snapshot(), "finished_tables": finished,
+        "server_before": before, "server_after": after,
+        "server_before_error": before_error, "server_after_error": after_error,
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def print_server_delta(before: dict, after: dict) -> None:
     previous = before["routes"].get("GET /api/state", {})
     current = after["routes"].get("GET /api/state", {})
@@ -229,7 +254,9 @@ def main() -> int:
     stats = Stats()
     finished: set[str] = set()
     finished_lock = threading.Lock()
-    metrics_before = fetch_metrics(args.metrics_url, args.timeout) if args.metrics_url else None
+    metrics_before, metrics_before_error = fetch_metrics_optional(args.metrics_url, args.timeout)
+    if metrics_before_error:
+        print(f"server metrics before unavailable: {metrics_before_error}")
     try:
         # Setup is excluded from the steady-state latency report.
         for table_index in range(args.tables):
@@ -267,16 +294,14 @@ def main() -> int:
             for future in futures:
                 future.result()
         print_report(time.monotonic() - started, stats, len(finished))
-        metrics_after = fetch_metrics(args.metrics_url, args.timeout) if args.metrics_url else None
+        metrics_after, metrics_after_error = fetch_metrics_optional(args.metrics_url, args.timeout)
+        if metrics_after_error:
+            print(f"server metrics after unavailable: {metrics_after_error}")
         if metrics_before and metrics_after:
             print_server_delta(metrics_before, metrics_after)
         if args.json_out:
-            args.json_out.write_text(json.dumps({
-                "config": {"tables": args.tables, "clients_per_table": args.clients_per_table,
-                           "mode": args.mode, "duration": args.duration, "poll_interval": args.poll_interval},
-                "client": stats.snapshot(), "finished_tables": len(finished),
-                "server_before": metrics_before, "server_after": metrics_after,
-            }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            save_results(args.json_out, args, stats, len(finished), metrics_before, metrics_after,
+                         metrics_before_error, metrics_after_error)
         return 1 if stats.snapshot()["errors"] else 0
     finally:
         for client, _, _ in reversed(clients):
