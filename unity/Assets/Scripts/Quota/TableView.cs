@@ -246,7 +246,7 @@ namespace Quota
 
         void OnDestroy()
         {
-            StopRoundBgm();
+            DisposeRoundBgm();
             if (logoInk != null)
             {
                 if (Application.isPlaying) Destroy(logoInk);

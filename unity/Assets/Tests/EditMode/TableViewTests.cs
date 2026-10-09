@@ -71,6 +71,19 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void NativeRoundBgmLoopsDecodedSamples()
+        {
+            UnityEditor.AssetDatabase.ImportAsset("Assets/Resources/QuotaBgm/loop.ogg",
+                UnityEditor.ImportAssetOptions.ForceUpdate);
+            host = Open();
+            var sources = host.GetComponents<AudioSource>();
+            Assert.AreEqual(2, sources.Length);
+            Assert.IsTrue(sources[1].loop);
+            Assert.AreEqual("Quota BGM loop PCM", sources[1].clip.name);
+            Assert.AreEqual(76f, sources[1].clip.length, 0.05f);
+        }
+
+        [Test]
         public void OfflineModeStartsWithOneHumanAndNoNetworkTable()
         {
             host = Open();
