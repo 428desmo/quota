@@ -6,7 +6,7 @@ namespace Quota
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
         [System.Runtime.InteropServices.DllImport("__Internal")]
-        static extern void QuotaBgmControl(int action, string url);
+        static extern void QuotaBgmControl(int action, string url, float gain);
 
         static string BgmUrl() => Application.streamingAssetsPath + "/play_bgm_01.mp3";
 #endif
@@ -17,11 +17,39 @@ namespace Quota
         AudioClip bgmPcmClip;
         int bgmRound;
         bool bgmActive;
+        bool bgmEnding;
+        int bgmLevel = 5;
+        int seLevel = 5;
+
+        float BgmGain => bgmLevel / 5f;
+
+        void SetRoundBgmGain(float gain)
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            QuotaBgmControl(3, "", Mathf.Clamp01(gain));
+#else
+            if (bgmIntro != null) bgmIntro.volume = Mathf.Clamp01(gain);
+            if (bgmLoop != null) bgmLoop.volume = Mathf.Clamp01(gain);
+#endif
+        }
+
+        System.Collections.IEnumerator FadeOutRoundBgm(int serial)
+        {
+            var from = BgmGain;
+            var elapsed = 0f;
+            while (elapsed < 0.5f && serial == cpuRun && bgmActive)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                SetRoundBgmGain(from * (1f - Mathf.Clamp01(elapsed / 0.5f)));
+                yield return null;
+            }
+            if (serial == cpuRun) StopRoundBgm();
+        }
 
         void InitializeRoundBgm()
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
-            QuotaBgmControl(0, BgmUrl());
+            QuotaBgmControl(0, BgmUrl(), BgmGain);
 #else
             bgmIntroClip = Resources.Load<AudioClip>("QuotaBgm/intro");
             bgmLoopClip = Resources.Load<AudioClip>("QuotaBgm/loop");
@@ -58,9 +86,12 @@ namespace Quota
         {
             var game = match.Game;
             var playingRound = !onSetup && !reviewMode && game != null && !game.AwaitingNextRound && !game.Finished;
+            var pendingVerdict = !onSetup && !reviewMode && game != null
+                && (game.AwaitingNextRound || (game.Finished && !ceremonyDismissed))
+                && acknowledgedRound != game.RoundIndex;
             if (!playingRound)
             {
-                StopRoundBgm();
+                if (!bgmEnding && !pendingVerdict) StopRoundBgm();
                 return;
             }
             if (bgmActive && bgmRound == game.RoundIndex) return;
@@ -70,8 +101,10 @@ namespace Quota
 #endif
             bgmRound = game.RoundIndex;
             bgmActive = true;
+            bgmEnding = false;
+            SetRoundBgmGain(BgmGain);
 #if UNITY_WEBGL && !UNITY_EDITOR
-            QuotaBgmControl(1, BgmUrl());
+            QuotaBgmControl(1, BgmUrl(), BgmGain);
 #else
             // The source MP3 is cut at 16 s and 92 s during asset preparation.
             // Scheduling the second clip avoids a frame-dependent seek at the seam.
@@ -83,9 +116,10 @@ namespace Quota
 
         void StopRoundBgm()
         {
+            bgmEnding = false;
             if (!bgmActive) return;
 #if UNITY_WEBGL && !UNITY_EDITOR
-            QuotaBgmControl(2, "");
+            QuotaBgmControl(2, "", 0f);
 #else
             if (bgmIntro != null) bgmIntro.Stop();
             if (bgmLoop != null) bgmLoop.Stop();

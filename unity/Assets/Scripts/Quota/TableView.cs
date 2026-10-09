@@ -336,6 +336,7 @@ namespace Quota
                 if (input.isFocused) return;
             Fit();
             if (!onSetup && match.Game != null && transform.Find("leave-button") != null) LeaveButton();
+            if (!onSetup && match.Game != null && transform.Find("settings-button") != null) SettingsButton();
             UpdateNameplates();
             UpdateTurnCountdown();
             if (!Application.isPlaying || frame == null) return;
@@ -702,6 +703,8 @@ namespace Quota
             okTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.okTimeout", 5f), OkTimeoutChoices);
             turnTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.turnTimeout", 30f), TurnTimeoutChoices);
             confirmActions = PlayerPrefs.GetInt("quota.confirmActions", 1) == 1;
+            bgmLevel = Mathf.Clamp(PlayerPrefs.GetInt("quota.bgmVolume", 5), 0, 5);
+            seLevel = Mathf.Clamp(PlayerPrefs.GetInt("quota.seVolume", 5), 0, 5);
             ApplyMode();
         }
 
@@ -722,17 +725,21 @@ namespace Quota
                 PlayerPrefs.SetFloat("quota.turnTimeout", turnTimeout);
             }
             PlayerPrefs.SetInt("quota.confirmActions", confirmActions ? 1 : 0);
+            PlayerPrefs.SetInt("quota.bgmVolume", bgmLevel);
+            PlayerPrefs.SetInt("quota.seVolume", seLevel);
             PlayerPrefs.Save();
         }
 
         void ShowSetup()
         {
             StopRoundBgm();
+            settingsOpen = false;
             if (!lobbyOpen) lobbyChoice = null;
             else modeChoiceOpen = false;
             ResetCardMotion();
             pulsingSeat = -1;
             RemoveLeaveButton();
+            RemoveSettingsButton();
             actionNotices.Clear();
             if (noticeRun != null) StopCoroutine(noticeRun);
             noticeRun = null;
@@ -1029,6 +1036,10 @@ namespace Quota
             SetupGap(column, buttonH);
             SetupNotice(column, "個人設定", rowW, buttonH, font, true);
             SetupChoiceRow(column, "放棄などに確認を求める：", confirmActions ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("confirm"), true);
+            SetupGap(column, innerGap);
+            SetupVolumeRow(column, "BGM音量：", true, rowW, buttonH, labelW, font);
+            SetupGap(column, innerGap);
+            SetupVolumeRow(column, "SE音量：", false, rowW, buttonH, labelW, font);
             SetupGap(column, buttonH);
             if (NetworkJoined)
             {
@@ -1036,6 +1047,11 @@ namespace Quota
                 else SetupNotice(column, "ゲーム開始待ち", rowW, buttonH, font, true);
             }
             else SetupButton(column, "ゲーム開始", () => StartMatch(gameMode == GameMode.Internet && sitOut), actionW, buttonH * 2f, font * 2);
+            if (gameMode == GameMode.Offline)
+            {
+                SetupGap(column, innerGap);
+                SetupButton(column, "CPU模擬戦を見る", () => StartMatch(true), rowW, buttonH, font);
+            }
             SetupGap(column, innerGap);
             SetupButton(column, "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
             if (showReview)
@@ -1250,6 +1266,7 @@ namespace Quota
         void CloseLobby()
         {
             lobbyOpen = false;
+            settingsOpen = false;
             lobbyChoice = null;
             ShowSetup();
         }
@@ -1727,6 +1744,7 @@ namespace Quota
                 return;
             }
             lobbyOpen = false;
+            settingsOpen = false;
             cpuRun++;
             ceremonyRunning = false;
             ceremonyDismissed = false;
@@ -1869,11 +1887,14 @@ namespace Quota
             else if (confirm == null && MyHumanTurn && !busy && !CardsAnimating && !game.Finished) DrawControls(game);
             if (!game.Finished) LeaveButton();
             else RemoveLeaveButton();
+            if (!game.Finished && !game.AwaitingNextRound) SettingsButton();
+            else RemoveSettingsButton();
             if (!showCeremony && game.Finished && !ceremonyBreak && !CardsAnimating)
             {
                 Result(game);
             }
             else if (confirm != null && (confirm == "leave" || (!ceremonyRunning && !showCeremony && !reviewMode))) Confirm();
+            if (settingsOpen) DrawPlayingSettings();
         }
 
         static string RoundLabel(Game game)
@@ -2085,7 +2106,17 @@ namespace Quota
 
         IEnumerator RunCeremony(int serial)
         {
+            bgmEnding = true;
             yield return null;
+            if (serial != cpuRun || match.Game == null) yield break;
+            // Reveal the final title verdict on the board before any score panel.
+            settingsOpen = false;
+            titleVerdictRound = match.Game.RoundIndex;
+            ceremonyDialog = false;
+            ShowTable();
+            var revealUntil = Time.realtimeSinceStartup + 1f;
+            yield return FadeOutRoundBgm(serial);
+            while (serial == cpuRun && Time.realtimeSinceStartup < revealUntil) yield return null;
             if (serial != cpuRun || match.Game == null) yield break;
             ceremonyDialog = true;
             ceremonyReasonShown = ceremonyReason.Length > 0;
@@ -2095,7 +2126,6 @@ namespace Quota
             yield return new WaitForSeconds(1f);
             if (serial != cpuRun || match.Game == null) yield break;
             ceremonyReasonShown = false;
-            titleVerdictRound = match.Game.RoundIndex;
             ShowTable();
             ceremonyTitles = titleLines.Count > 0;
             yield return ExpandCeremony(serial);
@@ -3090,15 +3120,21 @@ namespace Quota
             var host = Portrait.Rect(seat, "title-names", x, y, width, band);
             var lineH = band / 3f;
             var finalized = reviewMode || titleVerdictRound == match.Game.RoundIndex;
-            bool Missing(string name)
+            bool Awarded(string name)
             {
                 foreach (var award in match.Game.TitleAwards(player))
-                    if (award.name == name) return false;
-                return true;
+                    if (award.name == name) return true;
+                return false;
             }
-            DrawTitleName(host, "title-mono", "単色達成", 0f, 0f, width, lineH, font, finalized ? Missing("単色達成") : TitleMonoOut(player));
-            DrawTitleName(host, "title-purist", "生粋の買い付け", 0f, lineH, width, lineH, font, finalized ? Missing("生粋の買い付け") : TitlePuristOut(player));
-            DrawTitleName(host, "title-variety", "五種の品揃え", 0f, lineH * 2f, width, lineH, font, finalized && Missing("五種の品揃え"));
+            var mono = Awarded("単色達成");
+            var purist = Awarded("生粋の買い付け");
+            var variety = Awarded("五種の品揃え");
+            DrawTitleName(host, "title-mono", "単色達成", 0f, 0f, width, lineH, font,
+                finalized ? !mono : TitleMonoOut(player), finalized && mono);
+            DrawTitleName(host, "title-purist", "生粋の買い付け", 0f, lineH, width, lineH, font,
+                finalized ? !purist : TitlePuristOut(player), finalized && purist);
+            DrawTitleName(host, "title-variety", "五種の品揃え", 0f, lineH * 2f, width, lineH, font,
+                finalized && !variety, variety);
         }
 
         static bool TitleMonoOut(Player player)
@@ -3115,12 +3151,19 @@ namespace Quota
             return false;
         }
 
-        void DrawTitleName(Transform parent, string name, string text, float x, float y, float width, float height, int font, bool struck)
+        void DrawTitleName(Transform parent, string name, string text, float x, float y, float width, float height, int font, bool struck, bool awarded)
         {
             var color = struck ? Hex("#8a8a8a") : Ink;
             var label = TextAt(parent, text, x, y, width, height, font, color, nameFont, TextAnchor.MiddleCenter);
             label.gameObject.name = name;
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            if (awarded)
+            {
+                label.fontStyle = FontStyle.Bold;
+                var markerX = x + (width - Mathf.Min(width, label.preferredWidth)) * 0.5f - font * 1.25f;
+                Bold(TextAt(parent, "○", markerX, y, font * 1.2f, height, font, Ink, nameFont, TextAnchor.MiddleCenter))
+                    .gameObject.name = name + "-award";
+            }
             if (!struck) return;
             Portrait.Solid(parent, name + "-strike", x, y + height * 0.5f - 1f, width, 2f, color);
         }
