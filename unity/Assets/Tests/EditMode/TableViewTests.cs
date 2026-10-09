@@ -100,6 +100,57 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void OfflineLobbyCanStartCpuOnlySpectatorMatch()
+        {
+            host = Open();
+            Click("インターネット通信");
+            Click("オフライン");
+            Click("新規ゲーム卓の準備");
+            Assert.IsNull(FindText("自分は参加せずに観戦："));
+            Click("CPU模擬戦を見る");
+            var view = host.GetComponent<TableView>();
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view)).Game;
+            Assert.IsFalse(game.Players.Exists(player => player.IsHuman));
+        }
+
+        [Test]
+        public void VarietyTitleBecomesBoldWithAnUnshiftedMarkerDuringTheRound()
+        {
+            host = Open(); Set("seedText", "0"); Begin();
+            var view = host.GetComponent<TableView>();
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view)).Game;
+            var path = "Root/Frame/seat0/title-names/";
+            Show(view);
+            var before = (host.transform.Find(path + "title-variety") as RectTransform).anchoredPosition;
+            var player = game.Players[0];
+            player.Achieved.AddRange(new[] { new Card(9000, Suit.S, 1), new Card(9001, Suit.H, 1),
+                new Card(9002, Suit.D, 1), new Card(9003, Suit.C, 2), new Card(9004, Suit.Joker, null) });
+            Show(view);
+            var label = host.transform.Find(path + "title-variety").GetComponent<Text>();
+            Assert.AreEqual(FontStyle.Bold, label.fontStyle);
+            Assert.AreEqual(before, ((RectTransform)label.transform).anchoredPosition);
+            Assert.IsNotNull(host.transform.Find(path + "title-variety-award"));
+            Assert.IsNull(host.transform.Find(path + "title-mono-award"));
+            Assert.IsNull(host.transform.Find(path + "title-purist-award"));
+        }
+
+        [Test]
+        public void PlayingSettingsStayOnTheLiveTableAndChangeBgmLevel()
+        {
+            host = Open(); Set("seedText", "0"); Begin();
+            Click("設定");
+            var panel = host.transform.Find("Root/Frame/personal-settings/settings-window");
+            Assert.IsNotNull(panel);
+            var slider = panel.Find("bgm-volume/bgm-slider").GetComponent<Slider>();
+            slider.value = 2f;
+            var view = host.GetComponent<TableView>();
+            Assert.AreEqual(2, typeof(TableView).GetField("bgmLevel", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view));
+            Assert.IsNotNull(host.transform.Find("Root/Frame/seat0"));
+            Click("OK");
+            Assert.IsNull(host.transform.Find("Root/Frame/personal-settings"));
+        }
+
+        [Test]
         public void FourCpuNetworkTableStartsWithoutHumanSeats()
         {
             host = Open();
