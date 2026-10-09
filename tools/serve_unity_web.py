@@ -159,7 +159,9 @@ class UnityHall:
         self.leave(client)
         players = int(body.get("players") or 3)
         table = UnityTable(client, str(body.get("name") or "あなた"), players)
-        table.options = {key: body.get(key, default) for key, default in {"simple": False, "sequence": True, "title": True, "special": True, "ok_timeout": 5, "turn_timeout": 30}.items()}
+        table.options = {key: body.get(key, default) for key, default in {"simple": False, "sequence": True, "title": True, "special": True, "ok_timeout": 5, "turn_timeout": 30, "round_mode": 1}.items()}
+        if table.options["round_mode"] not in (0, 1, 2):
+            raise ValueError("ラウンド数の指定が不正です")
         table.options.update(simple=False, sequence=True, title=True, special=True)
         if body.get("sit_out"):
             table.humans.clear()
@@ -260,6 +262,10 @@ class UnityHall:
             if not math.isfinite(value) or value < minimum:
                 raise ValueError("タイムアウトの値が不正です")
             values[key] = value
+        mode = body.get("round_mode", table.options["round_mode"])
+        if mode not in (0, 1, 2):
+            raise ValueError("ラウンド数の指定が不正です")
+        values["round_mode"] = mode
         table.options.update(values)
         table.touch()
         return table.recruiting(client)
@@ -271,6 +277,8 @@ class UnityHall:
         if table.phase != "recruiting":
             return table.recruiting(client)
         if body:
+            if body.get("round_mode", table.options["round_mode"]) not in (0, 1, 2):
+                raise ValueError("ラウンド数の指定が不正です")
             table.options.update({k: body[k] for k in table.options if k in body})
         table.options.update(simple=False, sequence=True, title=True, special=True)
         options = table.options
@@ -279,7 +287,7 @@ class UnityHall:
             names=[seat.name for seat in table.humans] + [display_name(cid) for cid in table.cpu_cast[:table.players-table.seated()]],
             human_seats=list(range(table.seated())),
             sequence_rule=options["sequence"], title_rule=options["title"],
-            special_actions_rule=options["special"], rounds=table.players,
+            special_actions_rule=options["special"], rounds=(1 if options["round_mode"] == 0 else table.players * (2 if options["round_mode"] == 2 else 1)),
         ))
         seat_cast(table.game, table.cpu_cast)
         table.cpu_at = time.monotonic() + 0.7

@@ -99,8 +99,8 @@ namespace Quota.EditorTools
                 CopyResource(name);
             }
             Directory.CreateDirectory(Path.Combine(ResourceRoot, "how_to_play_slides"));
-            CopyResource("how_to_play_slides/slide01.jpg");
-            CopyResource("how_to_play_slides/slide02.jpg");
+            for (var slide = 1; slide <= 9; slide++)
+                CopyResource("how_to_play_slides/slide" + slide.ToString("00") + ".jpg");
             CopyResource("quota_goods_v1.0.json");
             CopyResource("cpu_ranking_v1.2.json");
             var sourceGoods = Path.Combine(StreamingRoot, "goods");

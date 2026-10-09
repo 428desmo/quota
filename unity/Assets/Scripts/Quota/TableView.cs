@@ -72,6 +72,7 @@ namespace Quota
         bool busy;
         string confirm;
         int playerCount = 3;
+        int roundMode = 1;
         bool simpleMode = false;
         bool sequenceRule = true;
         bool titleRule = true;
@@ -103,6 +104,8 @@ namespace Quota
         bool confirmActions = true;
         float okTimeout = 5f;
         float turnTimeout = 30f;
+        static readonly float[] OkTimeoutChoices = { 1f, 2f, 3f, 4f, 5f };
+        static readonly float[] TurnTimeoutChoices = { 5f, 10f, 15f, 20f, 25f, 30f };
         Sprite titleMark;
         Sprite catchMark;
         bool widePreview;
@@ -682,10 +685,11 @@ namespace Quota
             if (!Application.isPlaying) return;
             simpleMode = false;
             playerCount = PlayerPrefs.GetInt("quota.players", 3);
+            roundMode = Mathf.Clamp(PlayerPrefs.GetInt("quota.roundMode", 1), 0, 2);
             playerName = PlayerPrefs.GetString("quota.name", "あなた");
             if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
-            okTimeout = PlayerPrefs.GetFloat("quota.okTimeout", 5f);
-            turnTimeout = PlayerPrefs.GetFloat("quota.turnTimeout", 30f);
+            okTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.okTimeout", 5f), OkTimeoutChoices);
+            turnTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.turnTimeout", 30f), TurnTimeoutChoices);
             confirmActions = PlayerPrefs.GetInt("quota.confirmActions", 1) == 1;
             ApplyMode();
         }
@@ -701,6 +705,7 @@ namespace Quota
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
             {
                 PlayerPrefs.SetInt("quota.players", playerCount);
+                PlayerPrefs.SetInt("quota.roundMode", roundMode);
                 PlayerPrefs.SetFloat("quota.okTimeout", okTimeout);
                 PlayerPrefs.SetFloat("quota.turnTimeout", turnTimeout);
             }
@@ -884,8 +889,15 @@ namespace Quota
             layout.childForceExpandWidth = layout.childForceExpandHeight = false;
             var rowW = screenW * 0.60f;
             var actionW = screenW * 0.35f;
-            var labelW = LabelSlot(font, "プレイヤーの数：");
+            var labelW = LabelSlot(font, "自分は参加せずに観戦：", "放棄などに確認を求める：", "手番タイムアウト（秒）：");
             SetupNotice(column, "ゲーム設定", rowW, buttonH, font, true);
+            if (leader) SetupChoiceRow(column, "ラウンド数：", RoundModeLabel(), rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
+            {
+                roundMode = (roundMode + 1) % 3;
+                SaveLobbySettings();
+            }, true);
+            else SetupNotice(column, "ラウンド数：" + RoundModeLabel(), rowW, buttonH, font, true);
+            SetupGap(column, innerGap);
             if (leader) SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
             {
                 var next = playerCount == 3 ? 4 : 3;
@@ -909,22 +921,22 @@ namespace Quota
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
                 SetupButton(column, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, rowW, buttonH, font);
             SetupGap(column, innerGap);
-            SetupButton(column, sitOut ? "自分は参加せずに参戦: YES" : "自分は参加せずに参戦: NO", () =>
+            SetupChoiceRow(column, "自分は参加せずに観戦：", sitOut ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
             {
                 if (NetworkJoined)
                     StartCoroutine(NetworkPost("/api/participation", JsonUtility.ToJson(new NetworkCreate { sit_out = !sitOut })));
                 else { sitOut = !sitOut; ShowSetup(); }
-            }, rowW, buttonH, font);
+            }, true);
             SetupGap(column, innerGap);
             DrawLobbyTimeout(column, "OKタイムアウト（秒）", true, leader, rowW, buttonH, font);
             SetupGap(column, innerGap);
             DrawLobbyTimeout(column, "手番タイムアウト（秒）", false, leader, rowW, buttonH, font);
             SetupGap(column, buttonH);
             SetupNotice(column, "個人設定", rowW, buttonH, font, true);
-            SetupButton(column, "放棄などに確認を求める: " + (confirmActions ? "YES" : "NO"), () =>
+            SetupChoiceRow(column, "放棄などに確認を求める：", confirmActions ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () =>
             {
                 confirmActions = !confirmActions; SaveRules(); ShowSetup();
-            }, rowW, buttonH, font, true);
+            }, true);
             SetupGap(column, buttonH);
             if (NetworkJoined)
             {
@@ -995,8 +1007,9 @@ namespace Quota
             if (Application.isPlaying)
             {
                 playerCount = PlayerPrefs.GetInt("quota.players", 3);
-                okTimeout = PlayerPrefs.GetFloat("quota.okTimeout", 5f);
-                turnTimeout = PlayerPrefs.GetFloat("quota.turnTimeout", 30f);
+                roundMode = Mathf.Clamp(PlayerPrefs.GetInt("quota.roundMode", 1), 0, 2);
+                okTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.okTimeout", 5f), OkTimeoutChoices);
+                turnTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.turnTimeout", 30f), TurnTimeoutChoices);
             }
             EnsureCast();
             ShowSetup();
@@ -1147,6 +1160,7 @@ namespace Quota
                 {
                     okTimeout = next.options.ok_timeout;
                     turnTimeout = next.options.turn_timeout;
+                    roundMode = next.options.round_mode;
                 }
             }
             else if (next.phase == "playing")
@@ -1172,6 +1186,7 @@ namespace Quota
                             specialRule = next.options.special;
                             okTimeout = next.options.ok_timeout;
                             turnTimeout = next.options.turn_timeout;
+                            roundMode = next.options.round_mode;
                         }
                         StartMatch(false);
                     }
@@ -1300,6 +1315,7 @@ namespace Quota
                 ok_timeout = okTimeout,
                 ok_timeout_set = true,
                 turn_timeout = turnTimeout,
+                round_mode = roundMode,
             };
             yield return NetworkPost("/api/table", JsonUtility.ToJson(body));
         }
@@ -1388,7 +1404,7 @@ namespace Quota
         void StartNetworkMatch()
         {
             StartCoroutine(NetworkPost("/api/start", JsonUtility.ToJson(new NetworkCreate
-            { simple = simpleMode, sequence = sequenceRule, title = titleRule, special = specialRule, ok_timeout = okTimeout, turn_timeout = turnTimeout })));
+            { simple = simpleMode, sequence = sequenceRule, title = titleRule, special = specialRule, ok_timeout = okTimeout, turn_timeout = turnTimeout, round_mode = roundMode })));
         }
 
         void LeaveNetworkTable()
@@ -1510,7 +1526,7 @@ namespace Quota
                 SequenceRule = sequenceRule,
                 TitleRule = titleRule,
                 SpecialActionsRule = specialRule,
-                Rounds = playerCount,
+                Rounds = RoundCountForMode(),
             }, pumpCpus: !Application.isPlaying && !shared);
             Characters.BindInOrder(match.Game, characters);
             BeginCardPresentation();
@@ -1690,6 +1706,7 @@ namespace Quota
             public float ok_timeout;
             public bool ok_timeout_set;
             public float turn_timeout;
+            public int round_mode;
         }
 
         [System.Serializable]
@@ -3620,39 +3637,56 @@ namespace Quota
 
         void DrawLobbyTimeout(RectTransform column, string caption, bool ok, bool leader, float width, float height, int font)
         {
-            var value = (ok ? okTimeout : turnTimeout).ToString("0.##");
+            var value = (ok ? okTimeout : turnTimeout).ToString("0");
             if (!leader) { SetupNotice(column, caption + ": " + value, width, height, font, true); return; }
-#if UNITY_WEBGL && !UNITY_EDITOR
-            SetupButton(column, caption + ": " + value + "　✎", () => QuotaEditTimeout(value, ok ? "ok" : "turn", gameObject.name), width, height, font, true);
-#else
-            var row = Portrait.Rect(column, caption + "-row", 0, 0, width, 88f);
-            var layout = row.gameObject.AddComponent<LayoutElement>();
-            layout.preferredWidth = width; layout.preferredHeight = 88f;
-            var field = DialogField(row, caption, value, 0, 0, width, true);
-            field.onEndEdit.AddListener(text => { if (ok) OnOkTimeoutEdited(text); else OnTurnTimeoutEdited(text); });
-#endif
+            var labelW = LabelSlot(font, "自分は参加せずに観戦：", "放棄などに確認を求める：", "手番タイムアウト（秒）：");
+            SetupChoiceRow(column, caption + "：", value, width, height, labelW, width - labelW - 12f - font, font, () =>
+            {
+                if (ok) okTimeout = NextChoice(okTimeout, OkTimeoutChoices);
+                else turnTimeout = NextChoice(turnTimeout, TurnTimeoutChoices);
+                SaveLobbySettings();
+            }, true);
         }
 
-        void SaveLobbyTimeouts()
+        string RoundModeLabel() => roundMode == 0 ? "1" : roundMode == 2 ? "人数分×2" : "人数分";
+
+        int RoundCountForMode() => roundMode == 0 ? 1 : roundMode == 2 ? playerCount * 2 : playerCount;
+
+        static float NearestChoice(float value, float[] choices)
+        {
+            var nearest = choices[0];
+            foreach (var choice in choices)
+                if (Mathf.Abs(choice - value) < Mathf.Abs(nearest - value)) nearest = choice;
+            return nearest;
+        }
+
+        static float NextChoice(float current, float[] choices)
+        {
+            for (var i = 0; i < choices.Length; i++)
+                if (Mathf.Approximately(choices[i], current)) return choices[(i + 1) % choices.Length];
+            return choices[0];
+        }
+
+        void SaveLobbySettings()
         {
             if (NetworkJoined && (networkState.you == null || !networkState.you.leader)) return;
             SaveRules();
-            if (NetworkJoined) StartCoroutine(NetworkPost("/api/settings", JsonUtility.ToJson(new NetworkCreate { ok_timeout = okTimeout, turn_timeout = turnTimeout })));
+            if (NetworkJoined) StartCoroutine(NetworkPost("/api/settings", JsonUtility.ToJson(new NetworkCreate { ok_timeout = okTimeout, turn_timeout = turnTimeout, round_mode = roundMode })));
             ShowSetup();
         }
 
         public void OnOkTimeoutEdited(string value)
         {
             if (NetworkJoined && (networkState.you == null || !networkState.you.leader)) return;
-            okTimeout = ParseSeconds(value, okTimeout, 0f);
-            SaveLobbyTimeouts();
+            okTimeout = NearestChoice(ParseSeconds(value, okTimeout, 1f), OkTimeoutChoices);
+            SaveLobbySettings();
         }
 
         public void OnTurnTimeoutEdited(string value)
         {
             if (NetworkJoined && (networkState.you == null || !networkState.you.leader)) return;
-            turnTimeout = ParseSeconds(value, turnTimeout, 1f);
-            SaveLobbyTimeouts();
+            turnTimeout = NearestChoice(ParseSeconds(value, turnTimeout, 5f), TurnTimeoutChoices);
+            SaveLobbySettings();
         }
 
         InputField DialogField(Transform parent, string caption, string value, float x, float y, float width, bool lightCaption = false)
@@ -3735,7 +3769,7 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
-            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || (parent.name == "table-list" || parent.name == "table-list-content");
+            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || caption == "CPUプレイヤー入れ替え" || (parent.name == "table-list" || parent.name == "table-list-content");
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
             image.color = accent || light ? Accent : Ecru;
