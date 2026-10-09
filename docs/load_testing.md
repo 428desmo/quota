@@ -34,6 +34,27 @@ python3 tools/load_test_multitable.py --base-url http://127.0.0.1:18080 \
 
 `--ramp-seconds` は仮想端末のポーリング開始を卓ごとに指定秒数へ分散する。指定値は `--duration` より短くする。表示される毎秒リクエスト数は試験全体の平均なので、立ち上げ後の定常区間は別に評価する。
 
+負荷ツールは卓の準備時に使ったHTTP接続をポーリング開始前に閉じる。Nginxのアイドル接続期限（現設定15秒）より長いランプ待ちがあっても、古い接続を最初の状態取得に再利用しないためである。VPS上で試す場合、Macから最新の `tools/load_test_multitable.py` を `/tmp/quota-load-test.py` に再転送する。
+
+10卓×4端末の120秒試験で504が消えたら、次に600秒の継続試験を行う。以前のJSONを上書きしないファイル名を使い、試験中に別のVPSターミナルで空きメモリと接続追跡件数を10秒ごとに記録する。
+
+VPSのターミナル1で記録を始め、試験終了後にCtrl-Cで止める。
+
+```sh
+while :; do date -Is; free -m; sysctl net.netfilter.nf_conntrack_count net.netfilter.nf_conntrack_max; sleep 10; done | tee /tmp/quota-resources-10tables.log
+```
+
+別のVPSターミナル2で試験を実行する。
+
+```sh
+python3 /tmp/quota-load-test.py --base-url http://127.0.0.1:80 \
+  --metrics-url http://127.0.0.1:80/api/metrics \
+  --tables 10 --clients-per-table 4 --mode cpu --duration 600 \
+  --ramp-seconds 30 --json-out /tmp/quota-load-10tables-600s.json
+```
+
+終了後は `errors`、504、p95/p99、`server kernel TCP` に加え、記録した `available` メモリと `nf_conntrack_count` の最大値を確認する。最後に `sudo journalctl -k --since '15 minutes ago' --no-pager | grep -i 'nf_conntrack.*table full'` でカーネルの破棄ログがないか調べる。`finished_tables=0` だけでは通信障害とは判断しない。
+
 終了時の `/api/metrics` 取得がタイムアウトしても、ツールは3回まで再試行し、端末側の結果を `--json-out` に保存する。この場合 `server_after` は `null`、`server_after_error` に理由が入る。サーバー側の前後差は表示できないので、VPSで直接メトリクスを読み、Nginxのログとも突き合わせる。
 
 端末側のタイムアウトは `during connect`（TCP接続）、`during send`（送信）、`during response_headers`（応答開始待ち）、`during response_body`（本文受信）の段階別に集計する。VPS上でツールを直接実行しても失敗するなら、SSHトンネルは原因から外れる。`/api/metrics` のAPI処理時間が短く、`listen_overflows` が増えない場合でも、受け付け前の接続や要求の読み込みが遅れる可能性があるため、この段階別の値を確認する。
