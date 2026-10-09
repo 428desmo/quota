@@ -1,10 +1,10 @@
 # 複数卓のAPI負荷試験
 
-WebGLのダウンロードを除き、卓の作成、参加、状態取得、行動、CPU思考を測る。対局中の卓に影響するため、専用のローカルサーバーまたは利用者のいない時間帯に実行する。サーバーは更新すると既存の卓が消えるので、VPSでの計測はバックエンド更新後に行う。
+WebGLのダウンロードを除き、卓の作成、参加、状態取得、行動、CPU思考を測る。対局中の卓に影響するため、Mac上の試験用サーバー、または利用者のいない時間帯のVPSで実行する。VPSのサーバーを更新すると既存の卓が消えるので、VPSでの計測はバックエンド更新後に行う。
 
 ## 試験の実行
 
-ローカルでサーバーを起動する。別ターミナルで負荷をかける。
+まずMacだけで試す場合は、Mac上でサーバーを起動し、別のMacのターミナルから負荷をかける。この手順ではVPSは使わない。
 
 ```sh
 python3 tools/serve_unity_web.py --host 127.0.0.1 --port 8080
@@ -13,13 +13,15 @@ python3 tools/load_test_multitable.py --tables 5 --clients-per-table 3 \
   --json-out /tmp/quota-load-cpu.json
 ```
 
-VPSのNginxも含めて、MacからSSHトンネル経由で測る例。VPSの公開ポートや設定を増やす必要はない。`user@vps`は自分のSSH接続先に置き換える。
+VPSを測る場合は、Macで `./conoha/update.sh` を実行して計測機能入りの `tools/serve_unity_web.py` をVPSに配備する。既存のQuotaサービスがVPSで起動するため、VPSにSSHログインしてサーバーを手動起動する必要はない。`update.sh` は `tools/load_test_multitable.py` を転送しない。負荷発生スクリプトはMacで実行する。
+
+VPSのNginxも含めて測るには、Macのターミナルで次のSSHトンネルを開いたままにする。VPSの公開ポートや設定を増やす必要はない。`user@vps`は自分のSSH接続先に置き換える。
 
 ```sh
 ssh -N -L 18080:127.0.0.1:80 user@vps
 ```
 
-別ターミナルで実行する。
+別のMacのターミナルで負荷発生スクリプトを実行する。接続先 `127.0.0.1:18080` はMac側のトンネル入口で、通信はVPSのNginx（80番）を経てQuotaのPythonサーバーへ届く。
 
 ```sh
 python3 tools/load_test_multitable.py --base-url http://127.0.0.1:18080 \
