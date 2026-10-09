@@ -33,6 +33,17 @@ class ServerMetrics:
         self.cpu_decisions = 0
         self.cpu_decision_ms = 0.0
         self.cpu_decision_max_ms = 0.0
+        self.inflight = 0
+        self.peak_inflight = 0
+
+    def request_started(self) -> None:
+        with self.lock:
+            self.inflight += 1
+            self.peak_inflight = max(self.peak_inflight, self.inflight)
+
+    def request_finished(self) -> None:
+        with self.lock:
+            self.inflight -= 1
 
     def observe(self, route: str, status: int, duration_ms: float,
                 lock_wait_ms: float, lock_held_ms: float,
@@ -76,6 +87,8 @@ class ServerMetrics:
                                  "lock_wait_ms_buckets": row["lock_wait_ms_buckets"][:]} for key, row in self.routes.items()},
                 "cpu": {"decisions": self.cpu_decisions, "decision_ms_total": self.cpu_decision_ms,
                         "decision_ms_max": self.cpu_decision_max_ms},
+                "inflight_api": self.inflight,
+                "peak_inflight_api": self.peak_inflight,
             }
 
 
@@ -511,6 +524,20 @@ def current_rss_bytes() -> int | None:
         return None
 
 
+def linux_listen_counters() -> dict | None:
+    try:
+        with open("/proc/net/netstat", encoding="ascii") as netstat:
+            lines = netstat.readlines()
+        for header, values in zip(lines, lines[1:]):
+            if header.startswith("TcpExt:") and values.startswith("TcpExt:"):
+                counters = dict(zip(header.split()[1:], values.split()[1:]))
+                return {"listen_overflows": int(counters["ListenOverflows"]),
+                        "listen_drops": int(counters["ListenDrops"])}
+    except (OSError, KeyError, ValueError):
+        pass
+    return None
+
+
 def metrics_snapshot() -> dict:
     result = METRICS.snapshot()
     with HALL.lock:
@@ -531,6 +558,7 @@ def metrics_snapshot() -> dict:
         "cpu_system_seconds": usage.ru_stime,
         "threads": threading.active_count(),
     }
+    result["kernel_tcp"] = linux_listen_counters()
     return result
 
 
@@ -582,6 +610,8 @@ class Handler(SimpleHTTPRequestHandler):
             "/api/players", "/api/settings", "/api/action", "/api/start", "/api/shuffle",
             "/api/diagnostic", "/api/metrics",
         } else "/api/unknown"
+        if self.path != "/api/metrics":
+            METRICS.request_started()
         try:
             if self.path == "/api/metrics":
                 # Nginx overrides X-Real-IP for forwarded requests; only local reads are allowed.
@@ -669,6 +699,7 @@ class Handler(SimpleHTTPRequestHandler):
                 METRICS.observe(f"{self.command} {route}", status,
                                 (time.perf_counter() - started_at) * 1000,
                                 lock_timing["wait_ms"], lock_timing["held_ms"], serialization_ms, response_bytes)
+                METRICS.request_finished()
 
     def json(self, payload: dict, status: int = 200) -> tuple[int, float]:
         serialization_at = time.perf_counter()
@@ -705,6 +736,12 @@ class Handler(SimpleHTTPRequestHandler):
         return
 
 
+class QuotaHTTPServer(ThreadingHTTPServer):
+    # Nginx opens a fresh upstream connection for each poll; the default queue of
+    # five can overflow during simultaneous table polling even when CPU is idle.
+    request_queue_size = 128
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="0.0.0.0", help="Listen address (use 127.0.0.1 behind Nginx)")
@@ -714,7 +751,7 @@ def main() -> None:
     folder = args.dir.resolve()
     if not folder.is_dir():
         raise SystemExit(f"WebGL export is not built yet: {folder}")
-    server = ThreadingHTTPServer((args.host, args.port), lambda *a, **k: Handler(*a, directory=str(folder), **k))
+    server = QuotaHTTPServer((args.host, args.port), lambda *a, **k: Handler(*a, directory=str(folder), **k))
     print(f"http://127.0.0.1:{args.port}  （Unity WebGL）")
     server.serve_forever()
 

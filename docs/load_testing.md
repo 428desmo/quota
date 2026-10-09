@@ -58,3 +58,15 @@ python3 tools/load_test_multitable.py --base-url http://127.0.0.1:18080 \
 ロック待ちが伸びるなら全卓共通のロックが詰まっている。ロック保持時間が伸びるならCPU思考・卓状態の処理を疑う。JSON化時間と送信バイト数が増えるなら行動履歴の肥大化を疑う。サーバーの `cpu_user_seconds + cpu_system_seconds` の増加が試験秒数に近づくなら、Pythonのほぼ1コアを使い切っている。現在RSSやVPS全体の使用メモリが継続的に増え、試験終了後も戻らない場合は長時間運用を再評価する。
 
 512MB VPSではPythonだけでなくOSとNginxの分も必要なので、`free -m`、`sudo systemctl status quota nginx`、`sudo journalctl -u quota --disk-usage` も併せて見る。試験後のRSSの安定、余裕のあるavailableメモリ、OOMやHTTPエラーがないことを確認する。合格する卓数は実測で決め、卓数だけでなく端末数と対局時間も記録する。
+
+## 504が出た場合の切り分け
+
+端末側に504があるのにサーバーのAPI計測に同じ件数がない場合、その要求はPythonの処理に届く前に失敗している。まずVPSのNginxエラーログを確認する。
+
+```sh
+sudo grep -E 'upstream timed out|worker_connections|Too many open files|connect\(\) failed' /var/log/nginx/error.log | tail -n 50
+```
+
+`while connecting to upstream` はNginxからPythonへの接続待ち、`while reading response header from upstream` は接続後の応答待ちを示す。既存設定の `proxy_connect_timeout` は3秒なので、約3秒の504は前者を疑う根拠になるが、ログで確認する。Pythonサーバーの接続待ち行列は128件に増やし、`/api/metrics` には `peak_inflight_api` とLinuxの `kernel_tcp.listen_overflows` / `listen_drops` を追加した。後者はVPS全体の累積カウンターなので、負荷試験スクリプトは開始前後の差を表示する。
+
+Nginxを通さずPython側だけを比較する場合は、別のSSHトンネルを `ssh -N -L 18081:127.0.0.1:8080 user@vps` で開き、負荷試験の `--base-url` と `--metrics-url` を `http://127.0.0.1:18081` に変えて実行する。直接接続では504を生成するNginxを経由しない。既存卓への影響を避けるため、対局している人がいないときに試す。
