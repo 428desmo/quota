@@ -1,4 +1,5 @@
-from tools.load_test_multitable import Stats, percentile_bound
+from tools import load_test_multitable
+from tools.load_test_multitable import ApiSession, Stats, percentile_bound, request
 from tools.serve_unity_web import ServerMetrics, diagnostic_signature
 
 
@@ -35,3 +36,35 @@ def test_load_report_counts_errors_and_percentile_bound():
     assert stats.snapshot()["errors"] == {"failure": 1}
     assert percentile_bound(row, .5) == "≤50 ms"
     assert percentile_bound(row, .95) == "≤800 ms"
+
+
+def test_virtual_client_reuses_one_http_connection(monkeypatch):
+    connections = []
+
+    class FakeResponse:
+        status = 200
+
+        def read(self):
+            return b'{"phase":"hall"}'
+
+    class FakeConnection:
+        def __init__(self, host, port, timeout):
+            self.calls = []
+            connections.append(self)
+
+        def request(self, method, path, body, headers):
+            self.calls.append((method, path, body, headers))
+
+        def getresponse(self):
+            return FakeResponse()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(load_test_multitable, "HTTPConnection", FakeConnection)
+    session = ApiSession("http://127.0.0.1:18080", 5)
+    assert request("http://127.0.0.1:18080", "/api/state", "virtual-a", 5, session=session)["phase"] == "hall"
+    assert request("http://127.0.0.1:18080", "/api/state", "virtual-a", 5, session=session)["phase"] == "hall"
+    assert len(connections) == 1
+    assert len(connections[0].calls) == 2
+    assert all(call[3]["X-Quota-Client"] == "virtual-a" for call in connections[0].calls)
