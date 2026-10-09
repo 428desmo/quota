@@ -64,7 +64,11 @@ def test_virtual_client_reuses_one_http_connection(monkeypatch):
     class FakeConnection:
         def __init__(self, host, port, timeout):
             self.calls = []
+            self.sock = None
             connections.append(self)
+
+        def connect(self):
+            self.sock = object()
 
         def request(self, method, path, body, headers):
             self.calls.append((method, path, body, headers))
@@ -73,7 +77,7 @@ def test_virtual_client_reuses_one_http_connection(monkeypatch):
             return FakeResponse()
 
         def close(self):
-            pass
+            self.sock = None
 
     monkeypatch.setattr(load_test_multitable, "HTTPConnection", FakeConnection)
     session = ApiSession("http://127.0.0.1:18080", 5)
@@ -82,6 +86,58 @@ def test_virtual_client_reuses_one_http_connection(monkeypatch):
     assert len(connections) == 1
     assert len(connections[0].calls) == 2
     assert all(call[3]["X-Quota-Client"] == "virtual-a" for call in connections[0].calls)
+
+
+def test_timeout_identifies_the_connection_phase(monkeypatch):
+    class TimeoutConnection:
+        sock = None
+
+        def __init__(self, host, port, timeout):
+            pass
+
+        def connect(self):
+            raise TimeoutError("connect timed out")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(load_test_multitable, "HTTPConnection", TimeoutConnection)
+    session = ApiSession("http://127.0.0.1:8080", 5)
+    stats = Stats()
+    try:
+        request("http://127.0.0.1:8080", "/api/state", "virtual-a", 5, stats=stats, session=session)
+    except RuntimeError:
+        pass
+    assert stats.snapshot()["errors"] == {"TimeoutError during connect": 1}
+
+
+def test_timeout_identifies_response_headers_phase(monkeypatch):
+    class TimeoutConnection:
+        sock = None
+
+        def __init__(self, host, port, timeout):
+            pass
+
+        def connect(self):
+            self.sock = object()
+
+        def request(self, method, path, body, headers):
+            pass
+
+        def getresponse(self):
+            raise TimeoutError("response timed out")
+
+        def close(self):
+            self.sock = None
+
+    monkeypatch.setattr(load_test_multitable, "HTTPConnection", TimeoutConnection)
+    session = ApiSession("http://127.0.0.1:8080", 5)
+    stats = Stats()
+    try:
+        request("http://127.0.0.1:8080", "/api/state", "virtual-a", 5, stats=stats, session=session)
+    except RuntimeError:
+        pass
+    assert stats.snapshot()["errors"] == {"TimeoutError during response_headers": 1}
 
 
 def test_html_504_is_reported_as_gateway_timeout():

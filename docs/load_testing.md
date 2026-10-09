@@ -36,6 +36,8 @@ python3 tools/load_test_multitable.py --base-url http://127.0.0.1:18080 \
 
 終了時の `/api/metrics` 取得がタイムアウトしても、ツールは3回まで再試行し、端末側の結果を `--json-out` に保存する。この場合 `server_after` は `null`、`server_after_error` に理由が入る。サーバー側の前後差は表示できないので、VPSで直接メトリクスを読み、Nginxのログとも突き合わせる。
 
+端末側のタイムアウトは `during connect`（TCP接続）、`during send`（送信）、`during response_headers`（応答開始待ち）、`during response_body`（本文受信）の段階別に集計する。VPS上でツールを直接実行しても失敗するなら、SSHトンネルは原因から外れる。`/api/metrics` のAPI処理時間が短く、`listen_overflows` が増えない場合でも、受け付け前の接続や要求の読み込みが遅れる可能性があるため、この段階別の値を確認する。
+
 負荷発生器は仮想端末ごとにHTTP接続を再利用する。SSHトンネルに `accept: Too many open files` が出た場合、まず負荷試験とトンネルをそれぞれCtrl-Cで終了し、Macのターミナルで `ulimit -n` を確認する。256程度なら、そのターミナルで `ulimit -n 4096` を実行してからSSHトンネルを開き直す。接続ごとに新しいトンネルを作る必要はない。このエラーがMac側のSSHに出ているときは、VPSのファイル記述子上限を変えても解消しない。
 
 まず1卓で動作を確認し、5、10、25卓と段階的に増やす。CPU・human・lobbyをそれぞれ実行する。短い試験だけでは履歴やメモリの増加は見えないため、想定最大規模で20〜30分の継続試験も行う。`--tables` と `--clients-per-table` の積が端末数であり、0.4秒間隔なら基礎リクエスト数は概ね「端末数×2.5/秒」。例えば10卓×4端末で約100回/秒となる。
