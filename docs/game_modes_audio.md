@@ -10,7 +10,7 @@
 
 ## ラウンドBGM
 
-原音源は `sound/play_bgm_01.mp3`。WebGL版はこのMP3を読み込んで音声バッファ内の16秒から92秒を直接ループする。Unity Editorなどのネイティブ版で使うクリップは `unity/Assets/Resources/QuotaBgm/intro.ogg`（0:00〜0:16）と `loop.ogg`（0:16〜1:32）である。次のコマンドで原音源から再生成できる。
+原音源は `sound/play_bgm_01.mp3`。WebGL版はこのMP3を読み込んで音声バッファ内の16秒から92秒を直接ループする。Unity Editorなどのネイティブ版で使うクリップは `unity/Assets/Resources/QuotaBgm/intro.ogg`（0:00〜0:16）と `loop.ogg`（0:16〜1:32）である。ネイティブ版ではループ用クリップを読み込み時にPCMへ展開し、圧縮音声の再始動による隙間を避ける。そのためクライアントの音声メモリ使用量は増える。次のコマンドで原音源から再生成できる。
 
 ```bash
 ffmpeg -i sound/play_bgm_01.mp3 -ss 0 -t 16 -c:a libvorbis -q:a 5 unity/Assets/Resources/QuotaBgm/intro.ogg

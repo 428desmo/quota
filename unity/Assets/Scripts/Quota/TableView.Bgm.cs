@@ -14,6 +14,7 @@ namespace Quota
         AudioSource bgmLoop;
         AudioClip bgmIntroClip;
         AudioClip bgmLoopClip;
+        AudioClip bgmPcmClip;
         int bgmRound;
         bool bgmActive;
 
@@ -36,6 +37,18 @@ namespace Quota
             bgmLoop = gameObject.AddComponent<AudioSource>();
             bgmLoop.playOnAwake = false;
             bgmLoop.spatialBlend = 0f;
+            // Loop decoded PCM samples rather than asking the audio source to
+            // restart a compressed Vorbis stream at every repeat.
+            var samples = new float[bgmLoopClip.samples * bgmLoopClip.channels];
+            if (bgmLoopClip.GetData(samples, 0))
+            {
+                var pcmLoop = AudioClip.Create("Quota BGM loop PCM", bgmLoopClip.samples,
+                    bgmLoopClip.channels, bgmLoopClip.frequency, false);
+                pcmLoop.SetData(samples, 0);
+                bgmPcmClip = pcmLoop;
+                bgmLoopClip = pcmLoop;
+            }
+            else Debug.LogWarning("Quota BGM loop could not be decoded to PCM.");
             bgmLoop.clip = bgmLoopClip;
             bgmLoop.loop = true;
 #endif
@@ -79,6 +92,15 @@ namespace Quota
 #endif
             bgmActive = false;
             bgmRound = 0;
+        }
+
+        void DisposeRoundBgm()
+        {
+            StopRoundBgm();
+            if (bgmPcmClip == null) return;
+            if (Application.isPlaying) Destroy(bgmPcmClip);
+            else DestroyImmediate(bgmPcmClip);
+            bgmPcmClip = null;
         }
     }
 }
