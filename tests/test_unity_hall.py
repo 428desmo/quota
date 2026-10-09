@@ -404,3 +404,17 @@ def test_lobby_settings_are_shared_and_leader_only():
     with pytest.raises(ValueError): hall.settings({"turn_timeout": float("nan")}, "a")
     hall.begin("a")
     with pytest.raises(ValueError): hall.settings({"turn_timeout": 99}, "a")
+
+
+@pytest.mark.parametrize("mode,rounds", [(0, 1), (1, 3), (2, 6)])
+def test_leader_round_choice_is_shared_and_used_by_game(mode, rounds):
+    hall = UnityHall()
+    opened = hall.create({"players": 3, "name": "A"}, "a")
+    hall.join({"table": opened["table_id"], "name": "B"}, "b")
+    updated = hall.settings({"round_mode": mode}, "a")
+    assert updated["options"]["round_mode"] == mode
+    assert hall.snapshot("b")["options"]["round_mode"] == mode
+    with pytest.raises(ValueError): hall.settings({"round_mode": 1}, "b")
+    with pytest.raises(ValueError): hall.settings({"round_mode": 3}, "a")
+    hall.begin("a")
+    assert hall.tables[opened["table_id"]].game.round_count == rounds

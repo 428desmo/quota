@@ -25,10 +25,11 @@ namespace Quota.Tests
             host = Open();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":4,\"seed\":1,\"seats\":[],\"cpus\":[\"A\",\"B\",\"C\",\"D\"],\"cpu_cast\":[0,1,2,3],\"you\":{\"seat\":-1,\"observer\":true,\"leader\":true},\"options\":{\"simple\":true},\"actions\":[]}";
+            var json = "{\"phase\":\"playing\",\"table_id\":\"test\",\"players\":4,\"seed\":1,\"seats\":[],\"cpus\":[\"A\",\"B\",\"C\",\"D\"],\"cpu_cast\":[0,1,2,3],\"you\":{\"seat\":-1,\"observer\":true,\"leader\":true},\"options\":{\"simple\":true,\"round_mode\":2},\"actions\":[]}";
             typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
             var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
             Assert.AreEqual(4, game.Players.Count);
+            Assert.AreEqual(8, game.RoundCount);
             foreach (var player in game.Players) Assert.IsFalse(player.IsHuman);
             game.AwaitingNextRound = true;
             typeof(TableView).GetMethod("ShowCompletedCeremony", flags).Invoke(view, null);
@@ -129,18 +130,44 @@ namespace Quota.Tests
             host = Open();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            var json = "{\"phase\":\"recruiting\",\"table_id\":\"test\",\"players\":4,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"C\",\"D\"],\"you\":{\"seat\":1,\"leader\":false},\"options\":{\"ok_timeout\":12,\"turn_timeout\":45}}";
+            var json = "{\"phase\":\"recruiting\",\"table_id\":\"test\",\"players\":4,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"C\",\"D\"],\"you\":{\"seat\":1,\"leader\":false},\"options\":{\"round_mode\":2,\"ok_timeout\":4,\"turn_timeout\":25}}";
             typeof(TableView).GetMethod("ApplyNetworkState", flags).Invoke(view, new object[] { json });
             Assert.IsNull(FindButton("CPUプレイヤー入れ替え"));
             Assert.IsNull(FindButton("ゲーム開始"));
             Assert.IsNull(FindButton("4人"));
             Assert.IsNotNull(FindText("ゲーム開始待ち"));
-            Assert.IsNotNull(FindText("OKタイムアウト（秒）: 12"));
-            Assert.IsNotNull(FindText("手番タイムアウト（秒）: 45"));
-            Assert.IsNotNull(FindButton("放棄などに確認を求める: YES"));
+            Assert.IsNotNull(FindText("ラウンド数：人数分×2"));
+            Assert.IsNotNull(FindText("OKタイムアウト（秒）: 4"));
+            Assert.IsNotNull(FindText("手番タイムアウト（秒）: 25"));
+            Assert.IsNotNull(FindText("放棄などに確認を求める："));
+            Assert.IsNotNull(FindButton("YES"));
             Assert.AreEqual(0, host.GetComponentsInChildren<InputField>().Length);
             view.OnTurnTimeoutEdited("99");
-            Assert.AreEqual(45f, typeof(TableView).GetField("turnTimeout", flags).GetValue(view));
+            Assert.AreEqual(25f, typeof(TableView).GetField("turnTimeout", flags).GetValue(view));
+        }
+
+        [Test]
+        public void LeaderCyclesRoundsAndTimeoutChoicesBeforeStarting()
+        {
+            host = Open();
+            Click("新規ゲーム卓の準備");
+            Assert.IsNotNull(ButtonNamed("人数分"));
+            Click("人数分");
+            Assert.IsNotNull(ButtonNamed("人数分×2"));
+            Click("人数分×2");
+            Assert.IsNotNull(ButtonNamed("1"));
+            Click("5");
+            Assert.IsNotNull(ButtonNamed("1"));
+            Click("30");
+            Assert.IsNotNull(ButtonNamed("5"));
+            Assert.AreEqual(0, host.GetComponentsInChildren<InputField>().Length);
+            var shuffle = ButtonNamed("CPUプレイヤー入れ替え");
+            var start = ButtonNamed("ゲーム開始");
+            Assert.AreEqual(start.GetComponent<Image>().color, shuffle.GetComponent<Image>().color);
+            Click("ゲーム開始");
+            var view = host.GetComponent<TableView>();
+            var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
+            Assert.AreEqual(1, match.Game.RoundCount);
         }
 
         [TestCase(0)]
@@ -856,17 +883,18 @@ namespace Quota.Tests
             Assert.IsNull(FindButton("その他の設定"));
             Assert.IsNotNull(FindText("ゲーム設定"));
             Assert.IsNotNull(FindText("個人設定"));
-            Assert.IsNotNull(FindText("OKタイムアウト（秒）"));
-            foreach (var caption in new[] { "ゲーム設定", "個人設定", "OKタイムアウト（秒）", "手番タイムアウト（秒）", "プレイヤーの数：" })
+            Assert.IsNotNull(FindText("OKタイムアウト（秒）："));
+            foreach (var caption in new[] { "ゲーム設定", "個人設定", "OKタイムアウト（秒）：", "手番タイムアウト（秒）：", "プレイヤーの数：", "ラウンド数：" })
             {
                 var label = FindText(caption);
                 Assert.AreEqual(Color.white, label.color, caption);
                 Assert.AreEqual(FontStyle.Bold, label.fontStyle, caption);
             }
-            Assert.IsNotNull(ButtonNamed("放棄などに確認を求める: YES"));
+            Assert.IsNotNull(FindText("放棄などに確認を求める："));
+            Assert.IsNotNull(ButtonNamed("YES"));
 
-            Click("自分は参加せずに参戦: NO");
-            Assert.IsNotNull(FindText("自分は参加せずに参戦: YES"));
+            Click("NO");
+            Assert.IsNotNull(FindText("自分は参加せずに観戦："));
             Assert.IsNull(FindText("1. あなた"));
             Assert.AreEqual(4, CountText("CPU"));
             Assert.IsNotNull(FindTextContaining("1. "));
@@ -908,10 +936,14 @@ namespace Quota.Tests
             Assert.IsNotNull(picture.sprite);
             var first = picture.sprite;
             show.ShowAt(2.1f);
-            Assert.IsNotNull(FindText("2 / 2"));
+            Assert.IsNotNull(FindText("2 / 9"));
             Assert.AreNotSame(first, picture.sprite);
-            show.ShowAt(4.1f);
-            Assert.IsNotNull(FindText("1 / 2"));
+            show.ShowAt(16.1f);
+            Assert.IsNotNull(FindText("9 / 9"));
+            show.ShowAt(18.1f);
+            Assert.IsNotNull(FindText("1 / 9"));
+            Assert.AreSame(first, picture.sprite);
+            Assert.IsTrue(GuideHasNestedTable(body));
             Click("OK");
             Click("詳細ルール");
             body = host.transform.Find("Root/Frame/setup-dialog/guide-view/guide-body");
@@ -921,11 +953,19 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("称号"));
             Assert.IsNotNull(FindText("五種の品揃え"));
             Assert.GreaterOrEqual(body.GetComponentsInChildren<Image>().Length, 12);
+            Assert.IsTrue(GuideHasNestedTable(body));
             var wrap = typeof(TableView).GetMethod("WrapGuideText", BindingFlags.Instance | BindingFlags.NonPublic);
             var wrapped = (string)wrap.Invoke(host.GetComponent<TableView>(), new object[] { "ああ、いい。", 30, 70f });
             Assert.IsTrue(wrapped.Contains("\n"));
             foreach (var line in wrapped.Split('\n'))
                 if (line.Length > 0) Assert.IsFalse("、。".Contains(line[0].ToString()));
+        }
+
+        static bool GuideHasNestedTable(Transform body)
+        {
+            foreach (var child in body.GetComponentsInChildren<RectTransform>())
+                if (child.name == "guide-bullet" && child.Find("table-head") != null) return true;
+            return false;
         }
 
         [Test]
@@ -943,7 +983,7 @@ namespace Quota.Tests
             Click("EXIT");
             Click("抜ける");
             Click("新規ゲーム卓の準備");
-            Click("自分は参加せずに参戦: NO");
+            Click("NO");
             Click("ゲーム開始");
             Assert.IsTrue((bool)noHuman.Invoke(view, null));
             Assert.AreEqual(5f, (float)typeof(TableView).GetField("okTimeout", flags).GetValue(view));

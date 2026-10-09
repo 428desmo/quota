@@ -34,7 +34,7 @@ namespace Quota
                 switch (block.Kind)
                 {
                     case GuideCopy.BlockKind.Section: y = DrawGuideSection(content, block.Text, viewW, y); break;
-                    case GuideCopy.BlockKind.Bullet: y = DrawGuideBullet(content, block.Text, viewW, y); break;
+                    case GuideCopy.BlockKind.Bullet: y = DrawGuideBullet(content, block.Text, block.Rows, viewW, y); break;
                     case GuideCopy.BlockKind.Table: y = DrawGuideTable(content, block.Rows, viewW, y); break;
                     default: y = DrawGuideParagraph(content, block.Text, viewW, y); break;
                 }
@@ -47,7 +47,7 @@ namespace Quota
             scroll.vertical = true;
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 48f;
-            Pill(panel, "OK", 32f, panelH - 84f, 160f, 64f, 28, () =>
+            Pill(panel, "OK", 32f, panelH - 84f, panelW - 64f, 64f, 28, () =>
             {
                 setupPage = null;
                 ShowSetup();
@@ -64,10 +64,9 @@ namespace Quota
             var image = imageRoot.gameObject.AddComponent<Image>();
             image.raycastTarget = false;
             var counter = TextAt(panel, "", 10f, pictureH + 12f, width - 20f, 32f, 22, Ink, nameFont, TextAnchor.MiddleRight);
-            panel.gameObject.AddComponent<GuideSlideShow>().Initialize(image, counter, new[]
-            {
-                GuideSlide("slide01"), GuideSlide("slide02")
-            });
+            var slides = new Sprite[9];
+            for (var i = 0; i < slides.Length; i++) slides[i] = GuideSlide("slide" + (i + 1).ToString("00"));
+            panel.gameObject.AddComponent<GuideSlideShow>().Initialize(image, counter, slides);
             return y + panelH + 22f;
         }
 
@@ -98,18 +97,21 @@ namespace Quota
             return y + h + 8f;
         }
 
-        float DrawGuideBullet(RectTransform content, string value, float viewW, float y)
+        float DrawGuideBullet(RectTransform content, string value, List<string[]> rows, float viewW, float y)
         {
             var width = viewW - 100f;
             var wrapped = WrapGuideText(value, 30, width);
-            var h = Mathf.Max(58f, GuideTextHeight(wrapped, 30) + 16f);
-            var card = GuideFill(content, "guide-bullet", 12f, y, viewW - 24f, h, new Color(1f, 1f, 1f, 0.56f));
+            var textH = Mathf.Max(58f, GuideTextHeight(wrapped, 30) + 16f);
+            var cardWidth = viewW - 24f;
+            var card = GuideFill(content, "guide-bullet", 12f, y, cardWidth, textH, new Color(1f, 1f, 1f, 0.56f));
             TextAt(card, "•", 14f, 6f, 38f, 42f, 36, Accent, nameFont, TextAnchor.UpperLeft);
-            GuideText(card, wrapped, 58f, 8f, width, h - 12f, 30, Ink);
+            GuideText(card, wrapped, 58f, 8f, width, textH - 12f, 30, Ink);
+            var h = rows == null ? textH : DrawGuideTable(card, rows, cardWidth - 70f, textH, 58f) + 8f;
+            card.sizeDelta = new Vector2(cardWidth, h);
             return y + h + 8f;
         }
 
-        float DrawGuideTable(RectTransform content, List<string[]> rows, float viewW, float y)
+        float DrawGuideTable(RectTransform content, List<string[]> rows, float viewW, float y, float x = 12f)
         {
             if (rows == null || rows.Count == 0) return y;
             y += 10f;
@@ -120,7 +122,7 @@ namespace Quota
                 var left = WrapGuideText(rows[i][0], 27, leftW - 26f);
                 var right = WrapGuideText(rows[i][1], 27, width - leftW - 30f);
                 var h = Mathf.Max(54f, Mathf.Max(GuideTextHeight(left, 27), GuideTextHeight(right, 27)) + 20f);
-                var row = GuideFill(content, i == 0 ? "table-head" : "table-row", 12f, y, width, h,
+                var row = GuideFill(content, i == 0 ? "table-head" : "table-row", x, y, width, h,
                     i == 0 ? Accent : i % 2 == 0 ? new Color(1f, 1f, 1f, 0.74f) : Ecru);
                 var color = i == 0 ? Color.white : Ink;
                 var first = GuideText(row, left, 12f, 8f, leftW - 24f, h - 12f, 27, color);

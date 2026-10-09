@@ -42,7 +42,9 @@ namespace Quota
                         i++;
                     }
                     i--;
-                    blocks.Add(new Block { Kind = BlockKind.Table, Rows = rows });
+                    if (blocks.Count > 0 && blocks[blocks.Count - 1].Kind == BlockKind.Bullet)
+                        blocks[blocks.Count - 1].Rows = rows;
+                    else blocks.Add(new Block { Kind = BlockKind.Table, Rows = rows });
                     continue;
                 }
                 if (lines[i].StartsWith("  •\u00a0") && line.Contains(":"))
@@ -56,7 +58,9 @@ namespace Quota
                         i++;
                     }
                     i--;
-                    blocks.Add(new Block { Kind = BlockKind.Table, Rows = rows });
+                    if (blocks.Count > 0 && blocks[blocks.Count - 1].Kind == BlockKind.Bullet)
+                        blocks[blocks.Count - 1].Rows = rows;
+                    else blocks.Add(new Block { Kind = BlockKind.Table, Rows = rows });
                     continue;
                 }
                 blocks.Add(new Block { Kind = line.StartsWith("•\u00a0") ? BlockKind.Bullet : BlockKind.Paragraph,
