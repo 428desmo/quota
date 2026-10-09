@@ -30,7 +30,7 @@ namespace Quota
         const float SplashSeconds = 3f;
         const float SplashFadeSeconds = 0.5f;
         const string SplashCopy = "あなたは港で働く仲買人だ。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
-        const string BuildStamp = "UNITY-WEBGL splash-harbor";
+        const string BuildStamp = "UNITY-WEBGL modes-bgm";
         const float MarketScale = 144f / 95f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
@@ -103,6 +103,9 @@ namespace Quota
         readonly HashSet<int> timeoutNoticeSeats = new HashSet<int>();
         bool confirmActions = true;
         string lobbyChoice;
+        enum GameMode { Offline, Internet, Local }
+        GameMode gameMode = GameMode.Internet;
+        bool modeChoiceOpen;
         float okTimeout = 5f;
         float turnTimeout = 30f;
         static readonly float[] OkTimeoutChoices = { 1f, 2f, 3f, 4f, 5f };
@@ -230,6 +233,7 @@ namespace Quota
             EnsureBackdropGrade();
             Fit();
             LoadRules();
+            InitializeRoundBgm();
             if (Application.isPlaying) StartCoroutine(PollNetworkLobby());
             if (Application.platform == RuntimePlatform.WebGLPlayer)
             {
@@ -241,6 +245,7 @@ namespace Quota
 
         void OnDestroy()
         {
+            StopRoundBgm();
             if (logoInk != null)
             {
                 if (Application.isPlaying) Destroy(logoInk);
@@ -269,6 +274,8 @@ namespace Quota
             camera.farClipPlane = 40f;
             camera.transform.position = new Vector3(0f, 0f, -10f);
             camera.transform.rotation = Quaternion.identity;
+            if (camera.GetComponent<AudioListener>() == null && FindAnyObjectByType<AudioListener>() == null)
+                camera.gameObject.AddComponent<AudioListener>();
             return camera;
         }
 
@@ -315,6 +322,7 @@ namespace Quota
 
         void Update()
         {
+            SyncRoundBgm();
             var shade = Mathf.MoveTowards(backdropShade, backdropDim ? 1f : 0f, Time.unscaledDeltaTime / 0.8f);
             if (!Mathf.Approximately(shade, backdropShade))
             {
@@ -689,6 +697,7 @@ namespace Quota
             roundMode = Mathf.Clamp(PlayerPrefs.GetInt("quota.roundMode", 1), 0, 2);
             playerName = PlayerPrefs.GetString("quota.name", "あなた");
             if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
+            gameMode = (GameMode)Mathf.Clamp(PlayerPrefs.GetInt("quota.gameMode", (int)GameMode.Internet), 0, (int)GameMode.Internet);
             okTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.okTimeout", 5f), OkTimeoutChoices);
             turnTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.turnTimeout", 30f), TurnTimeoutChoices);
             confirmActions = PlayerPrefs.GetInt("quota.confirmActions", 1) == 1;
@@ -703,6 +712,7 @@ namespace Quota
             PlayerPrefs.SetInt("quota.title", titleRule ? 1 : 0);
             PlayerPrefs.SetInt("quota.special", specialRule ? 1 : 0);
             PlayerPrefs.SetString("quota.name", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName.Trim());
+            PlayerPrefs.SetInt("quota.gameMode", (int)gameMode);
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
             {
                 PlayerPrefs.SetInt("quota.players", playerCount);
@@ -716,7 +726,9 @@ namespace Quota
 
         void ShowSetup()
         {
+            StopRoundBgm();
             if (!lobbyOpen) lobbyChoice = null;
+            else modeChoiceOpen = false;
             ResetCardMotion();
             pulsingSeat = -1;
             RemoveLeaveButton();
@@ -773,6 +785,7 @@ namespace Quota
             if (lobbyOpen) DrawLobby(screenW, columnTop, available, showReview);
             else DrawStartMenu(screenW, columnTop, available, showReview);
             if (lobbyOpen && !string.IsNullOrEmpty(lobbyChoice)) DrawLobbyChoice(screenW, screenH);
+            if (!lobbyOpen && modeChoiceOpen) DrawModeChoice(screenW, screenH);
             if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
             Shade(TextAt(frame, BuildStamp, 24f, screenH - 56f, screenW - 48f, 40f, 24, Cream, nameFont, TextAnchor.MiddleCenter));
         }
@@ -793,9 +806,10 @@ namespace Quota
         void DrawStartMenu(float screenW, float columnTop, float available, bool showReview)
         {
             const float innerGap = 16f;
-            var tableCount = Mathf.Min(4, networkTables.Count);
+            var online = gameMode == GameMode.Internet;
+            var tableCount = online ? Mathf.Min(4, networkTables.Count) : 0;
             var fixedSpace = 80f + Mathf.Max(1, tableCount) * 12f + (showReview ? 16f : 0f);
-            var buttonH = Mathf.Clamp((available - fixedSpace) / (13f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f)), 28f, 72f);
+            var buttonH = Mathf.Clamp((available - fixedSpace) / (14f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f)), 28f, 72f);
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
             var column = SetupColumn(screenW, columnTop, available + 24f);
             var guideW = screenW * 0.40f;
@@ -806,6 +820,10 @@ namespace Quota
             SetupGap(column, innerGap);
             SetupButton(column, "詳細ルール", () => OpenPage("details"), guideW, buttonH, font);
             SetupGap(column, section);
+            var modeLabelW = LabelSlot(font, "ゲームモード：");
+            SetupChoiceRow(column, "ゲームモード：", GameModeLabel(), rowW, buttonH,
+                modeLabelW, rowW - modeLabelW - 12f - font, font, OpenModeChoice, true);
+            SetupGap(column, innerGap);
             var labelW = LabelSlot(font, "あなたの名前：");
 #if UNITY_WEBGL && !UNITY_EDITOR
             SetupChoiceRow(column, "あなたの名前：", HumanName(), rowW, buttonH, labelW, rowW - labelW - 12f - font, font,
@@ -816,57 +834,60 @@ namespace Quota
 #endif
             SetupGap(column, section);
             SetupButton(column, "新規ゲーム卓の準備", OpenLobby, rowW, buttonH * 2f, Mathf.RoundToInt(font * 1.3f));
-            SetupGap(column, innerGap);
-            var tablePanel = new GameObject("table-list", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(VerticalLayoutGroup));
-            tablePanel.transform.SetParent(column, false);
-            SizeElement(tablePanel.GetComponent<LayoutElement>(), rowW, buttonH * (Mathf.Max(1, tableCount) + 1) + 32f + Mathf.Max(1, tableCount) * 12f);
-            var panelFill = tablePanel.GetComponent<Image>();
-            panelFill.sprite = Portrait.SlicedRound;
-            panelFill.type = Image.Type.Sliced;
-            panelFill.color = Paper;
-            panelFill.raycastTarget = false;
-            var layout = tablePanel.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(20, 20, 16, 16);
-            layout.spacing = 12f;
-            layout.childAlignment = TextAnchor.UpperCenter;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = false;
-            var tableRoot = tablePanel.GetComponent<RectTransform>();
-            SetupNotice(tableRoot, "参加・観戦できるゲーム卓", rowW - 40f, buttonH, font);
-            var viewportHeight = Mathf.Max(1, tableCount) * (buttonH + 12f) - 12f;
-            var viewportObject = new GameObject("table-viewport", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
-            viewportObject.transform.SetParent(tableRoot, false);
-            SizeElement(viewportObject.GetComponent<LayoutElement>(), rowW - 40f, viewportHeight);
-            viewportObject.GetComponent<Image>().color = Color.clear;
-            var viewport = viewportObject.GetComponent<RectTransform>();
-            var content = Portrait.Rect(viewport, "table-list-content", 0f, 0f, rowW - 40f, Mathf.Max(1, networkTables.Count) * (buttonH + 12f) - 12f);
-            content.anchorMin = new Vector2(0f, 1f);
-            content.anchorMax = new Vector2(1f, 1f);
-            content.pivot = new Vector2(0.5f, 1f);
-            content.sizeDelta = new Vector2(0f, Mathf.Max(1, networkTables.Count) * (buttonH + 12f) - 12f);
-            content.anchoredPosition = new Vector2(0f, (1f - tableScroll) * Mathf.Max(0f, content.sizeDelta.y - viewportHeight));
-            var contentLayout = content.gameObject.AddComponent<VerticalLayoutGroup>();
-            contentLayout.spacing = 12f;
-            contentLayout.childAlignment = TextAnchor.UpperCenter;
-            contentLayout.childControlWidth = contentLayout.childControlHeight = true;
-            contentLayout.childForceExpandWidth = contentLayout.childForceExpandHeight = false;
-            var scroll = viewportObject.GetComponent<ScrollRect>();
-            scroll.viewport = viewport;
-            scroll.content = content;
-            scroll.horizontal = false;
-            scroll.vertical = networkTables.Count > 4;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 40f;
-            scroll.onValueChanged.AddListener(value => tableScroll = value.y);
-            for (var i = 0; i < networkTables.Count; i++)
+            if (online)
             {
-                var table = networkTables[i];
-                var action = table.rejoin ? "再び参加" : (table.status == "募集中" && table.seated < table.players ? "参加" : "観戦");
-                SetupButton(content, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
+                SetupGap(column, innerGap);
+                var tablePanel = new GameObject("table-list", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(VerticalLayoutGroup));
+                tablePanel.transform.SetParent(column, false);
+                SizeElement(tablePanel.GetComponent<LayoutElement>(), rowW, buttonH * (Mathf.Max(1, tableCount) + 1) + 32f + Mathf.Max(1, tableCount) * 12f);
+                var panelFill = tablePanel.GetComponent<Image>();
+                panelFill.sprite = Portrait.SlicedRound;
+                panelFill.type = Image.Type.Sliced;
+                panelFill.color = Paper;
+                panelFill.raycastTarget = false;
+                var layout = tablePanel.GetComponent<VerticalLayoutGroup>();
+                layout.padding = new RectOffset(20, 20, 16, 16);
+                layout.spacing = 12f;
+                layout.childAlignment = TextAnchor.UpperCenter;
+                layout.childControlWidth = true;
+                layout.childControlHeight = true;
+                layout.childForceExpandWidth = false;
+                layout.childForceExpandHeight = false;
+                var tableRoot = tablePanel.GetComponent<RectTransform>();
+                SetupNotice(tableRoot, "参加・観戦できるゲーム卓", rowW - 40f, buttonH, font);
+                var viewportHeight = Mathf.Max(1, tableCount) * (buttonH + 12f) - 12f;
+                var viewportObject = new GameObject("table-viewport", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+                viewportObject.transform.SetParent(tableRoot, false);
+                SizeElement(viewportObject.GetComponent<LayoutElement>(), rowW - 40f, viewportHeight);
+                viewportObject.GetComponent<Image>().color = Color.clear;
+                var viewport = viewportObject.GetComponent<RectTransform>();
+                var content = Portrait.Rect(viewport, "table-list-content", 0f, 0f, rowW - 40f, Mathf.Max(1, networkTables.Count) * (buttonH + 12f) - 12f);
+                content.anchorMin = new Vector2(0f, 1f);
+                content.anchorMax = new Vector2(1f, 1f);
+                content.pivot = new Vector2(0.5f, 1f);
+                content.sizeDelta = new Vector2(0f, Mathf.Max(1, networkTables.Count) * (buttonH + 12f) - 12f);
+                content.anchoredPosition = new Vector2(0f, (1f - tableScroll) * Mathf.Max(0f, content.sizeDelta.y - viewportHeight));
+                var contentLayout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+                contentLayout.spacing = 12f;
+                contentLayout.childAlignment = TextAnchor.UpperCenter;
+                contentLayout.childControlWidth = contentLayout.childControlHeight = true;
+                contentLayout.childForceExpandWidth = contentLayout.childForceExpandHeight = false;
+                var scroll = viewportObject.GetComponent<ScrollRect>();
+                scroll.viewport = viewport;
+                scroll.content = content;
+                scroll.horizontal = false;
+                scroll.vertical = networkTables.Count > 4;
+                scroll.movementType = ScrollRect.MovementType.Clamped;
+                scroll.scrollSensitivity = 40f;
+                scroll.onValueChanged.AddListener(value => tableScroll = value.y);
+                for (var i = 0; i < networkTables.Count; i++)
+                {
+                    var table = networkTables[i];
+                    var action = table.rejoin ? "再び参加" : (table.status == "募集中" && table.seated < table.players ? "参加" : "観戦");
+                    SetupButton(content, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
+                }
+                if (tableCount == 0) SetupNotice(content, "現在、卓はありません", rowW - 40f, buttonH, font);
             }
-            if (tableCount == 0) SetupNotice(content, "現在、卓はありません", rowW - 40f, buttonH, font);
             if (ShowImplementationTest(Application.absoluteURL, Application.isEditor))
             {
                 SetupGap(column, section);
@@ -889,6 +910,77 @@ namespace Quota
                 || !System.Net.IPAddress.TryParse(uri.Host, out address)) return false;
             var bytes = address.GetAddressBytes();
             return bytes.Length == 4 && bytes[0] == 192 && bytes[1] == 168 && bytes[2] == 0;
+        }
+
+        string GameModeLabel() => gameMode == GameMode.Offline ? "オフライン" : "インターネット通信";
+
+        void OpenModeChoice()
+        {
+            modeChoiceOpen = true;
+            ShowSetup();
+        }
+
+        void SelectGameMode(GameMode selected)
+        {
+            modeChoiceOpen = false;
+            if (selected == GameMode.Local) { ShowSetup(); return; }
+            if (selected != gameMode)
+            {
+                gameMode = selected;
+                networkState = null;
+                networkTables.Clear();
+                networkSignature = "";
+                networkNavigating = false;
+                sitOut = false;
+                SaveRules();
+            }
+            ShowSetup();
+        }
+
+        void DrawModeChoice(float screenW, float screenH)
+        {
+            var row = frame.Find("setup/ゲームモード：");
+            var triggerButton = row == null ? null : row.GetComponentInChildren<Button>();
+            var trigger = triggerButton == null ? null : triggerButton.transform as RectTransform;
+            if (trigger == null) { modeChoiceOpen = false; return; }
+            Canvas.ForceUpdateCanvases();
+            var corners = new Vector3[4];
+            trigger.GetWorldCorners(corners);
+            var topLeft = frame.InverseTransformPoint(corners[1]);
+            var bottomRight = frame.InverseTransformPoint(corners[3]);
+            var fieldX = topLeft.x - frame.rect.xMin;
+            var fieldY = frame.rect.yMax - topLeft.y;
+            const float optionH = 60f;
+            var panelW = Mathf.Min(screenW - 24f, bottomRight.x - topLeft.x + 12f);
+            var panelH = 3f * optionH + 4f;
+            var panelX = Mathf.Clamp(fieldX - 6f, 12f, screenW - panelW - 12f);
+            var panelY = Mathf.Clamp(fieldY - (gameMode == GameMode.Internet ? optionH : 0f) - 2f,
+                12f, screenH - panelH - 12f);
+            var scrim = Portrait.Rect(frame, "mode-choice-scrim", 0f, 0f, screenW, screenH);
+            var scrimImage = scrim.gameObject.AddComponent<Image>();
+            scrimImage.color = new Color(0.94f, 0.91f, 0.86f, 0.66f);
+            var outside = scrim.gameObject.AddComponent<Button>();
+            outside.targetGraphic = scrimImage;
+            outside.onClick.AddListener(() => { modeChoiceOpen = false; ShowSetup(); });
+            var panel = Portrait.Box(frame, "mode-choice", panelX, panelY, panelW, panelH, 8f, 1f, Paper, Ink, false);
+            var choices = new[] { GameMode.Offline, GameMode.Internet, GameMode.Local };
+            var captions = new[] { "オフライン", "インターネット通信", "ローカル通信（準備中）" };
+            for (var i = 0; i < choices.Length; i++)
+            {
+                var choice = choices[i];
+                var item = Portrait.Rect(panel, captions[i], 2f, 2f + i * optionH, panelW - 4f, optionH - 1f);
+                var fill = item.gameObject.AddComponent<Image>();
+                fill.color = choice == gameMode ? Accent : Ecru;
+                if (choice != GameMode.Local)
+                {
+                    var button = item.gameObject.AddComponent<Button>();
+                    button.targetGraphic = fill;
+                    button.onClick.AddListener(() => SelectGameMode(choice));
+                }
+                TextAt(item, captions[i], 6f, 0f, panelW - 16f, optionH - 1f, 28,
+                    choice == gameMode ? Cream : choice == GameMode.Local ? DimTint : Ink,
+                    nameFont, TextAnchor.MiddleCenter);
+            }
         }
 
         void DrawLobby(float screenW, float columnTop, float available, bool showReview)
@@ -925,11 +1017,14 @@ namespace Quota
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
                 SetupButton(column, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, rowW, buttonH, font);
             SetupGap(column, innerGap);
-            SetupChoiceRow(column, "自分は参加せずに観戦：", sitOut ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("observer"), true);
-            SetupGap(column, innerGap);
-            DrawLobbyTimeout(column, "OKタイムアウト（秒）", true, leader, rowW, buttonH, font);
-            SetupGap(column, innerGap);
-            DrawLobbyTimeout(column, "手番タイムアウト（秒）", false, leader, rowW, buttonH, font);
+            if (gameMode == GameMode.Internet)
+            {
+                SetupChoiceRow(column, "自分は参加せずに観戦：", sitOut ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("observer"), true);
+                SetupGap(column, innerGap);
+                DrawLobbyTimeout(column, "OKタイムアウト（秒）", true, leader, rowW, buttonH, font);
+                SetupGap(column, innerGap);
+                DrawLobbyTimeout(column, "手番タイムアウト（秒）", false, leader, rowW, buttonH, font);
+            }
             SetupGap(column, buttonH);
             SetupNotice(column, "個人設定", rowW, buttonH, font, true);
             SetupChoiceRow(column, "放棄などに確認を求める：", confirmActions ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("confirm"), true);
@@ -939,7 +1034,7 @@ namespace Quota
                 if (leader) SetupButton(column, "ゲーム開始", StartNetworkMatch, actionW, buttonH * 2f, font * 2);
                 else SetupNotice(column, "ゲーム開始待ち", rowW, buttonH, font, true);
             }
-            else SetupButton(column, "ゲーム開始", () => StartMatch(sitOut), actionW, buttonH * 2f, font * 2);
+            else SetupButton(column, "ゲーム開始", () => StartMatch(gameMode == GameMode.Internet && sitOut), actionW, buttonH * 2f, font * 2);
             SetupGap(column, innerGap);
             SetupButton(column, "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
             if (showReview)
@@ -1136,6 +1231,7 @@ namespace Quota
 
         void OpenLobby()
         {
+            modeChoiceOpen = false;
             lobbyOpen = true;
             lobbyChoice = null;
             if (Application.isPlaying)
@@ -1157,15 +1253,15 @@ namespace Quota
             ShowSetup();
         }
 
-        bool SharedNetwork => Application.isPlaying;
+        bool SharedNetwork => Application.isPlaying && gameMode == GameMode.Internet;
         bool NetworkJoined => networkState != null && networkState.phase == "recruiting" && !string.IsNullOrEmpty(networkState.table_id);
 
         IEnumerator PollNetworkLobby()
         {
             yield return null;
-            while (SharedNetwork)
+            while (Application.isPlaying)
             {
-                if (!networkRequest) yield return NetworkGet();
+                if (SharedNetwork && !networkRequest) yield return NetworkGet();
                 yield return new WaitForSeconds(0.4f);
             }
         }
@@ -1224,6 +1320,7 @@ namespace Quota
                     request.SetRequestHeader("Content-Type", "application/json");
                 }
                 request.downloadHandler = new DownloadHandlerBuffer();
+                request.timeout = 5;
                 request.SetRequestHeader("X-Quota-Client", NetworkClient());
                 yield return request.SendWebRequest();
                 if (request.result == UnityWebRequest.Result.Success)
@@ -1271,6 +1368,7 @@ namespace Quota
 
         void ApplyNetworkState(string json)
         {
+            if (Application.isPlaying && !SharedNetwork) return;
             if (string.IsNullOrEmpty(json)) return;
             var next = JsonUtility.FromJson<NetworkSnapshot>(json);
             if (next == null || !string.IsNullOrEmpty(next.error)) return;
@@ -1549,22 +1647,24 @@ namespace Quota
 
         IEnumerable<string> NetworkRoots()
         {
-            var seen = new HashSet<string>();
-            System.Uri uri;
-            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri)
-                && (uri.Scheme == "http" || uri.Scheme == "https"))
-                seen.Add(uri.GetLeftPart(System.UriPartial.Authority));
-            seen.Add("http://127.0.0.1:8080");
-            return seen;
+            yield return CurrentOrigin();
         }
 
         static string CurrentOrigin()
         {
+            return NetworkOrigin(Application.absoluteURL, System.Environment.GetEnvironmentVariable("QUOTA_SERVER_URL"));
+        }
+
+        static string NetworkOrigin(string pageUrl, string configured)
+        {
             System.Uri uri;
-            if (System.Uri.TryCreate(Application.absoluteURL, System.UriKind.Absolute, out uri)
+            if (System.Uri.TryCreate(pageUrl, System.UriKind.Absolute, out uri)
                 && (uri.Scheme == "http" || uri.Scheme == "https"))
                 return uri.GetLeftPart(System.UriPartial.Authority);
-            return "http://127.0.0.1:8080";
+            if (System.Uri.TryCreate(configured, System.UriKind.Absolute, out uri)
+                && (uri.Scheme == "http" || uri.Scheme == "https"))
+                return uri.GetLeftPart(System.UriPartial.Authority);
+            return "http://133.88.122.153";
         }
 
         string NetworkClient()

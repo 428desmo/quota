@@ -20,6 +20,45 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void InternetModeUsesTheOriginThatServedTheWebApp()
+        {
+            var origin = typeof(TableView).GetMethod("NetworkOrigin", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.AreEqual("http://192.168.0.10:8080",
+                origin.Invoke(null, new object[] { "http://192.168.0.10:8080/index.html", "http://133.88.122.153" }));
+            Assert.AreEqual("https://quota.example.org",
+                origin.Invoke(null, new object[] { "https://quota.example.org/game", null }));
+            Assert.AreEqual("http://133.88.122.153",
+                origin.Invoke(null, new object[] { "", null }));
+        }
+
+        [Test]
+        public void RoundBgmContainsTheSpecifiedIntroAndLoopSegments()
+        {
+            var intro = Resources.Load<AudioClip>("QuotaBgm/intro");
+            var loop = Resources.Load<AudioClip>("QuotaBgm/loop");
+            Assert.IsNotNull(intro);
+            Assert.IsNotNull(loop);
+            Assert.AreEqual(16f, intro.length, 0.05f);
+            Assert.AreEqual(76f, loop.length, 0.05f);
+        }
+
+        [Test]
+        public void OfflineModeStartsWithOneHumanAndNoNetworkTable()
+        {
+            host = Open();
+            Click("インターネット通信");
+            Click("オフライン");
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Assert.IsFalse((bool)typeof(TableView).GetProperty("SharedNetwork", flags).GetValue(view));
+            Assert.IsNull(host.transform.Find("Root/Frame/setup/table-list"));
+            Begin();
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            Assert.AreEqual(1, game.Players.FindAll(player => player.IsHuman).Count);
+            Assert.AreEqual("あなた", game.Players[0].Name);
+        }
+
+        [Test]
         public void FourCpuNetworkTableStartsWithoutHumanSeats()
         {
             host = Open();
@@ -848,7 +887,10 @@ namespace Quota.Tests
             Assert.AreEqual(WorldMidY(nameLabel.rectTransform), WorldMidY(nameBox), 2f);
             var section = guide.rect.height * 2f;
             var scaleY = Mathf.Abs(WorldTop(guide) - WorldBottom(guide)) / guide.rect.height;
-            Assert.AreEqual(section, (WorldBottom(rules) - WorldTop(nameRow)) / scaleY, 3f);
+            var modeRow = host.transform.Find("Root/Frame/setup/ゲームモード：") as RectTransform;
+            Assert.IsNotNull(modeRow);
+            Assert.AreEqual(section, (WorldBottom(rules) - WorldTop(modeRow)) / scaleY, 3f);
+            Assert.AreEqual(16f, (WorldBottom(modeRow) - WorldTop(nameRow)) / scaleY, 3f);
             Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(start)) / scaleY, 3f);
 
             Assert.AreEqual(WorldMidX(frame), WorldMidX(guide), 2f);
