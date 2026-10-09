@@ -984,12 +984,14 @@ namespace Quota.Tests
             var picture = body.Find("guide-slides/slide-image").GetComponent<Image>();
             Assert.IsNotNull(picture.sprite);
             var first = picture.sprite;
-            show.ShowAt(2.1f);
+            show.ShowAt(4.9f);
+            Assert.IsNotNull(FindText("1 / 9"));
+            show.ShowAt(5.1f);
             Assert.IsNotNull(FindText("2 / 9"));
             Assert.AreNotSame(first, picture.sprite);
-            show.ShowAt(16.1f);
+            show.ShowAt(40.1f);
             Assert.IsNotNull(FindText("9 / 9"));
-            show.ShowAt(18.1f);
+            show.ShowAt(45.1f);
             Assert.IsNotNull(FindText("1 / 9"));
             Assert.AreSame(first, picture.sprite);
             var slidePanel = body.Find("guide-slides");
@@ -1011,7 +1013,7 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("2 / 9"));
             pause.onClick.Invoke();
             Assert.AreEqual("Ⅱ", pause.GetComponentInChildren<Text>().text);
-            show.Tick(1.9f);
+            show.Tick(4.9f);
             Assert.IsNotNull(FindText("2 / 9"));
             show.Tick(0.2f);
             Assert.IsNotNull(FindText("3 / 9"));

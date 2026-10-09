@@ -5,6 +5,7 @@ namespace Quota
 {
     public sealed class GuideSlideShow : MonoBehaviour
     {
+        const float SlideDuration = 5f;
         Sprite[] slides;
         Image image;
         Text counter;
@@ -59,9 +60,9 @@ namespace Quota
         {
             if (paused || slides == null || slides.Length == 0 || seconds <= 0f) return;
             timeInSlide += seconds;
-            if (timeInSlide < 2f) return;
-            var steps = Mathf.FloorToInt(timeInSlide / 2f);
-            timeInSlide %= 2f;
+            if (timeInSlide < SlideDuration) return;
+            var steps = Mathf.FloorToInt(timeInSlide / SlideDuration);
+            timeInSlide %= SlideDuration;
             ShowIndex((shown + steps) % slides.Length);
         }
 
@@ -69,8 +70,8 @@ namespace Quota
         {
             if (slides == null || slides.Length == 0 || image == null) return;
             var safeElapsed = Mathf.Max(0f, elapsed);
-            var index = Mathf.FloorToInt(safeElapsed / 2f) % slides.Length;
-            timeInSlide = safeElapsed % 2f;
+            var index = Mathf.FloorToInt(safeElapsed / SlideDuration) % slides.Length;
+            timeInSlide = safeElapsed % SlideDuration;
             ShowIndex(index);
         }
 
