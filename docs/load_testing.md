@@ -55,6 +55,12 @@ python3 /tmp/quota-load-test.py --base-url http://127.0.0.1:80 \
 
 終了後は `errors`、504、p95/p99、`server kernel TCP` に加え、記録した `available` メモリと `nf_conntrack_count` の最大値を確認する。最後に `sudo journalctl -k --since '15 minutes ago' --no-pager | grep -i 'nf_conntrack.*table full'` でカーネルの破棄ログがないか調べる。`finished_tables=0` だけでは通信障害とは判断しない。
 
+記録ファイルから、試験中の最小空きメモリと最大接続追跡件数を抜き出せる。
+
+```sh
+awk '/^Mem:/ {if (min=="" || $7<min) min=$7} /^net.netfilter.nf_conntrack_count/ {if ($3>peak) peak=$3} END {print "min_available_MiB=" min, "peak_conntrack=" peak}' /tmp/quota-resources-10tables.log
+```
+
 終了時の `/api/metrics` 取得がタイムアウトしても、ツールは3回まで再試行し、端末側の結果を `--json-out` に保存する。この場合 `server_after` は `null`、`server_after_error` に理由が入る。サーバー側の前後差は表示できないので、VPSで直接メトリクスを読み、Nginxのログとも突き合わせる。
 
 端末側のタイムアウトは `during connect`（TCP接続）、`during send`（送信）、`during response_headers`（応答開始待ち）、`during response_body`（本文受信）の段階別に集計する。VPS上でツールを直接実行しても失敗するなら、SSHトンネルは原因から外れる。`/api/metrics` のAPI処理時間が短く、`listen_overflows` が増えない場合でも、受け付け前の接続や要求の読み込みが遅れる可能性があるため、この段階別の値を確認する。
@@ -83,6 +89,10 @@ python3 /tmp/quota-load-test.py --base-url http://127.0.0.1:80 \
 ロック待ちが伸びるなら全卓共通のロックが詰まっている。ロック保持時間が伸びるならCPU思考・卓状態の処理を疑う。JSON化時間と送信バイト数が増えるなら行動履歴の肥大化を疑う。サーバーの `cpu_user_seconds + cpu_system_seconds` の増加が試験秒数に近づくなら、Pythonのほぼ1コアを使い切っている。現在RSSやVPS全体の使用メモリが継続的に増え、試験終了後も戻らない場合は長時間運用を再評価する。
 
 512MB VPSではPythonだけでなくOSとNginxの分も必要なので、`free -m`、`sudo systemctl status quota nginx`、`sudo journalctl -u quota --disk-usage` も併せて見る。試験後のRSSの安定、余裕のあるavailableメモリ、OOMやHTTPエラーがないことを確認する。合格する卓数は実測で決め、卓数だけでなく端末数と対局時間も記録する。
+
+### 2026-10-09 実測例
+
+AlmaLinux 10.2 / 512MB VPS上で接続追跡の上限を増やし、VPS内の負荷ツールからNginxの80番へ10卓×4端末、CPU対局、600秒、30秒ランプで試験した。`/api/state` は58,512件すべて200で、p95・p99とも25ms以下、最大114.5ms。`/api/action` も50件すべて200で、504・切断・接続待ち溢れは0件だった。PythonプロセスのCPU増分はユーザー28.51秒とシステム8.08秒、終了時RSSは約32.5MB。9卓は600秒内に終了した。VPS全体の最小空きメモリと接続追跡件数の最大値は別の記録ログで確認する。WebGLの初回ダウンロードや外部ネットワーク経由の遅延はこの試験に含まない。
 
 ## 504が出た場合の切り分け
 
