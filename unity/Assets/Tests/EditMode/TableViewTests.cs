@@ -807,11 +807,9 @@ namespace Quota.Tests
 
             Click("遊び方");
             Assert.IsNotNull(FindText("遊び方"));
-            Text intro = null;
-            foreach (var label in host.GetComponentsInChildren<Text>())
-                if (label.text.StartsWith("遊び方")) intro = label;
-            Assert.IsNotNull(intro);
-            Assert.AreEqual(36, intro.fontSize);
+            var guideBody = host.transform.Find("Root/Frame/setup-dialog/guide-view/guide-body");
+            Assert.IsNotNull(guideBody.Find("guide-slides"));
+            foreach (var label in guideBody.GetComponentsInChildren<Text>()) Assert.AreNotEqual("遊び方", label.text);
             var quickScroll = host.transform.Find("Root/Frame/setup-dialog").GetComponentInChildren<ScrollRect>();
             Assert.IsNotNull(quickScroll);
             Click("OK");
@@ -893,6 +891,41 @@ namespace Quota.Tests
             StringAssert.Contains("•\u00a0集めるカードは", details);
             Assert.IsFalse(play.Contains("\n- "));
             Assert.IsFalse(details.Contains("\n- "));
+        }
+
+        [Test]
+        public void GuidePagesRenderSlidesAndBonusTables()
+        {
+            host = Open();
+            Click("遊び方");
+            var body = host.transform.Find("Root/Frame/setup-dialog/guide-view/guide-body");
+            Assert.IsNotNull(body);
+            Assert.IsNotNull(body.Find("guide-slides"));
+            Assert.IsNull(FindText("ルールブック"));
+            var show = body.GetComponentInChildren<GuideSlideShow>();
+            Assert.IsNotNull(show);
+            var picture = body.Find("guide-slides/slide-image").GetComponent<Image>();
+            Assert.IsNotNull(picture.sprite);
+            var first = picture.sprite;
+            show.ShowAt(2.1f);
+            Assert.IsNotNull(FindText("2 / 2"));
+            Assert.AreNotSame(first, picture.sprite);
+            show.ShowAt(4.1f);
+            Assert.IsNotNull(FindText("1 / 2"));
+            Click("OK");
+            Click("詳細ルール");
+            body = host.transform.Find("Root/Frame/setup-dialog/guide-view/guide-body");
+            Assert.IsNull(body.Find("guide-slides"));
+            Assert.IsNull(FindText("ルールブック"));
+            Assert.IsNotNull(FindText("達成ボーナス"));
+            Assert.IsNotNull(FindText("称号"));
+            Assert.IsNotNull(FindText("五種の品揃え"));
+            Assert.GreaterOrEqual(body.GetComponentsInChildren<Image>().Length, 12);
+            var wrap = typeof(TableView).GetMethod("WrapGuideText", BindingFlags.Instance | BindingFlags.NonPublic);
+            var wrapped = (string)wrap.Invoke(host.GetComponent<TableView>(), new object[] { "ああ、いい。", 30, 70f });
+            Assert.IsTrue(wrapped.Contains("\n"));
+            foreach (var line in wrapped.Split('\n'))
+                if (line.Length > 0) Assert.IsFalse("、。".Contains(line[0].ToString()));
         }
 
         [Test]

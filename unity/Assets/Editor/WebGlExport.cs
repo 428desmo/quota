@@ -98,6 +98,9 @@ namespace Quota.EditorTools
                 if (File.Exists(source)) File.Copy(source, Path.Combine(StreamingRoot, name), true);
                 CopyResource(name);
             }
+            Directory.CreateDirectory(Path.Combine(ResourceRoot, "how_to_play_slides"));
+            CopyResource("how_to_play_slides/slide01.jpg");
+            CopyResource("how_to_play_slides/slide02.jpg");
             CopyResource("quota_goods_v1.0.json");
             CopyResource("cpu_ranking_v1.2.json");
             var sourceGoods = Path.Combine(StreamingRoot, "goods");
