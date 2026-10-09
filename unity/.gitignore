@@ -25,3 +25,5 @@
 InitTestScene*.unity
 sysinfo.txt
 crashlytics-buildid.txt
+Assets/StreamingAssets/play_bgm_01.mp3
+Assets/StreamingAssets/play_bgm_01.mp3.meta

@@ -92,6 +92,7 @@ namespace Quota
         string networkSignature = "";
         bool networkRequest;
         bool networkNavigating;
+        string nativeNetworkRoot;
         int networkApplied;
         bool NetworkPlaying => networkState != null && networkState.phase == "playing";
         bool MyHumanTurn => match.IsHumanTurn && (!NetworkPlaying || (networkState.you != null && networkState.you.seat == match.Game.Current));
@@ -1325,6 +1326,7 @@ namespace Quota
                 yield return request.SendWebRequest();
                 if (request.result == UnityWebRequest.Result.Success)
                 {
+                    nativeNetworkRoot = root;
                     ApplyNetworkState(request.downloadHandler.text);
                     break;
                 }
@@ -1647,7 +1649,29 @@ namespace Quota
 
         IEnumerable<string> NetworkRoots()
         {
-            yield return CurrentOrigin();
+            var configured = System.Environment.GetEnvironmentVariable("QUOTA_SERVER_URL");
+            System.Uri uri;
+            if (System.Uri.TryCreate(configured, System.UriKind.Absolute, out uri)
+                && (uri.Scheme == "http" || uri.Scheme == "https"))
+            {
+                yield return uri.GetLeftPart(System.UriPartial.Authority);
+                yield break;
+            }
+            const string local = "http://127.0.0.1:8080";
+            // Recheck the LAN server while browsing tables, even if a previous
+            // request fell back to the VPS before the LAN server started.
+            var browsing = networkState == null || networkState.phase == "hall";
+            // Once in a table, never retry an action against a different server.
+            if (!browsing && !string.IsNullOrEmpty(nativeNetworkRoot))
+            {
+                yield return nativeNetworkRoot;
+                yield break;
+            }
+            if (browsing) yield return local;
+            if (!string.IsNullOrEmpty(nativeNetworkRoot) && (!browsing || nativeNetworkRoot != local))
+                yield return nativeNetworkRoot;
+            if (!browsing && nativeNetworkRoot != local) yield return local;
+            if (nativeNetworkRoot != "http://133.88.122.153") yield return "http://133.88.122.153";
         }
 
         static string CurrentOrigin()
