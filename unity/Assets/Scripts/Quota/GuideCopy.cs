@@ -13,6 +13,7 @@ namespace Quota
         {
             public BlockKind Kind;
             public string Text;
+            public string Note;
             public List<string[]> Rows;
         }
 
@@ -29,6 +30,11 @@ namespace Quota
                 if (line.StartsWith("【") && line.EndsWith("】"))
                 {
                     blocks.Add(new Block { Kind = BlockKind.Section, Text = line.Substring(1, line.Length - 2) });
+                    continue;
+                }
+                if (line == "（6枚以下はボーナスなし）" && blocks.Count > 0 && blocks[blocks.Count - 1].Kind == BlockKind.Bullet)
+                {
+                    blocks[blocks.Count - 1].Note = line;
                     continue;
                 }
                 if (line.StartsWith("|"))

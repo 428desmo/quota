@@ -147,18 +147,24 @@ namespace Quota.Tests
         }
 
         [Test]
-        public void LeaderCyclesRoundsAndTimeoutChoicesBeforeStarting()
+        public void LeaderChoosesRoundsAndTimeoutsFromListsBeforeStarting()
         {
             host = Open();
             Click("新規ゲーム卓の準備");
             Assert.IsNotNull(ButtonNamed("人数分"));
             Click("人数分");
+            Assert.IsNotNull(host.transform.Find("Root/Frame/lobby-choice"));
+            Assert.IsNotNull(ButtonNamed("人数分"));
+            ChooseOpenLobbyOption("人数分×2");
             Assert.IsNotNull(ButtonNamed("人数分×2"));
-            Click("人数分×2");
+            ChooseLobbyOption("人数分×2", "1");
             Assert.IsNotNull(ButtonNamed("1"));
+            ChooseLobbyOption("5", "1");
+            Assert.IsNotNull(ButtonNamed("1"));
+            ChooseLobbyOption("30", "5");
+            Assert.IsNotNull(ButtonNamed("5"));
             Click("5");
-            Assert.IsNotNull(ButtonNamed("1"));
-            Click("30");
+            ChooseOpenLobbyOption("キャンセル");
             Assert.IsNotNull(ButtonNamed("5"));
             Assert.AreEqual(0, host.GetComponentsInChildren<InputField>().Length);
             var shuffle = ButtonNamed("CPUプレイヤー入れ替え");
@@ -168,6 +174,22 @@ namespace Quota.Tests
             var view = host.GetComponent<TableView>();
             var match = (OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view);
             Assert.AreEqual(1, match.Game.RoundCount);
+        }
+
+        [Test]
+        public void PersonalLobbyChoiceUsesTheSameListWithoutChangingOtherSettings()
+        {
+            host = Open();
+            Click("新規ゲーム卓の準備");
+            var confirmation = host.transform.Find("Root/Frame/lobby-viewport/setup/放棄などに確認を求める：");
+            Assert.IsNotNull(confirmation);
+            confirmation.GetComponentInChildren<Button>().onClick.Invoke();
+            Assert.IsNotNull(host.transform.Find("Root/Frame/lobby-choice/NO"));
+            ChooseOpenLobbyOption("NO");
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Assert.IsFalse((bool)typeof(TableView).GetField("confirmActions", flags).GetValue(view));
+            Assert.IsFalse((bool)typeof(TableView).GetField("sitOut", flags).GetValue(view));
         }
 
         [TestCase(0)]
@@ -867,7 +889,7 @@ namespace Quota.Tests
             Assert.IsNull(FindButton("ゲーム開始"));
             Click("新規ゲーム卓の準備");
 
-            Click("3人");
+            ChooseLobbyOption("3人", "4人");
             Assert.IsNotNull(ButtonNamed("4人"));
             Assert.AreEqual(3, CountText("CPU"));
             var cast = (List<int>)typeof(TableView).GetField("lobbyCast", flags).GetValue(view);
@@ -893,7 +915,7 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("放棄などに確認を求める："));
             Assert.IsNotNull(ButtonNamed("YES"));
 
-            Click("NO");
+            ChooseLobbyOption("NO", "YES");
             Assert.IsNotNull(FindText("自分は参加せずに観戦："));
             Assert.IsNull(FindText("1. あなた"));
             Assert.AreEqual(4, CountText("CPU"));
@@ -919,6 +941,20 @@ namespace Quota.Tests
             StringAssert.Contains("•\u00a0集めるカードは", details);
             Assert.IsFalse(play.Contains("\n- "));
             Assert.IsFalse(details.Contains("\n- "));
+        }
+
+        [Test]
+        public void ImplementationTestAppearsOnlyInEditorOrLocalSubnet()
+        {
+            var visible = typeof(TableView).GetMethod("ShowImplementationTest", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.IsTrue((bool)visible.Invoke(null, new object[] { "", true }));
+            Assert.IsTrue((bool)visible.Invoke(null, new object[] { "http://192.168.0.10:8080/", false }));
+            Assert.IsTrue((bool)visible.Invoke(null, new object[] { "https://192.168.0.254/", false }));
+            Assert.IsFalse((bool)visible.Invoke(null, new object[] { "https://example.com/", false }));
+            Assert.IsFalse((bool)visible.Invoke(null, new object[] { "http://192.168.1.10:8080/", false }));
+            Assert.IsFalse((bool)visible.Invoke(null, new object[] { "http://192.168.0.999/", false }));
+            Assert.IsFalse((bool)visible.Invoke(null, new object[] { "http://127.0.0.1:8080/", false }));
+            Assert.IsFalse((bool)visible.Invoke(null, new object[] { "", false }));
         }
 
         [Test]
@@ -975,6 +1011,10 @@ namespace Quota.Tests
             Assert.IsNotNull(FindText("達成ボーナス"));
             Assert.IsNotNull(FindText("称号"));
             Assert.IsNotNull(FindText("五種の品揃え"));
+            var note = FindText("（6枚以下はボーナスなし）");
+            Assert.IsNotNull(note);
+            Assert.AreEqual("guide-bullet", note.transform.parent.name);
+            Assert.IsNotNull(note.transform.parent.Find("table-head"));
             Assert.GreaterOrEqual(body.GetComponentsInChildren<Image>().Length, 12);
             Assert.IsTrue(GuideHasNestedTable(body));
             var wrap = typeof(TableView).GetMethod("WrapGuideText", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -1006,7 +1046,7 @@ namespace Quota.Tests
             Click("EXIT");
             Click("抜ける");
             Click("新規ゲーム卓の準備");
-            Click("NO");
+            ChooseLobbyOption("NO", "YES");
             Click("ゲーム開始");
             Assert.IsTrue((bool)noHuman.Invoke(view, null));
             Assert.AreEqual(5f, (float)typeof(TableView).GetField("okTimeout", flags).GetValue(view));
@@ -1774,6 +1814,22 @@ namespace Quota.Tests
             var button = FindButton(caption);
             Assert.IsNotNull(button, "missing button " + caption);
             return button;
+        }
+
+        void ChooseLobbyOption(string currentValue, string choice)
+        {
+            Click(currentValue);
+            ChooseOpenLobbyOption(choice);
+        }
+
+        void ChooseOpenLobbyOption(string choice)
+        {
+            var panel = host.transform.Find("Root/Frame/lobby-choice");
+            Assert.IsNotNull(panel);
+            var button = panel.Find(choice);
+            Assert.IsNotNull(button, choice);
+            button.GetComponent<Button>().onClick.Invoke();
+            Assert.IsNull(host.transform.Find("Root/Frame/lobby-choice"));
         }
 
         Button FindButton(string caption)
