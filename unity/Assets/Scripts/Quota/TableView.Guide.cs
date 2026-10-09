@@ -58,15 +58,24 @@ namespace Quota
         {
             var width = viewW - 24f;
             var pictureH = width * 642f / 1074f;
-            var panelH = pictureH + 52f;
+            var panelH = pictureH + 68f;
             var panel = GuideFill(content, "guide-slides", 12f, y, width, panelH, Color.white);
             var imageRoot = Portrait.Rect(panel, "slide-image", 10f, 10f, width - 20f, pictureH);
             var image = imageRoot.gameObject.AddComponent<Image>();
             image.raycastTarget = false;
-            var counter = TextAt(panel, "", 10f, pictureH + 12f, width - 20f, 32f, 22, Ink, nameFont, TextAnchor.MiddleRight);
+            var counter = TextAt(panel, "", width - 142f, pictureH + 14f, 126f, 40f, 22, Ink, nameFont, TextAnchor.MiddleRight);
             var slides = new Sprite[9];
             for (var i = 0; i < slides.Length; i++) slides[i] = GuideSlide("slide" + (i + 1).ToString("00"));
-            panel.gameObject.AddComponent<GuideSlideShow>().Initialize(image, counter, slides);
+            var show = panel.gameObject.AddComponent<GuideSlideShow>();
+            show.Initialize(image, counter, slides);
+            const float controlW = 90f;
+            const float gap = 12f;
+            var firstX = (width - controlW * 3f - gap * 2f) * 0.5f;
+            var controlY = pictureH + 6f;
+            Pill(panel, "◀◀", firstX, controlY, controlW, 56f, 26, show.Previous);
+            Pill(panel, "Ⅱ", firstX + controlW + gap, controlY, controlW, 56f, 28, show.TogglePause);
+            Pill(panel, "▶▶", firstX + (controlW + gap) * 2f, controlY, controlW, 56f, 26, show.Next);
+            show.SetPauseLabel(panel.Find("Ⅱ").GetComponentInChildren<Text>());
             return y + panelH + 22f;
         }
 
