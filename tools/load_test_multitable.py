@@ -291,6 +291,10 @@ def main() -> int:
                 clients.append((client, False, table_index))
             if args.mode == "human" and args.clients_per_table <= args.players:
                 request(base, "/api/start", leader, args.timeout, {}, session=sessions[leader])
+        # Setup connections can sit idle longer than Nginx's keepalive timeout
+        # while later tables ramp up; start polling on fresh connections.
+        for session in sessions.values():
+            session.close()
         print(f"created {args.tables} tables / {len(clients)} clients; mode={args.mode}")
         started = time.monotonic()
         stop_at = started + args.duration
