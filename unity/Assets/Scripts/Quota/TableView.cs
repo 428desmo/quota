@@ -3453,7 +3453,7 @@ namespace Quota
             Portrait.Box(host, "face", 0f, 0f, width, height, 20f * designScale, Mathf.Max(1f, designScale), Color.white, Ink, false);
             var kind = KindIndex(card);
             var ink = IndicatorColors[kind];
-            Portrait.Solid(host, "mark", 0f, (120f + kind * 10f) * designScale, 6f * designScale, 15f * designScale, ink);
+            Portrait.Solid(host, "mark", 0f, (50f + kind * 25f) * designScale, 6f * designScale, 25f * designScale, ink);
             var face = theme.FaceFor(card);
             TextAt(host, theme.RankLabel(card), 10f * designScale, 9f * designScale, 112f * designScale, 42f * designScale, Mathf.RoundToInt(36f * designScale), Hex(face.Color), roundFont, TextAnchor.UpperLeft);
             var diameter = 112f * designScale;
