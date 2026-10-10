@@ -298,9 +298,22 @@ namespace Quota.Tests
             var selected = host.transform.Find("Root/Frame/lobby-viewport/setup/手番タイムアウト（秒）：/choices/5");
             Assert.AreEqual(Color.white, selected.GetComponentInChildren<Text>().color);
             Assert.IsNotNull(FindText("参加プレイヤー："));
+            var setup = host.transform.Find("Root/Frame/lobby-viewport/setup");
+            var settingsRow = setup.Find("プレイヤーの数：") as RectTransform;
+            var header = FindText("参加プレイヤー：").rectTransform;
+            var settingsLabel = settingsRow.Find("label") as RectTransform;
+            Assert.AreEqual(settingsLabel.TransformPoint(new Vector3(settingsLabel.rect.xMin, 0f)).x,
+                header.TransformPoint(new Vector3(header.rect.xMin, 0f)).x, 0.5f);
             var shuffleHolder = host.transform.Find("Root/Frame/lobby-viewport/setup/shuffle-holder");
             var shuffleRect = shuffleHolder.Find("CPUプレイヤー入れ替え") as RectTransform;
-            Assert.AreEqual(shuffleHolder.GetComponent<RectTransform>().rect.width * 0.9f, shuffleRect.GetComponent<LayoutElement>().preferredWidth, 0.1f);
+            Assert.AreEqual(shuffleHolder.GetComponent<RectTransform>().rect.width * 0.79f, shuffleRect.GetComponent<LayoutElement>().preferredWidth, 0.1f);
+            var settingsRight = settingsRow.TransformPoint(new Vector3(settingsRow.rect.xMax, 0f)).x;
+            foreach (var holderName in new[] { "seat-holder-1", "seat-holder-2", "seat-holder-3", "shuffle-holder" })
+            {
+                var holder = setup.Find(holderName) as RectTransform;
+                var panel = holder.GetChild(0) as RectTransform;
+                Assert.AreEqual(settingsRight, panel.TransformPoint(new Vector3(panel.rect.xMax, 0f)).x, 0.5f, holderName);
+            }
             Assert.AreEqual(0, host.GetComponentsInChildren<InputField>().Length);
             var shuffle = ButtonNamed("CPUプレイヤー入れ替え");
             var start = ButtonNamed("ゲーム開始");
