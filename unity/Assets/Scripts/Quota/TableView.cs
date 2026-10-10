@@ -120,6 +120,7 @@ namespace Quota
         int coinMotion;
         Dictionary<string, Vector3> coinFrom = new Dictionary<string, Vector3>();
         bool ceremonyRunning;
+        bool ceremonyFinishing;
         bool ceremonyOk;
         bool ceremonyDismissed;
         int acknowledgedRound;
@@ -732,6 +733,8 @@ namespace Quota
 
         void ShowSetup()
         {
+            StopEndBgm();
+            ceremonyFinishing = false;
             StopRoundBgm();
             settingsOpen = false;
             if (!lobbyOpen) lobbyChoice = null;
@@ -1108,6 +1111,7 @@ namespace Quota
             {
                 bgmLevel = level;
                 if (bgmActive && !bgmEnding) SetRoundBgmGain(BgmGain);
+                SetEndBgmGain(BgmGain);
             }
             else seLevel = level;
             SaveRules();
@@ -2155,6 +2159,7 @@ namespace Quota
             ceremonyReasonShown = ceremonyReason.Length > 0;
             ceremonyExpand = 0f;
             ceremonyButton = null;
+            StartEndBgm();
             ShowTable();
             yield return new WaitForSeconds(1f);
             if (serial != cpuRun || match.Game == null) yield break;
@@ -2401,6 +2406,26 @@ namespace Quota
 
         void FinishCeremony()
         {
+            if (ceremonyFinishing) return;
+            if (Application.isPlaying && EndBgmNeedsFade())
+            {
+                ceremonyFinishing = true;
+                StartCoroutine(FinishCeremonyAfterBgmFade(cpuRun));
+                return;
+            }
+            CompleteCeremony();
+        }
+
+        IEnumerator FinishCeremonyAfterBgmFade(int serial)
+        {
+            yield return FadeOutEndBgm();
+            ceremonyFinishing = false;
+            if (serial == cpuRun && !onSetup) CompleteCeremony();
+        }
+
+        void CompleteCeremony()
+        {
+            StopEndBgm();
             var last = ceremonyLast;
             acknowledgedRound = match.Game.RoundIndex;
             ceremonyRunning = false;
@@ -4133,7 +4158,19 @@ namespace Quota
             float rowW, float height, float labelW, int fontSize, bool editable, System.Action<string> choose)
         {
             var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
-            row.GetComponent<Image>().color = new Color(0.14f, 0.08f, 0.06f, 0.82f);
+            var border = row.GetComponent<Image>();
+            border.color = Hex("#B99B72");
+            var inset = new GameObject("inset", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            inset.transform.SetParent(row, false);
+            inset.transform.SetAsFirstSibling();
+            inset.GetComponent<LayoutElement>().ignoreLayout = true;
+            Stretch(inset.GetComponent<RectTransform>(), 2f, 2f);
+            var insetImage = inset.GetComponent<Image>();
+            insetImage.sprite = Portrait.SlicedRound;
+            insetImage.type = Image.Type.Sliced;
+            insetImage.color = new Color(0.14f, 0.08f, 0.06f, 0.9f);
+            insetImage.raycastTarget = false;
+            row.gameObject.AddComponent<Mask>().showMaskGraphic = true;
             var captionText = row.Find("label").GetComponent<Text>();
             captionText.color = Color.white;
             captionText.fontStyle = FontStyle.Bold;
@@ -4155,9 +4192,11 @@ namespace Quota
                 var image = cell.GetComponent<Image>();
                 image.color = option == selected ? Hex("#4B281C") : Hex("#DEC9AA");
                 image.raycastTarget = editable;
-                var label = TextAt(cell.transform, option, 0f, 0f, cellW, height, fontSize,
-                    option == selected ? Color.white : Ink, nameFont, TextAnchor.MiddleCenter);
-                if (option == selected) label.fontStyle = FontStyle.Bold;
+                var chosen = option == selected;
+                var label = TextAt(cell.transform, option, 0f, 0f, cellW, height,
+                    chosen ? fontSize : Mathf.Max(14, fontSize - 1),
+                    chosen ? Color.white : Hex("#75695F"), nameFont, TextAnchor.MiddleCenter);
+                if (chosen) label.fontStyle = FontStyle.Bold;
                 label.raycastTarget = false;
                 if (!editable) continue;
                 var button = cell.AddComponent<Button>();
