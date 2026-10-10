@@ -8,7 +8,8 @@ mergeInto(LibraryManager.library, {
       url: null,
       active: false,
       volume: 1,
-      gainNode: null
+      gainNode: null,
+      lastWake: 0
     });
 
     if (action === 2) {
@@ -34,8 +35,32 @@ mergeInto(LibraryManager.library, {
       if (!AudioContextType) return;
       state.context = new AudioContextType();
       var resume = function () {
-        if (state.context.state === "suspended") state.context.resume();
+        if (!state.active || document.hidden || state.context.state === "running") return;
+        // iOS Safari reports "interrupted" when another app takes focus.
+        // It can also defer resume until the next user gesture.
+        state.context.resume().catch(function (error) {
+          console.warn("Quota BGM resume:", error);
+        });
       };
+      var wake = function () {
+        if (!state.active || document.hidden) return;
+        // Some Safari versions report "running" after returning to the page
+        // even though the audio output is silent. Cycle the context once.
+        var now = Date.now();
+        if (state.source && state.context.state === "running" && now - state.lastWake > 500) {
+          state.lastWake = now;
+          try {
+            state.context.suspend().then(resume).catch(resume);
+          } catch (error) {
+            resume();
+          }
+        } else resume();
+      };
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) wake();
+      });
+      window.addEventListener("pageshow", wake);
+      window.addEventListener("focus", wake);
       document.addEventListener("pointerdown", resume);
       document.addEventListener("touchstart", resume);
       document.addEventListener("keydown", resume);

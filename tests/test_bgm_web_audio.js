@@ -9,10 +9,14 @@ const plugin = fs.readFileSync(path.join(__dirname, '../unity/Assets/Plugins/Web
 function harness(fetchImpl) {
   const library = {};
   const sources = [];
+  const listeners = { window: {}, document: {} };
   const context = {
     state: 'running',
     destination: {},
-    resume() { return Promise.resolve(); },
+    resumeCalls: 0,
+    suspendCalls: 0,
+    resume() { this.resumeCalls++; this.state = 'running'; return Promise.resolve(); },
+    suspend() { this.suspendCalls++; this.state = 'suspended'; return Promise.resolve(); },
     decodeAudioData(bytes) { return Promise.resolve({ bytes }); },
     createGain() { return { gain: { value: 1 }, connect() {} }; },
     createBufferSource() {
@@ -26,17 +30,27 @@ function harness(fetchImpl) {
       return source;
     },
   };
-  const window = { AudioContext: function () { return context; } };
+  const window = {
+    AudioContext: function () { return context; },
+    addEventListener(name, callback) { (listeners.window[name] ||= []).push(callback); },
+  };
+  const document = {
+    hidden: false,
+    addEventListener(name, callback) { (listeners.document[name] ||= []).push(callback); },
+  };
   vm.runInNewContext(plugin, {
     LibraryManager: { library },
     mergeInto(target, members) { Object.assign(target, members); },
     UTF8ToString(value) { return value; },
     window,
-    document: { addEventListener() {} },
+    document,
     fetch: fetchImpl,
     console,
   });
-  return { control: library.QuotaBgmControl, sources, window };
+  return {
+    control: library.QuotaBgmControl, sources, window, document, context,
+    emit(target, name) { for (const callback of listeners[target][name] || []) callback(); },
+  };
 }
 
 async function settle() {
@@ -81,4 +95,35 @@ test('stopping before the audio downloads prevents late playback', async () => {
   finish({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) });
   await settle();
   assert.equal(h.sources.length, 0);
+});
+
+test('returning from another app resumes an interrupted Safari audio context', async () => {
+  const h = harness(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) }));
+  h.control(1, '/StreamingAssets/play_bgm_02.mp3', 1);
+  await settle();
+  h.document.hidden = true;
+  h.context.state = 'interrupted';
+  h.emit('document', 'visibilitychange');
+  assert.equal(h.context.resumeCalls, 1);
+  h.document.hidden = false;
+  h.emit('document', 'visibilitychange');
+  await settle();
+  assert.equal(h.context.resumeCalls, 2);
+  assert.equal(h.context.state, 'running');
+  assert.equal(h.sources.length, 1);
+});
+
+test('returning also refreshes a context that reports running but is silent', async () => {
+  const h = harness(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) }));
+  h.control(1, '/StreamingAssets/play_bgm_02.mp3', 1);
+  await settle();
+  h.emit('window', 'pageshow');
+  await settle();
+  assert.equal(h.context.suspendCalls, 1);
+  assert.equal(h.context.resumeCalls, 2);
+  assert.equal(h.sources.length, 1);
+  h.control(2, '', 0);
+  h.context.state = 'interrupted';
+  h.emit('document', 'pointerdown');
+  assert.equal(h.context.resumeCalls, 2);
 });
