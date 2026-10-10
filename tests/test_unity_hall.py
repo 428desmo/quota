@@ -210,7 +210,7 @@ def test_table_list_can_join_full_or_playing_table_as_observer(started):
     assert hall.snapshot('a')['phase'] == ('playing' if started else 'recruiting')
 
 
-def test_countdown_is_authoritative_and_disabled_with_only_one_human():
+def test_countdown_remains_active_with_only_one_online_human():
     hall = UnityHall()
     opened = hall.create({"players": 3, "name": "A", "turn_timeout": 30}, "a")
     hall.join({"table": opened["table_id"], "name": "B"}, "b")
@@ -221,10 +221,15 @@ def test_countdown_is_authoritative_and_disabled_with_only_one_human():
     state = table.recruiting("b")
     assert state["turn_timeout_active"]
     assert 29 < state["turn_remaining"] <= 30
+    deadline = table.turn_deadline
     hall.leave("b")
-    assert not table.recruiting("a")["turn_timeout_active"]
+    assert table.recruiting("a")["turn_timeout_active"]
+    assert table.turn_deadline == deadline
     table.game.current = 1
     assert not table.recruiting("a")["turn_timeout_active"]
+    table.game.current = 0
+    table.turn_deadline = 0
+    assert "timeout:0" in hall.snapshot("a")["actions"]
 
 
 def test_departed_player_rejoins_original_seat_on_next_turn_only():
@@ -320,7 +325,7 @@ def test_other_human_timer_survives_temporary_cpu_substitution():
     assert table.participating_humans() == 2
 
 
-def test_second_returning_participant_starts_timer_for_existing_turn():
+def test_second_returning_participant_does_not_reset_existing_timer():
     import time
     hall, table = playing_pair()
     table.options['turn_timeout'] = 30
@@ -333,8 +338,8 @@ def test_second_returning_participant_starts_timer_for_existing_turn():
     game.turn_number += 1
     hall.update_deadline(table)
     assert game.players[0].is_human
-    assert not table.recruiting('a')['turn_timeout_active']
-    table.turn_deadline = time.monotonic() - 60
+    assert table.recruiting('a')['turn_timeout_active']
+    deadline = table.turn_deadline
     key = table.turn_key
     state = hall.join({'table': table.id}, 'b')
     assert state['you']['observer']  # B still waits for the next own turn.
@@ -343,8 +348,8 @@ def test_second_returning_participant_starts_timer_for_existing_turn():
     assert table.participating_humans() == 2
     state = hall.snapshot('a')
     assert state['turn_timeout_active']
-    assert 29 < state['turn_remaining'] <= 30
-    deadline = table.turn_deadline
+    assert 0 < state['turn_remaining'] <= 30
+    assert table.turn_deadline == deadline
     hall.join({'table': table.id}, 'b')
     hall.snapshot('a')
     assert table.turn_deadline == deadline  # Polling/repeated join cannot reset it.
@@ -352,14 +357,16 @@ def test_second_returning_participant_starts_timer_for_existing_turn():
     assert 'timeout:0' in hall.snapshot('a')['actions']
 
 
-def test_spectator_join_does_not_enable_a_single_humans_timer():
+def test_spectator_join_does_not_reset_a_single_humans_timer():
     hall, table = playing_pair()
     hall.leave('b')
     table.game.current = 0
     hall.update_deadline(table)
+    deadline = table.turn_deadline
     hall.join({'table': table.id, 'name': '観戦者'}, 'spectator')
     assert table.participating_humans() == 1
-    assert not table.recruiting('a')['turn_timeout_active']
+    assert table.recruiting('a')['turn_timeout_active']
+    assert table.turn_deadline == deadline
 
 
 def test_four_cpu_start_after_increasing_lobby_size():
