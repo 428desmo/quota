@@ -1005,9 +1005,8 @@ namespace Quota
             layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = layout.childControlHeight = true;
             layout.childForceExpandWidth = layout.childForceExpandHeight = false;
-            var rowW = screenW * 0.90f;
-            var seatRowW = screenW * 0.60f;
-            var seatW = seatRowW * 0.90f;
+            var rowW = screenW * 0.78f;
+            var seatW = rowW * 0.79f;
             var actionW = screenW * 0.35f;
             var labelW = LabelSlot(font, "自分は参加せずに観戦：", "放棄などに確認を求める：", "手番タイムアウト（秒）：");
             SetupNotice(column, "ゲーム設定", rowW, buttonH, font, true);
@@ -1018,20 +1017,19 @@ namespace Quota
             SetupSegmentedRow(column, "ラウンド数：", roundChoices, roundChoices[roundMode],
                 rowW, buttonH, labelW, font, leader, value => ChooseInlineLobbyChoice("round", value));
             SetupGap(column, innerGap);
-            var participants = SetupNotice(column, "参加プレイヤー：", rowW, buttonH, font, true);
-            participants.GetComponent<Text>().alignment = TextAnchor.MiddleLeft;
+            SetupLobbyHeading(column, "参加プレイヤー：", rowW, buttonH, font);
             SetupGap(column, innerGap);
             var seatNumber = 1;
             foreach (var seat in LobbySeats())
             {
-                var holder = SetupRightAlignedHolder(column, "seat-holder-" + seatNumber, seatRowW, buttonH);
+                var holder = SetupRightAlignedHolder(column, "seat-holder-" + seatNumber, rowW, buttonH);
                 SetupSeatRow(holder, $"{seatNumber}. {seat.Key}", seat.Value, seatW, buttonH, font);
                 seatNumber++;
                 SetupGap(column, innerGap);
             }
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
             {
-                var holder = SetupRightAlignedHolder(column, "shuffle-holder", seatRowW, buttonH);
+                var holder = SetupRightAlignedHolder(column, "shuffle-holder", rowW, buttonH);
                 SetupButton(holder, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, seatW, buttonH, font);
             }
             SetupGap(column, innerGap);
@@ -4135,7 +4133,7 @@ namespace Quota
             float rowW, float height, float labelW, int fontSize, bool editable, System.Action<string> choose)
         {
             var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
-            row.GetComponent<Image>().color = new Color(0.19f, 0.12f, 0.09f, 0.7f);
+            row.GetComponent<Image>().color = new Color(0.14f, 0.08f, 0.06f, 0.82f);
             var captionText = row.Find("label").GetComponent<Text>();
             captionText.color = Color.white;
             captionText.fontStyle = FontStyle.Bold;
@@ -4155,7 +4153,7 @@ namespace Quota
                 cell.transform.SetParent(choices.transform, false);
                 SizeElement(cell.GetComponent<LayoutElement>(), cellW, height);
                 var image = cell.GetComponent<Image>();
-                image.color = option == selected ? Hex("#B27A32") : Color.white;
+                image.color = option == selected ? Hex("#4B281C") : Hex("#DEC9AA");
                 image.raycastTarget = editable;
                 var label = TextAt(cell.transform, option, 0f, 0f, cellW, height, fontSize,
                     option == selected ? Color.white : Ink, nameFont, TextAnchor.MiddleCenter);
@@ -4221,6 +4219,17 @@ namespace Quota
             text.alignment = TextAnchor.MiddleCenter;
             text.raycastTarget = false;
             return go.GetComponent<RectTransform>();
+        }
+
+        void SetupLobbyHeading(RectTransform parent, string caption, float width, float height, int fontSize)
+        {
+            var holder = new GameObject("participants-heading", typeof(RectTransform), typeof(LayoutElement));
+            holder.transform.SetParent(parent, false);
+            SizeElement(holder.GetComponent<LayoutElement>(), width, height);
+            var text = TextAt(holder.transform, caption, fontSize, 0f, width - fontSize, height,
+                fontSize, Color.white, nameFont, TextAnchor.MiddleLeft);
+            text.fontStyle = FontStyle.Bold;
+            Shade(text);
         }
 
         InputField SetupNameRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize)
