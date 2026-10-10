@@ -48,10 +48,10 @@ namespace Quota
         static readonly Color[] IndicatorColors =
         {
             Hex("#000000"),
-            Hex("#ff0000"),
-            Hex("#00ff00"),
-            Hex("#00ffff"),
-            Hex("#ff00ff"),
+            Hex("#D55E00"),
+            Hex("#009E73"),
+            Hex("#0072B2"),
+            Hex("#A5378D"),
         };
 
         readonly OfflineMatch match = new OfflineMatch();
