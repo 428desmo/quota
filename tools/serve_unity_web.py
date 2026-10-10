@@ -156,7 +156,6 @@ class UnityTable:
         self.cpu_at = 0.0
         self.turn_key = None
         self.turn_deadline = 0.0
-        self.timer_enabled = False
         self.round_at = None
 
     def touch(self) -> None:
@@ -205,7 +204,7 @@ class UnityTable:
             "cpu_cast": self.cpu_cast[:max(0, self.players - self.seated())],
             "table_id": self.id,
             "event_n": 1,
-            "turn_timeout_active": bool(self.game and not self.game.finished and not self.game.awaiting_next_round and self.participating_humans() > 1 and self.game.players[self.game.current].is_human),
+            "turn_timeout_active": bool(self.game and not self.game.finished and not self.game.awaiting_next_round and self.game.players[self.game.current].is_human),
             "turn_remaining": max(0.0, self.turn_deadline - time.monotonic()),
             "players": self.players,
             "seats": [
@@ -427,10 +426,6 @@ class UnityHall:
     def update_deadline(table):
         game = table.game
         key = (game.round_index, game.turn_number, game.current)
-        enabled = table.participating_humans() > 1
-        if enabled and not table.timer_enabled:
-            table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
-        table.timer_enabled = enabled
         if key != table.turn_key:
             table.turn_key = key
             table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
@@ -470,7 +465,7 @@ class UnityHall:
             return
         table.round_at = None
         self.update_deadline(table)
-        if table.participating_humans() > 1 and game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
+        if game.players[game.current].is_human and time.monotonic() >= table.turn_deadline:
             table.actions.append(f"timeout:{game.current}")
             self.replace_human(table, game.current)
             table.humans[game.current].resume_after = table.turn_key

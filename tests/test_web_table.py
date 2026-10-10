@@ -28,13 +28,23 @@ def test_cpu_waits_one_second_after_the_opening_deal():
     assert len(game.log) > before[2]
 
 
-def test_turn_timeout_is_thirty_seconds_and_skips_a_lone_human():
-    table = Table()
-    table.open({"players": 3, "name": "a", "seed": 1, "simple": True}, "human")
+def test_turn_timeout_is_thirty_seconds_for_a_lone_online_human():
+    for seed in range(40):
+        table = Table()
+        table.open({"players": 3, "name": "a", "seed": seed, "simple": True}, "human")
+        table.begin("human")
+        if table.game.players[table.game.current].is_human:
+            break
+    else:
+        pytest.fail("no opening human turn")
     assert table.turn_timeout == 30
-    table.begin("human")
+    table.step_timeout()
+    assert table.turn_deadline is not None
+    assert 0 < table._turn_left() <= 30
+    table.turn_deadline = 0
     table.step_timeout()
     assert table.turn_deadline is None
+    assert "CPUが代わり" in table.cover["text"]
 
 
 def test_two_humans_still_get_a_turn_clock():

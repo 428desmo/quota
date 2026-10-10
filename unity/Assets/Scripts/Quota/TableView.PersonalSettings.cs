@@ -7,66 +7,19 @@ namespace Quota
     {
         bool settingsOpen;
 
-        void SetupVolumeRow(RectTransform column, string caption, bool bgm, float rowW, float height, float labelW, int font)
+        void DrawPersonalSettingsRows(RectTransform rows, float rowW, float height, int font)
         {
-            var row = FormRow(column, caption, rowW, height, labelW, font);
-            row.GetComponent<Image>().color = new Color(0.19f, 0.12f, 0.09f, 0.7f);
-            var heading = row.GetComponentInChildren<Text>();
-            heading.color = Color.white;
-            heading.fontStyle = FontStyle.Bold;
-            Shade(heading);
-            var width = rowW - labelW - font - 12f;
-            var field = new GameObject("volume", typeof(RectTransform), typeof(LayoutElement));
-            field.transform.SetParent(row, false);
-            SizeElement(field.GetComponent<LayoutElement>(), width, height);
-            DrawVolumeSlider(field.GetComponent<RectTransform>(), width, height, bgm, font);
+            var labelW = LabelSlot(font, "放棄などに確認を求める：");
+            SetupSegmentedRow(rows, "放棄などに確認を求める：", new[] { "YES", "NO" },
+                confirmActions ? "YES" : "NO", rowW, height, labelW, font, true, SetPersonalConfirmation);
+            SetupGap(rows, 16f);
+            var volumes = new[] { "OFF", "1", "2", "3", "4", "5" };
+            SetupSegmentedRow(rows, "BGM音量：", volumes, bgmLevel == 0 ? "OFF" : bgmLevel.ToString(),
+                rowW, height, labelW, font, true, value => SetPersonalVolume(true, value));
+            SetupGap(rows, 16f);
+            SetupSegmentedRow(rows, "SE音量：", volumes, seLevel == 0 ? "OFF" : seLevel.ToString(),
+                rowW, height, labelW, font, true, value => SetPersonalVolume(false, value));
         }
-
-        void DrawVolumeSlider(RectTransform parent, float width, float height, bool bgm, int font)
-        {
-            var sliderHost = Portrait.Rect(parent, bgm ? "bgm-slider" : "se-slider", 0f, 0f, width, height);
-            var trackWidth = Mathf.Max(80f, width - 104f);
-            var track = Portrait.Rect(sliderHost, "track", 8f, height * 0.5f - 5f, trackWidth, 10f);
-            var trackImage = track.gameObject.AddComponent<Image>();
-            trackImage.sprite = Portrait.SlicedRound;
-            trackImage.type = Image.Type.Sliced;
-            trackImage.color = Hex("#E4D7C5");
-            var fill = Portrait.Rect(track, "fill", 0f, 0f, trackWidth, 10f);
-            var fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.color = Accent;
-            fillImage.raycastTarget = false;
-            var handle = Portrait.Rect(track, "handle", 0f, -9f, 24f, 28f);
-            var handleImage = handle.gameObject.AddComponent<Image>();
-            handleImage.sprite = Portrait.SlicedRound;
-            handleImage.type = Image.Type.Sliced;
-            handleImage.color = Hex("#FFF6DD");
-            var valueLabel = TextAt(sliderHost, VolumeCaption(bgm ? bgmLevel : seLevel), width - 88f, 0f, 84f, height,
-                Mathf.Max(16, font - 2), Ink, nameFont, TextAnchor.MiddleCenter);
-            valueLabel.fontStyle = FontStyle.Bold;
-            var slider = sliderHost.gameObject.AddComponent<Slider>();
-            slider.targetGraphic = handleImage;
-            slider.fillRect = fill;
-            slider.handleRect = handle;
-            slider.minValue = 0f;
-            slider.maxValue = 5f;
-            slider.wholeNumbers = true;
-            slider.SetValueWithoutNotify(bgm ? bgmLevel : seLevel);
-            slider.onValueChanged.AddListener(value =>
-            {
-                var level = Mathf.RoundToInt(value);
-                if (bgm)
-                {
-                    bgmLevel = level;
-                    if (bgmActive && !bgmEnding) SetRoundBgmGain(BgmGain);
-                    SetEndBgmGain(BgmGain);
-                }
-                else { seLevel = level; SetCardSeGain(); }
-                valueLabel.text = VolumeCaption(level);
-                SaveRules();
-            });
-        }
-
-        static string VolumeCaption(int level) => level == 0 ? "0 (OFF)" : level.ToString();
 
         void SettingsButton()
         {
@@ -112,26 +65,20 @@ namespace Quota
             var outside = overlay.gameObject.AddComponent<Button>();
             outside.targetGraphic = wash;
             outside.onClick.AddListener(() => { settingsOpen = false; ShowTable(); });
-            const float panelW = 740f;
-            const float panelH = 470f;
+            const float panelW = 840f;
+            const float panelH = 450f;
             var panel = Portrait.Box(overlay, "settings-window", (screenW - panelW) * 0.5f,
                 (screenH - panelH) * 0.5f, panelW, panelH, 12f, 1f, Paper, Ink, false);
             panel.GetComponent<Image>().raycastTarget = true;
             Bold(TextAt(panel, "個人設定", 24f, 16f, panelW - 48f, 52f, 34, Ink, nameFont, TextAnchor.MiddleCenter));
-            Bold(TextAt(panel, "放棄などに確認を求める：", 32f, 84f, 500f, 62f, 26, Ink, nameFont, TextAnchor.MiddleLeft));
-            Pill(panel, confirmActions ? "YES" : "NO", 548f, 88f, 160f, 54f, 28, () =>
-            {
-                confirmActions = !confirmActions;
-                SaveRules();
-                ShowTable();
-            });
-            Bold(TextAt(panel, "BGM音量：", 32f, 164f, 260f, 60f, 28, Ink, nameFont, TextAnchor.MiddleLeft));
-            var bgmField = Portrait.Rect(panel, "bgm-volume", 294f, 164f, 414f, 60f);
-            DrawVolumeSlider(bgmField, 414f, 60f, true, 26);
-            Bold(TextAt(panel, "SE音量：", 32f, 244f, 260f, 60f, 28, Ink, nameFont, TextAnchor.MiddleLeft));
-            var seField = Portrait.Rect(panel, "se-volume", 294f, 244f, 414f, 60f);
-            DrawVolumeSlider(seField, 414f, 60f, false, 26);
-            Pill(panel, "OK", 20f, 366f, panelW - 40f, 78f, 32, () => { settingsOpen = false; ShowTable(); });
+            var rows = Portrait.Rect(panel, "settings-list", 24f, 84f, panelW - 48f, 250f);
+            var layout = rows.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            DrawPersonalSettingsRows(rows, panelW - 48f, 64f, 26);
+            Pill(panel, "OK", 24f, panelH - 90f, panelW - 48f, 66f, 28,
+                () => { settingsOpen = false; ShowTable(); });
         }
     }
 }
