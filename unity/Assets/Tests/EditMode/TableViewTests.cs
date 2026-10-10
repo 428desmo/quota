@@ -77,7 +77,7 @@ namespace Quota.Tests
                 UnityEditor.ImportAssetOptions.ForceUpdate);
             host = Open();
             var sources = host.GetComponents<AudioSource>();
-            Assert.AreEqual(3, sources.Length);
+            Assert.AreEqual(6, sources.Length);
             Assert.IsFalse(sources[0].loop);
             Assert.AreEqual("end", sources[0].clip.name);
             Assert.AreEqual(4.056f, sources[0].clip.length, 0.05f);
@@ -87,6 +87,25 @@ namespace Quota.Tests
             typeof(TableView).GetMethod("SetEndBgmGain", BindingFlags.Instance | BindingFlags.NonPublic)
                 .Invoke(host.GetComponent<TableView>(), new object[] { 0.4f });
             Assert.AreEqual(0.4f, sources[0].volume, 0.001f);
+        }
+
+        [Test]
+        public void CardSeUsesShortClipsAndThePersonalVolume()
+        {
+            host = Open();
+            var sources = host.GetComponents<AudioSource>();
+            for (var i = 0; i < 3; i++)
+            {
+                var clip = Resources.Load<AudioClip>("QuotaSe/card_0" + (i + 1));
+                Assert.IsNotNull(clip);
+                Assert.AreEqual(0.3f, clip.length, 0.01f);
+                Assert.AreSame(clip, sources[3 + i].clip);
+            }
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(TableView).GetField("seLevel", flags).SetValue(view, 2);
+            typeof(TableView).GetMethod("SetCardSeGain", flags).Invoke(view, null);
+            for (var i = 3; i < sources.Length; i++) Assert.AreEqual(0.4f, sources[i].volume, 0.001f);
         }
 
         [Test]

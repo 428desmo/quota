@@ -155,6 +155,7 @@ namespace Quota
                 ShowTable();
                 yield return MoveCards(acquired, origins, seat, "quota-cards", MarketScale, 1f, ticket);
                 if (ticket != cardTicket) yield break;
+                PlayCardSe(2);
                 foreach (var card in acquired) hiddenCards.Remove(card.Id);
                 ShowTable();
                 if (after.Players[seat].Achieved.Count > before.Players[seat].Achieved.Count)
@@ -237,6 +238,7 @@ namespace Quota
             back.localScale = frame.localScale;
             var start = deck.position;
             back.position = start;
+            PlayCardSe(0);
             var elapsed = 0f;
             while (elapsed < 0.08f)
             {
@@ -267,6 +269,7 @@ namespace Quota
             DestroyImmediate(flyer.gameObject);
             hiddenCards.Remove(card.Id);
             ShowTable();
+            PlayCardSe(1);
         }
         Sprite CardBackSprite()
         {

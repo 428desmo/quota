@@ -60,7 +60,7 @@ namespace Quota
                     if (bgmActive && !bgmEnding) SetRoundBgmGain(BgmGain);
                     SetEndBgmGain(BgmGain);
                 }
-                else seLevel = level; // Reserved for future sound effects.
+                else { seLevel = level; SetCardSeGain(); }
                 valueLabel.text = VolumeCaption(level);
                 SaveRules();
             });
