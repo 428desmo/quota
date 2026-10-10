@@ -1005,41 +1005,57 @@ namespace Quota
             layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = layout.childControlHeight = true;
             layout.childForceExpandWidth = layout.childForceExpandHeight = false;
-            var rowW = screenW * 0.60f;
+            var rowW = screenW * 0.90f;
+            var seatRowW = screenW * 0.60f;
+            var seatW = seatRowW * 0.90f;
             var actionW = screenW * 0.35f;
             var labelW = LabelSlot(font, "自分は参加せずに観戦：", "放棄などに確認を求める：", "手番タイムアウト（秒）：");
             SetupNotice(column, "ゲーム設定", rowW, buttonH, font, true);
-            if (leader) SetupChoiceRow(column, "ラウンド数：", RoundModeLabel(), rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("round"), true);
-            else SetupNotice(column, "ラウンド数：" + RoundModeLabel(), rowW, buttonH, font, true);
+            SetupSegmentedRow(column, "プレイヤーの数：", new[] { "3人", "4人" }, playerCount == 4 ? "4人" : "3人",
+                rowW, buttonH, labelW, font, leader, value => ChooseInlineLobbyChoice("players", value));
             SetupGap(column, innerGap);
-            if (leader) SetupChoiceRow(column, "プレイヤーの数：", $"{playerCount}人", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("players"), true);
-            else SetupNotice(column, $"プレイヤーの数：{playerCount}人", rowW, buttonH, font, true);
+            var roundChoices = new[] { "1", playerCount.ToString(), (playerCount * 2).ToString() };
+            SetupSegmentedRow(column, "ラウンド数：", roundChoices, roundChoices[roundMode],
+                rowW, buttonH, labelW, font, leader, value => ChooseInlineLobbyChoice("round", value));
+            SetupGap(column, innerGap);
+            var participants = SetupNotice(column, "参加プレイヤー：", rowW, buttonH, font, true);
+            participants.GetComponent<Text>().alignment = TextAnchor.MiddleLeft;
             SetupGap(column, innerGap);
             var seatNumber = 1;
             foreach (var seat in LobbySeats())
             {
-                SetupSeatRow(column, $"{seatNumber}. {seat.Key}", seat.Value, rowW, buttonH, font);
+                var holder = SetupRightAlignedHolder(column, "seat-holder-" + seatNumber, seatRowW, buttonH);
+                SetupSeatRow(holder, $"{seatNumber}. {seat.Key}", seat.Value, seatW, buttonH, font);
                 seatNumber++;
                 SetupGap(column, innerGap);
             }
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
-                SetupButton(column, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, rowW, buttonH, font);
+            {
+                var holder = SetupRightAlignedHolder(column, "shuffle-holder", seatRowW, buttonH);
+                SetupButton(holder, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, seatW, buttonH, font);
+            }
             SetupGap(column, innerGap);
             if (gameMode == GameMode.Internet)
             {
-                SetupChoiceRow(column, "自分は参加せずに観戦：", sitOut ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("observer"), true);
+                SetupSegmentedRow(column, "自分は参加せずに観戦：", new[] { "YES", "NO" }, sitOut ? "YES" : "NO",
+                    rowW, buttonH, labelW, font, true, value => ChooseInlineLobbyChoice("observer", value));
                 SetupGap(column, innerGap);
-                DrawLobbyTimeout(column, "OKタイムアウト（秒）", true, leader, rowW, buttonH, font);
+                SetupSegmentedRow(column, "OKタイムアウト（秒）：", new[] { "1", "2", "3", "4", "5" }, okTimeout.ToString("0"),
+                    rowW, buttonH, labelW, font, leader, value => ChooseInlineLobbyChoice("ok", value));
                 SetupGap(column, innerGap);
-                DrawLobbyTimeout(column, "手番タイムアウト（秒）", false, leader, rowW, buttonH, font);
+                SetupSegmentedRow(column, "手番タイムアウト（秒）：", new[] { "5", "10", "15", "20", "25", "30" }, turnTimeout.ToString("0"),
+                    rowW, buttonH, labelW, font, leader, value => ChooseInlineLobbyChoice("turn", value));
             }
             SetupGap(column, buttonH);
             SetupNotice(column, "個人設定", rowW, buttonH, font, true);
-            SetupChoiceRow(column, "放棄などに確認を求める：", confirmActions ? "YES" : "NO", rowW, buttonH, labelW, rowW - labelW - 12f - font, font, () => OpenLobbyChoice("confirm"), true);
+            SetupSegmentedRow(column, "放棄などに確認を求める：", new[] { "YES", "NO" }, confirmActions ? "YES" : "NO",
+                rowW, buttonH, labelW, font, true, value => ChooseInlineLobbyChoice("confirm", value));
             SetupGap(column, innerGap);
-            SetupVolumeRow(column, "BGM音量：", true, rowW, buttonH, labelW, font);
+            SetupSegmentedRow(column, "BGM音量：", new[] { "OFF", "1", "2", "3", "4", "5" }, bgmLevel == 0 ? "OFF" : bgmLevel.ToString(),
+                rowW, buttonH, labelW, font, true, value => SetPersonalVolume(true, value));
             SetupGap(column, innerGap);
-            SetupVolumeRow(column, "SE音量：", false, rowW, buttonH, labelW, font);
+            SetupSegmentedRow(column, "SE音量：", new[] { "OFF", "1", "2", "3", "4", "5" }, seLevel == 0 ? "OFF" : seLevel.ToString(),
+                rowW, buttonH, labelW, font, true, value => SetPersonalVolume(false, value));
             SetupGap(column, buttonH);
             if (NetworkJoined)
             {
@@ -1050,15 +1066,15 @@ namespace Quota
             if (gameMode == GameMode.Offline)
             {
                 SetupGap(column, innerGap);
-                SetupButton(column, "CPU模擬戦を見る", () => StartMatch(true), rowW, buttonH, font);
+                SetupButton(column, "CPU模擬戦を見る", () => StartMatch(true), actionW, buttonH, font);
             }
-            SetupGap(column, innerGap);
-            SetupButton(column, "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
+            SetupGap(column, gameMode == GameMode.Offline ? buttonH : innerGap);
             if (showReview)
             {
-                SetupGap(column, innerGap);
                 SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
+                SetupGap(column, innerGap);
             }
+            SetupButton(column, "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
             LayoutRebuilder.ForceRebuildLayoutImmediate(column);
             var contentH = Mathf.Max(available + 24f, LayoutUtility.GetPreferredHeight(column));
             column.anchorMin = new Vector2(0f, 1f);
@@ -1078,6 +1094,25 @@ namespace Quota
         void OpenLobbyChoice(string key)
         {
             lobbyChoice = key;
+            ShowSetup();
+        }
+
+        void ChooseInlineLobbyChoice(string key, string value)
+        {
+            lobbyChoice = key;
+            SelectLobbyChoice(value);
+        }
+
+        void SetPersonalVolume(bool bgm, string value)
+        {
+            var level = value == "OFF" ? 0 : int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+            if (bgm)
+            {
+                bgmLevel = level;
+                if (bgmActive && !bgmEnding) SetRoundBgmGain(BgmGain);
+            }
+            else seLevel = level;
+            SaveRules();
             ShowSetup();
         }
 
@@ -1182,7 +1217,7 @@ namespace Quota
             switch (key)
             {
                 case "round":
-                    roundMode = value == "1" ? 0 : value == "人数分×2" ? 2 : 1;
+                    roundMode = value == "1" ? 0 : value == (playerCount * 2).ToString() || value == "人数分×2" ? 2 : 1;
                     SaveLobbySettings();
                     return;
                 case "players":
@@ -4059,7 +4094,7 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
-            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || caption == "CPUプレイヤー入れ替え" || (parent.name == "table-list" || parent.name == "table-list-content");
+            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || caption == "CPU模擬戦を見る" || caption == "CPUプレイヤー入れ替え" || (parent.name == "table-list" || parent.name == "table-list-content");
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;
             image.color = accent || light ? Accent : Ecru;
@@ -4096,6 +4131,56 @@ namespace Quota
             SetupButton(row, value, action, fieldW, height, fontSize);
         }
 
+        void SetupSegmentedRow(RectTransform parent, string caption, string[] options, string selected,
+            float rowW, float height, float labelW, int fontSize, bool editable, System.Action<string> choose)
+        {
+            var row = FormRow(parent, caption, rowW, height, labelW, fontSize);
+            row.GetComponent<Image>().color = new Color(0.19f, 0.12f, 0.09f, 0.7f);
+            var captionText = row.Find("label").GetComponent<Text>();
+            captionText.color = Color.white;
+            captionText.fontStyle = FontStyle.Bold;
+            Shade(captionText);
+            var fieldW = rowW - labelW - fontSize - 12f;
+            var choices = new GameObject("choices", typeof(RectTransform), typeof(LayoutElement), typeof(HorizontalLayoutGroup));
+            choices.transform.SetParent(row, false);
+            SizeElement(choices.GetComponent<LayoutElement>(), fieldW, height);
+            var layout = choices.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 1f;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            var cellW = (fieldW - options.Length + 1f) / options.Length;
+            foreach (var option in options)
+            {
+                var cell = new GameObject(option, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+                cell.transform.SetParent(choices.transform, false);
+                SizeElement(cell.GetComponent<LayoutElement>(), cellW, height);
+                var image = cell.GetComponent<Image>();
+                image.color = option == selected ? Hex("#B27A32") : Color.white;
+                image.raycastTarget = editable;
+                var label = TextAt(cell.transform, option, 0f, 0f, cellW, height, fontSize,
+                    option == selected ? Color.white : Ink, nameFont, TextAnchor.MiddleCenter);
+                if (option == selected) label.fontStyle = FontStyle.Bold;
+                label.raycastTarget = false;
+                if (!editable) continue;
+                var button = cell.AddComponent<Button>();
+                button.targetGraphic = image;
+                var value = option;
+                button.onClick.AddListener(() => choose(value));
+            }
+        }
+
+        RectTransform SetupRightAlignedHolder(RectTransform parent, string name, float width, float height)
+        {
+            var holder = new GameObject(name, typeof(RectTransform), typeof(LayoutElement), typeof(HorizontalLayoutGroup));
+            holder.transform.SetParent(parent, false);
+            SizeElement(holder.GetComponent<LayoutElement>(), width, height);
+            var layout = holder.GetComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleRight;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            return holder.GetComponent<RectTransform>();
+        }
+
         void SetupSeatRow(RectTransform parent, string seatName, bool cpu, float rowW, float height, int fontSize)
         {
             var tagFont = Mathf.Max(14, fontSize - 10);
@@ -4121,7 +4206,7 @@ namespace Quota
             text.raycastTarget = false;
         }
 
-        void SetupNotice(RectTransform parent, string caption, float width, float height, int fontSize, bool light = false)
+        RectTransform SetupNotice(RectTransform parent, string caption, float width, float height, int fontSize, bool light = false)
         {
             var go = new GameObject("notice", typeof(RectTransform), typeof(LayoutElement), typeof(Text));
             go.transform.SetParent(parent, false);
@@ -4135,6 +4220,7 @@ namespace Quota
             if (light) Shade(text);
             text.alignment = TextAnchor.MiddleCenter;
             text.raycastTarget = false;
+            return go.GetComponent<RectTransform>();
         }
 
         InputField SetupNameRow(RectTransform parent, string caption, string value, float rowW, float height, float labelW, float fieldW, int fontSize)
