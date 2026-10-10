@@ -236,6 +236,7 @@ namespace Quota
             Fit();
             LoadRules();
             InitializeRoundBgm();
+            InitializeCardSe();
             if (Application.isPlaying) StartCoroutine(PollNetworkLobby());
             if (Application.platform == RuntimePlatform.WebGLPlayer)
             {
@@ -1113,7 +1114,7 @@ namespace Quota
                 if (bgmActive && !bgmEnding) SetRoundBgmGain(BgmGain);
                 SetEndBgmGain(BgmGain);
             }
-            else seLevel = level;
+            else { seLevel = level; SetCardSeGain(); }
             SaveRules();
             ShowSetup();
         }
