@@ -107,6 +107,12 @@ namespace Quota.Tests
             Click("オフライン");
             Click("新規ゲーム卓の準備");
             Assert.IsNull(FindText("自分は参加せずに観戦："));
+            var start = ButtonNamed("ゲーム開始");
+            var simulation = ButtonNamed("CPU模擬戦を見る");
+            Assert.AreEqual(start.GetComponent<Image>().color, simulation.GetComponent<Image>().color);
+            Assert.AreEqual(start.GetComponent<LayoutElement>().preferredWidth,
+                simulation.GetComponent<LayoutElement>().preferredWidth);
+            Assert.Less(start.transform.GetSiblingIndex(), simulation.transform.GetSiblingIndex());
             Click("CPU模擬戦を見る");
             var view = host.GetComponent<TableView>();
             var game = ((OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view)).Game;
@@ -267,9 +273,10 @@ namespace Quota.Tests
             Assert.IsNull(FindButton("ゲーム開始"));
             Assert.IsNull(FindButton("4人"));
             Assert.IsNotNull(FindText("ゲーム開始待ち"));
-            Assert.IsNotNull(FindText("ラウンド数：人数分×2"));
-            Assert.IsNotNull(FindText("OKタイムアウト（秒）: 4"));
-            Assert.IsNotNull(FindText("手番タイムアウト（秒）: 25"));
+            Assert.IsNotNull(FindText("ラウンド数："));
+            Assert.IsNotNull(FindText("8"));
+            Assert.IsNotNull(FindText("OKタイムアウト（秒）："));
+            Assert.IsNotNull(FindText("手番タイムアウト（秒）："));
             Assert.IsNotNull(FindText("放棄などに確認を求める："));
             Assert.IsNotNull(FindButton("YES"));
             Assert.AreEqual(0, host.GetComponentsInChildren<InputField>().Length);
@@ -282,34 +289,18 @@ namespace Quota.Tests
         {
             host = Open();
             Click("新規ゲーム卓の準備");
-            Assert.IsNotNull(ButtonNamed("人数分"));
-            Click("人数分");
-            var choice = host.transform.Find("Root/Frame/lobby-choice");
-            Assert.IsNotNull(choice);
-            var selectedOption = choice.Find("人数分") as RectTransform;
-            var field = host.transform.Find("Root/Frame/lobby-viewport/setup/ラウンド数：/人数分") as RectTransform;
-            var focusedLabel = host.transform.Find("Root/Frame/lobby-choice-label");
-            Assert.IsNotNull(selectedOption);
-            Assert.IsNotNull(field);
-            Assert.IsNotNull(focusedLabel);
-            Assert.AreEqual("ラウンド数：", focusedLabel.GetComponentInChildren<Text>().text);
-            Assert.AreEqual(Color.white, focusedLabel.GetComponentInChildren<Text>().color);
-            Assert.AreEqual(field.TransformPoint(field.rect.center).y,
-                selectedOption.TransformPoint(selectedOption.rect.center).y, 1f);
-            Assert.IsNotNull(ButtonNamed("人数分"));
-            ChooseOpenLobbyOption("人数分×2");
-            Assert.IsNotNull(ButtonNamed("人数分×2"));
-            ChooseLobbyOption("人数分×2", "1");
-            Assert.IsNotNull(ButtonNamed("1"));
-            ChooseLobbyOption("5", "1");
-            Assert.IsNotNull(ButtonNamed("1"));
-            ChooseLobbyOption("30", "5");
-            Assert.IsNotNull(ButtonNamed("5"));
-            Click("5");
-            var outside = host.transform.Find("Root/Frame/lobby-choice-scrim").GetComponent<Button>();
-            outside.onClick.Invoke();
             Assert.IsNull(host.transform.Find("Root/Frame/lobby-choice"));
-            Assert.IsNotNull(ButtonNamed("5"));
+            Assert.IsNotNull(host.transform.Find("Root/Frame/lobby-viewport/setup/ラウンド数：/choices/3"));
+            ChooseSegment("ラウンド数：", "6");
+            ChooseSegment("ラウンド数：", "1");
+            ChooseSegment("OKタイムアウト（秒）：", "1");
+            ChooseSegment("手番タイムアウト（秒）：", "5");
+            var selected = host.transform.Find("Root/Frame/lobby-viewport/setup/手番タイムアウト（秒）：/choices/5");
+            Assert.AreEqual(Color.white, selected.GetComponentInChildren<Text>().color);
+            Assert.IsNotNull(FindText("参加プレイヤー："));
+            var shuffleHolder = host.transform.Find("Root/Frame/lobby-viewport/setup/shuffle-holder");
+            var shuffleRect = shuffleHolder.Find("CPUプレイヤー入れ替え") as RectTransform;
+            Assert.AreEqual(shuffleHolder.GetComponent<RectTransform>().rect.width * 0.9f, shuffleRect.GetComponent<LayoutElement>().preferredWidth, 0.1f);
             Assert.AreEqual(0, host.GetComponentsInChildren<InputField>().Length);
             var shuffle = ButtonNamed("CPUプレイヤー入れ替え");
             var start = ButtonNamed("ゲーム開始");
@@ -327,9 +318,7 @@ namespace Quota.Tests
             Click("新規ゲーム卓の準備");
             var confirmation = host.transform.Find("Root/Frame/lobby-viewport/setup/放棄などに確認を求める：");
             Assert.IsNotNull(confirmation);
-            confirmation.GetComponentInChildren<Button>().onClick.Invoke();
-            Assert.IsNotNull(host.transform.Find("Root/Frame/lobby-choice/NO"));
-            ChooseOpenLobbyOption("NO");
+            ChooseSegment("放棄などに確認を求める：", "NO");
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             Assert.IsFalse((bool)typeof(TableView).GetField("confirmActions", flags).GetValue(view));
@@ -1967,8 +1956,15 @@ namespace Quota.Tests
 
         void ChooseLobbyOption(string currentValue, string choice)
         {
-            Click(currentValue);
-            ChooseOpenLobbyOption(choice);
+            var caption = currentValue == "3人" || currentValue == "4人" ? "プレイヤーの数：" : "自分は参加せずに観戦：";
+            ChooseSegment(caption, choice);
+        }
+
+        void ChooseSegment(string caption, string choice)
+        {
+            var cell = host.transform.Find("Root/Frame/lobby-viewport/setup/" + caption + "/choices/" + choice);
+            Assert.IsNotNull(cell, caption + " " + choice);
+            cell.GetComponent<Button>().onClick.Invoke();
         }
 
         void ChooseOpenLobbyOption(string choice)
