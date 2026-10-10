@@ -12,6 +12,8 @@ namespace Quota
 #endif
         AudioSource bgmIntro;
         AudioSource bgmLoop;
+        AudioSource bgmOutro;
+        bool endBgmFading;
         AudioClip bgmIntroClip;
         AudioClip bgmLoopClip;
         AudioClip bgmPcmClip;
@@ -48,6 +50,17 @@ namespace Quota
 
         void InitializeRoundBgm()
         {
+            var outroClip = Resources.Load<AudioClip>("QuotaBgm/end");
+            if (outroClip != null)
+            {
+                bgmOutro = gameObject.AddComponent<AudioSource>();
+                bgmOutro.playOnAwake = false;
+                bgmOutro.spatialBlend = 0f;
+                bgmOutro.loop = false;
+                bgmOutro.clip = outroClip;
+                bgmOutro.volume = BgmGain;
+            }
+            else Debug.LogWarning("Quota round-end BGM clip is missing.");
 #if UNITY_WEBGL && !UNITY_EDITOR
             QuotaBgmControl(0, BgmUrl(), BgmGain);
 #else
@@ -95,6 +108,10 @@ namespace Quota
                 return;
             }
             if (bgmActive && bgmRound == game.RoundIndex) return;
+            if (EndBgmNeedsFade() && !endBgmFading)
+                StartCoroutine(FadeOutEndBgm());
+            if (endBgmFading) return;
+            StopEndBgm();
             StopRoundBgm();
 #if !UNITY_WEBGL || UNITY_EDITOR
             if (bgmIntro == null || bgmLoop == null) return;
@@ -128,8 +145,44 @@ namespace Quota
             bgmRound = 0;
         }
 
+        void StartEndBgm()
+        {
+            if (bgmOutro == null) return;
+            bgmOutro.Stop();
+            bgmOutro.volume = BgmGain;
+            bgmOutro.Play();
+        }
+
+        void StopEndBgm()
+        {
+            if (bgmOutro != null) bgmOutro.Stop();
+            endBgmFading = false;
+        }
+
+        bool EndBgmNeedsFade() => bgmOutro != null && bgmOutro.isPlaying && bgmOutro.volume > 0f;
+
+        System.Collections.IEnumerator FadeOutEndBgm()
+        {
+            endBgmFading = true;
+            var from = bgmOutro.volume;
+            var elapsed = 0f;
+            while (elapsed < 0.5f && bgmOutro != null && bgmOutro.isPlaying)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                bgmOutro.volume = from * (1f - Mathf.Clamp01(elapsed / 0.5f));
+                yield return null;
+            }
+            StopEndBgm();
+        }
+
+        void SetEndBgmGain(float gain)
+        {
+            if (bgmOutro != null) bgmOutro.volume = Mathf.Clamp01(gain);
+        }
+
         void DisposeRoundBgm()
         {
+            StopEndBgm();
             StopRoundBgm();
             if (bgmPcmClip == null) return;
             if (Application.isPlaying) Destroy(bgmPcmClip);

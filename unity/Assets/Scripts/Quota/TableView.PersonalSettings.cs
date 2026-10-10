@@ -58,6 +58,7 @@ namespace Quota
                 {
                     bgmLevel = level;
                     if (bgmActive && !bgmEnding) SetRoundBgmGain(BgmGain);
+                    SetEndBgmGain(BgmGain);
                 }
                 else seLevel = level; // Reserved for future sound effects.
                 valueLabel.text = VolumeCaption(level);

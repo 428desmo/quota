@@ -77,10 +77,16 @@ namespace Quota.Tests
                 UnityEditor.ImportAssetOptions.ForceUpdate);
             host = Open();
             var sources = host.GetComponents<AudioSource>();
-            Assert.AreEqual(2, sources.Length);
-            Assert.IsTrue(sources[1].loop);
-            Assert.AreEqual("Quota BGM loop PCM", sources[1].clip.name);
-            Assert.AreEqual(76f, sources[1].clip.length, 0.05f);
+            Assert.AreEqual(3, sources.Length);
+            Assert.IsFalse(sources[0].loop);
+            Assert.AreEqual("end", sources[0].clip.name);
+            Assert.AreEqual(4.056f, sources[0].clip.length, 0.05f);
+            Assert.IsTrue(sources[2].loop);
+            Assert.AreEqual("Quota BGM loop PCM", sources[2].clip.name);
+            Assert.AreEqual(76f, sources[2].clip.length, 0.05f);
+            typeof(TableView).GetMethod("SetEndBgmGain", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(host.GetComponent<TableView>(), new object[] { 0.4f });
+            Assert.AreEqual(0.4f, sources[0].volume, 0.001f);
         }
 
         [Test]
@@ -297,6 +303,13 @@ namespace Quota.Tests
             ChooseSegment("手番タイムアウト（秒）：", "5");
             var selected = host.transform.Find("Root/Frame/lobby-viewport/setup/手番タイムアウト（秒）：/choices/5");
             Assert.AreEqual(Color.white, selected.GetComponentInChildren<Text>().color);
+            var segmented = selected.parent.parent;
+            Assert.IsNotNull(segmented.GetComponent<Mask>());
+            Assert.IsNotNull(segmented.Find("inset"));
+            var unselected = selected.parent.Find("10");
+            Assert.Less(unselected.GetComponentInChildren<Text>().fontSize,
+                selected.GetComponentInChildren<Text>().fontSize);
+            Assert.AreNotEqual(Color.white, unselected.GetComponentInChildren<Text>().color);
             Assert.IsNotNull(FindText("参加プレイヤー："));
             var setup = host.transform.Find("Root/Frame/lobby-viewport/setup");
             var settingsRow = setup.Find("プレイヤーの数：") as RectTransform;
