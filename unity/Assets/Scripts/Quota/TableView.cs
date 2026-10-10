@@ -1923,7 +1923,7 @@ namespace Quota
             else if (confirm == null && MyHumanTurn && !busy && !CardsAnimating && !game.Finished) DrawControls(game);
             if (!game.Finished) LeaveButton();
             else RemoveLeaveButton();
-            if (!game.Finished && !game.AwaitingNextRound) SettingsButton();
+            if (!game.Finished && !game.AwaitingNextRound && !(gameMode == GameMode.Offline && NoHumanSeats())) SettingsButton();
             else RemoveSettingsButton();
             if (!showCeremony && game.Finished && !ceremonyBreak && !CardsAnimating)
             {

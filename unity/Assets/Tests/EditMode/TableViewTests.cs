@@ -142,6 +142,7 @@ namespace Quota.Tests
             var view = host.GetComponent<TableView>();
             var game = ((OfflineMatch)typeof(TableView).GetField("match", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(view)).Game;
             Assert.IsFalse(game.Players.Exists(player => player.IsHuman));
+            Assert.IsNull(host.transform.Find("settings-button"));
         }
 
         [Test]
