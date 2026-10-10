@@ -49,10 +49,10 @@ test('the original audio buffer loops directly from 92 seconds back to 16', asyn
     urls.push(url);
     return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) };
   });
-  h.control(0, '/StreamingAssets/play_bgm_01.mp3', 1);
-  h.control(1, '/StreamingAssets/play_bgm_01.mp3', 1);
+  h.control(0, '/StreamingAssets/play_bgm_02.mp3', 1);
+  h.control(1, '/StreamingAssets/play_bgm_02.mp3', 1);
   await settle();
-  assert.deepEqual(urls, ['/StreamingAssets/play_bgm_01.mp3']);
+  assert.deepEqual(urls, ['/StreamingAssets/play_bgm_02.mp3']);
   assert.equal(h.sources.length, 1);
   assert.equal(h.sources[0].loop, true);
   assert.equal(h.sources[0].loopStart, 16);
@@ -65,7 +65,7 @@ test('the original audio buffer loops directly from 92 seconds back to 16', asyn
 
 test('volume updates the playing audio without restarting its loop', async () => {
   const h = harness(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) }));
-  h.control(1, '/StreamingAssets/play_bgm_01.mp3', 0.6);
+  h.control(1, '/StreamingAssets/play_bgm_02.mp3', 0.6);
   await settle();
   assert.equal(h.window.quotaBgmState.gainNode.gain.value, 0.6);
   h.control(3, '', 0.2);
@@ -76,7 +76,7 @@ test('volume updates the playing audio without restarting its loop', async () =>
 test('stopping before the audio downloads prevents late playback', async () => {
   let finish;
   const h = harness(() => new Promise(resolve => { finish = resolve; }));
-  h.control(1, '/StreamingAssets/play_bgm_01.mp3', 1);
+  h.control(1, '/StreamingAssets/play_bgm_02.mp3', 1);
   h.control(2, '', 0);
   finish({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) });
   await settle();

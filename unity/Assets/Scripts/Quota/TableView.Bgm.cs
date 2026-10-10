@@ -8,7 +8,7 @@ namespace Quota
         [System.Runtime.InteropServices.DllImport("__Internal")]
         static extern void QuotaBgmControl(int action, string url, float gain);
 
-        static string BgmUrl() => Application.streamingAssetsPath + "/play_bgm_01.mp3";
+        static string BgmUrl() => Application.streamingAssetsPath + "/play_bgm_02.mp3";
 #endif
         AudioSource bgmIntro;
         AudioSource bgmLoop;
