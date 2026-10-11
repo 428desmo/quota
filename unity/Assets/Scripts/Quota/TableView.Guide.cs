@@ -17,6 +17,8 @@ namespace Quota
             var panelW = Mathf.Min(980f, screenW - 48f);
             var panelH = Mathf.Min(screenH - 80f, screenW > screenH ? 820f : 1400f);
             var panel = Portrait.Box(frame, "setup-dialog", (screenW - panelW) * 0.5f, (screenH - panelH) * 0.5f, panelW, panelH, 7f, 1f, Paper, Ink, false);
+            // Consume taps inside the window so only the veil outside dismisses it.
+            panel.GetComponent<Image>().raycastTarget = true;
             Bold(TextAt(panel, GuideCopy.Title(setupPage), 32f, 16f, panelW - 64f, 56f, 40, Ink, nameFont, TextAnchor.MiddleLeft));
             var viewW = panelW - 64f;
             const float viewTop = 84f;
