@@ -1094,12 +1094,12 @@ namespace Quota.Tests
             var cast = (List<int>)typeof(TableView).GetField("lobbyCast", flags).GetValue(view);
             var before = new List<int>(cast);
             Assert.AreEqual(4, before.Count);
-            Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(before[0])));
+            Assert.IsNotNull(FindTextContaining(CpuProfiles.Names[before[0]]));
             Assert.IsNotNull(FindText("1. あなた"));
             Assert.IsNotNull(FindTextContaining("2. "));
             Click("CPUプレイヤー入れ替え");
             CollectionAssert.AreNotEqual(before, cast);
-            Assert.IsNotNull(FindTextContaining(Ranking.DisplayName(cast[0])));
+            Assert.IsNotNull(FindTextContaining(CpuProfiles.Names[cast[0]]));
 
             Assert.IsNull(FindButton("その他の設定"));
             Assert.IsNotNull(FindText("ゲーム設定"));
