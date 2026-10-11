@@ -136,6 +136,22 @@ class CharacterPolicy:
         future = self.expected_deck(observation, suit) + self.expected_deck(observation, "JOKER")
         # Opponents compete for cards and the round can end before the deck does.
         reach = 0.32 if len(observation.players) == 3 else 0.27
+        if self.inference >= 1:
+            competing = [
+                rival.quota.rank - 1 - len(rival.collection)
+                for index, rival in enumerate(observation.players)
+                if index != observation.current and rival.quota is not None
+                and rival.quota.suit == suit and rival.quota.rank is not None
+                and rival.quota.rank - 1 > len(rival.collection)
+            ]
+            # Taking a quota ends this turn: existing matching market cards can
+            # be collected by rivals before our next turn. With an active quota
+            # we can collect the market first, but must share future draws.
+            if excluded_id is not None:
+                market = max(0, market - sum(competing))
+            unmet = max(1, need - market)
+            pressure = sum(min(1.0, rival_need / unmet) for rival_need in competing)
+            future /= 1.0 + pressure
         usable = market + future * reach
         if self.inference > 0:
             visible = Counter(card.suit for card in visible_cards(observation))
@@ -186,7 +202,8 @@ class CharacterPolicy:
             if card and (mine.quota is None and card.suit != "JOKER"
                          or mine.quota is not None and card.suit in (mine.quota.suit, "JOKER"))
         ]
-        if mine.reshuffle_take_left and not eligible and observation.deck_count > 0:
+        if (mine.reshuffle_take_left and not eligible and observation.deck_count > 0
+            and not self.should_abandon_contested(observation)):
             self.stats["reshuffle"] += 1
             return "reshuffle"
         if mine.double_action_left and observation.deck_count > 1:
@@ -201,6 +218,37 @@ class CharacterPolicy:
                 self.stats["double"] += 1
                 return "double"
         return None
+
+    def should_abandon_contested(self, observation: Observation) -> bool:
+        """At strong level, trade an unlikely contested quota for a viable one."""
+        mine = observation.players[observation.current]
+        quota = mine.quota
+        if (self.inference != 2 or quota is None or quota.rank is None
+            or observation.plan != "normal" or observation.turn_gain):
+            return False
+        if not any(
+            index != observation.current and rival.quota is not None
+            and rival.quota.suit == quota.suit and rival.quota.rank is not None
+            and rival.quota.rank - 1 > len(rival.collection)
+            for index, rival in enumerate(observation.players)
+        ):
+            return False
+        need = quota.rank - 1 - len(mine.collection)
+        available = sum(card is not None and card.suit in (quota.suit, "JOKER")
+                        for card in observation.market)
+        if available >= need:
+            return False  # Finish now instead of abandoning a certain score.
+        chance = self.completion(observation, quota.suit, need)
+        if chance >= (0.34 if self.style_name == "comeback" else 0.40):
+            return False
+        alternatives = [card for card in observation.market if card is not None
+                        and card.suit not in (quota.suit, "JOKER") and card.rank is not None]
+        if not alternatives:
+            return False
+        best = max(self.score_for(card.rank) * self.completion(
+            observation, card.suit, card.rank - 1, excluded_id=card.id)
+            for card in alternatives)
+        return best >= 2.0 and best >= self.score_for(quota.rank) * chance * 0.70
 
     def choose(self, observation: Observation) -> Action:
         self.stats["decisions"] += 1
@@ -253,6 +301,9 @@ class CharacterPolicy:
 
         assert mine.quota.rank is not None
         need = mine.quota.rank - 1 - len(mine.collection)
+        if self.should_abandon_contested(observation):
+            self.stats["abandon"] += 1
+            return Abandon()
         eligible = [card for card in market.values()
                     if card.suit in (mine.quota.suit, "JOKER")]
         if not eligible:

@@ -104,7 +104,22 @@ namespace Quota
                 if (26 - visible.Count(card => card.Suit == suit) + 4 - visible.Count(card => card.Suit == Suit.Joker) + market < need) return 0;
             }
             var reach = game.Players.Count == 3 ? 0.32 : 0.27;
-            return Math.Pow(Math.Min(1, (market + (Expected(game, suit) + Expected(game, Suit.Joker)) * reach) / need), 1.7);
+            var future = Expected(game, suit) + Expected(game, Suit.Joker);
+            if (strength >= 1)
+            {
+                var competing = game.Players.Where((rival, index) => index != game.Current && rival.Quota != null
+                    && rival.Quota.Suit == suit && rival.Quota.Rank.HasValue
+                    && rival.Quota.Rank.Value - 1 > rival.Collection.Count)
+                    .Select(rival => rival.Quota.Rank.Value - 1 - rival.Collection.Count).ToList();
+                // A new quota ends the turn, so rivals can take matching market
+                // cards first. With an active quota we can take them now, while
+                // future draws still have to be shared.
+                if (excludedId >= 0) market = Math.Max(0, market - competing.Sum());
+                var unmet = Math.Max(1, need - market);
+                var pressure = competing.Sum(other => Math.Min(1.0, other / (double)unmet));
+                future /= 1.0 + pressure;
+            }
+            return Math.Pow(Math.Min(1, (market + future * reach) / need), 1.7);
         }
         double Denial(Game game, Card card)
         {
@@ -121,13 +136,35 @@ namespace Quota
             if (!player.Achieved.Any(item => item.Suit == card.Suit)) value += 0.5 * chance;
             return value * (id == 5 ? 2.8 : id == 0 || id == 3 ? 0.5 : id == 1 ? 0.6 : id == 4 ? 0.4 : 0.3);
         }
+        bool ShouldAbandonContested(Game game)
+        {
+            var player = game.Players[game.Current];
+            var quota = player.Quota;
+            if (strength != 2 || quota == null || !quota.Rank.HasValue || game.Plan != "normal" || game.TurnGain)
+                return false;
+            if (!game.Players.Where((rival, index) => index != game.Current).Any(rival => rival.Quota != null
+                && rival.Quota.Suit == quota.Suit && rival.Quota.Rank.HasValue
+                && rival.Quota.Rank.Value - 1 > rival.Collection.Count)) return false;
+            var need = quota.Rank.Value - 1 - player.Collection.Count;
+            var available = game.Market.Count(card => card != null && (card.Suit == quota.Suit || card.Suit == Suit.Joker));
+            if (available >= need) return false;
+            var chance = Completion(game, quota.Suit, need);
+            if (chance >= (id == 3 ? 0.34 : 0.40)) return false;
+            var alternatives = game.Market.Where(card => card != null && card.Suit != quota.Suit
+                && card.Suit != Suit.Joker && card.Rank.HasValue).ToList();
+            if (alternatives.Count == 0) return false;
+            var best = alternatives.Max(card => Cards.ScoreFor(card.Rank.Value)
+                * Completion(game, card.Suit, card.Rank.Value - 1, card.Id));
+            return best >= 2.0 && best >= Cards.ScoreFor(quota.Rank.Value) * chance * 0.70;
+        }
         public GameAction Choose(Game game)
         {
             var player = game.Players[game.Current];
             if (game.Config.SpecialActionsRule && game.Plan == "normal" && !game.TurnGain)
             {
                 var eligible = game.Market.Where(card => card != null && (player.Quota == null ? card.Suit != Suit.Joker : card.Suit == player.Quota.Suit || card.Suit == Suit.Joker)).ToList();
-                if (player.ReshuffleTakeLeft > 0 && eligible.Count == 0 && game.Deck.Count > 0)
+                if (player.ReshuffleTakeLeft > 0 && eligible.Count == 0 && game.Deck.Count > 0
+                    && !ShouldAbandonContested(game))
                 {
                     var market = game.Market.ToList();
                     var deck = game.Deck.Count;
@@ -161,6 +198,7 @@ namespace Quota
                 }).ThenBy(action => action.CardId).First();
             }
             var need = player.Quota.Rank.Value - 1 - player.Collection.Count;
+            if (ShouldAbandonContested(game)) return new Abandon();
             var cards = game.Market.Where(card => card != null && (card.Suit == player.Quota.Suit || card.Suit == Suit.Joker)).ToList();
             if (cards.Count == 0)
                 return game.Plan == "normal" && !game.TurnGain && Completion(game, player.Quota.Suit, need) < (id == 3 ? 0.18 : 0.32)
