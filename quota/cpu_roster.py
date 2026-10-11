@@ -6,12 +6,12 @@ import random
 
 # Order is stable: these IDs are sent to Unity clients in table snapshots.
 CHARACTERS = (
-    ("慎重な帳簿係", "safe"),
-    ("港の仲買人", "balanced"),
-    ("早足の商人", "efficient"),
-    ("勝負師の船長", "comeback"),
-    ("目ざとい競売人", "denial"),
-    ("品揃えの収集家", "title"),
+    ("慎重なピエトロ", "safe"),
+    ("柔軟なマルコ", "balanced"),
+    ("手際のよいルチア", "efficient"),
+    ("大胆なロレンツォ", "comeback"),
+    ("抜け目ないイザベラ", "denial"),
+    ("好奇心旺盛なソフィア", "title"),
 )
 
 
