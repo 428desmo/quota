@@ -1,0 +1,44 @@
+[
+  {
+    "id": "ledger_keeper",
+    "name": "慎重な帳簿係",
+    "style": "safe",
+    "inference": 0,
+    "character": "失敗の少ないノルマを選び、公開札の簡単な見込みだけで判断する。"
+  },
+  {
+    "id": "harbor_broker",
+    "name": "港の仲買人",
+    "style": "balanced",
+    "inference": 1,
+    "character": "得点、完成の見込み、残り手番をバランスよく比べる。"
+  },
+  {
+    "id": "quick_trader",
+    "name": "早足の商人",
+    "style": "efficient",
+    "inference": 2,
+    "character": "短い手番で完成できるノルマを好み、公開札の履歴まで読む。"
+  },
+  {
+    "id": "risk_captain",
+    "name": "勝負師の船長",
+    "style": "comeback",
+    "inference": 2,
+    "character": "負けが見えてきたら大きなノルマにも踏み込む。"
+  },
+  {
+    "id": "market_blocker",
+    "name": "目ざとい競売人",
+    "style": "denial",
+    "inference": 1,
+    "character": "競合する相手が欲しい札を取り、相手の完成を遅らせる。"
+  },
+  {
+    "id": "title_collector",
+    "name": "品揃えの収集家",
+    "style": "title",
+    "inference": 1,
+    "character": "無理のない範囲で称号を狙い、完成した束を増やす。"
+  }
+]

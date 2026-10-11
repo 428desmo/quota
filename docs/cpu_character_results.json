@@ -1,0 +1,1923 @@
+{
+  "status": "experimental; not used by the live CPU",
+  "runs": {
+    "screen_3p": {
+      "config": {
+        "deals": 60,
+        "seed": 20261011,
+        "players": 3,
+        "rounds": 3,
+        "styles": [
+          "balanced",
+          "efficient",
+          "safe",
+          "comeback",
+          "denial",
+          "title"
+        ],
+        "levels": [
+          0,
+          1,
+          2
+        ],
+        "guard_actions": 20000
+      },
+      "summary": {
+        "balanced:0": {
+          "trials": 180,
+          "mean_score_delta": 26.622222222222224,
+          "score_delta_95ci_by_deal": [
+            21.674007770365773,
+            31.570436674078667
+          ],
+          "mean_win_share_delta": 0.375,
+          "win_share_delta_95ci_by_deal": [
+            0.3125807615328227,
+            0.4374192384671773
+          ],
+          "mean_margin_delta": 34.083333333333336,
+          "mean_achieve_count_delta": -1.2833333333333334,
+          "mean_quota_rank": 7.098695805428269,
+          "high_quota_rate": 0.300317236517448,
+          "stats": {
+            "decisions": 14123,
+            "quota_10_13": 852,
+            "quota_rank_total": 20139,
+            "collect": 7881,
+            "gold_collected": 1063,
+            "reshuffle": 530,
+            "double": 532,
+            "quota_2_6": 1164,
+            "contested_quota": 426,
+            "pass": 3191,
+            "quota_7_9": 737,
+            "mono_quota": 105,
+            "abandon": 214,
+            "quota_1": 84
+          }
+        },
+        "balanced:1": {
+          "trials": 180,
+          "mean_score_delta": 34.15555555555556,
+          "score_delta_95ci_by_deal": [
+            29.242752512047915,
+            39.0683585990632
+          ],
+          "mean_win_share_delta": 0.4888888888888889,
+          "win_share_delta_95ci_by_deal": [
+            0.42982358797609566,
+            0.5479541898016821
+          ],
+          "mean_margin_delta": 44.31666666666667,
+          "mean_achieve_count_delta": -0.8944444444444445,
+          "mean_quota_rank": 7.223195515066573,
+          "high_quota_rate": 0.3160476524176594,
+          "stats": {
+            "decisions": 14008,
+            "quota_10_13": 902,
+            "quota_rank_total": 20615,
+            "collect": 8177,
+            "gold_collected": 1045,
+            "reshuffle": 533,
+            "double": 534,
+            "contested_quota": 418,
+            "quota_2_6": 1133,
+            "quota_7_9": 729,
+            "pass": 2801,
+            "abandon": 176,
+            "mono_quota": 64,
+            "quota_1": 90
+          }
+        },
+        "balanced:2": {
+          "trials": 180,
+          "mean_score_delta": 35.9,
+          "score_delta_95ci_by_deal": [
+            31.15268742307019,
+            40.64731257692981
+          ],
+          "mean_win_share_delta": 0.48055555555555557,
+          "win_share_delta_95ci_by_deal": [
+            0.422923893652992,
+            0.538187217458119
+          ],
+          "mean_margin_delta": 46.483333333333334,
+          "mean_achieve_count_delta": -0.7722222222222223,
+          "mean_quota_rank": 7.250520471894518,
+          "high_quota_rate": 0.3143650242886884,
+          "stats": {
+            "decisions": 14021,
+            "quota_10_13": 906,
+            "quota_rank_total": 20896,
+            "collect": 8261,
+            "gold_collected": 1035,
+            "reshuffle": 531,
+            "double": 534,
+            "contested_quota": 414,
+            "quota_2_6": 1121,
+            "quota_7_9": 754,
+            "pass": 2684,
+            "abandon": 194,
+            "mono_quota": 50,
+            "quota_1": 101
+          }
+        },
+        "efficient:0": {
+          "trials": 180,
+          "mean_score_delta": 26.066666666666666,
+          "score_delta_95ci_by_deal": [
+            21.093941966830158,
+            31.039391366503175
+          ],
+          "mean_win_share_delta": 0.3861111111111111,
+          "win_share_delta_95ci_by_deal": [
+            0.32522386664213465,
+            0.4469983555800875
+          ],
+          "mean_margin_delta": 32.78888888888889,
+          "mean_achieve_count_delta": 0.42777777777777776,
+          "mean_quota_rank": 6.394212218649518,
+          "high_quota_rate": 0.2257234726688103,
+          "stats": {
+            "decisions": 14342,
+            "quota_10_13": 702,
+            "quota_rank_total": 19886,
+            "collect": 7818,
+            "gold_collected": 1078,
+            "reshuffle": 527,
+            "double": 532,
+            "quota_2_6": 1482,
+            "contested_quota": 514,
+            "quota_1": 150,
+            "quota_7_9": 776,
+            "pass": 3211,
+            "abandon": 203,
+            "mono_quota": 95
+          }
+        },
+        "efficient:1": {
+          "trials": 180,
+          "mean_score_delta": 32.28333333333333,
+          "score_delta_95ci_by_deal": [
+            27.025251929893695,
+            37.541414736772964
+          ],
+          "mean_win_share_delta": 0.4305555555555556,
+          "win_share_delta_95ci_by_deal": [
+            0.3687835852693796,
+            0.49232752584173145
+          ],
+          "mean_margin_delta": 41.26111111111111,
+          "mean_achieve_count_delta": 0.65,
+          "mean_quota_rank": 6.513418530351438,
+          "high_quota_rate": 0.24888178913738018,
+          "stats": {
+            "decisions": 14291,
+            "quota_10_13": 779,
+            "quota_rank_total": 20387,
+            "collect": 8013,
+            "gold_collected": 1062,
+            "reshuffle": 531,
+            "double": 533,
+            "contested_quota": 484,
+            "quota_2_6": 1454,
+            "pass": 2979,
+            "quota_7_9": 743,
+            "abandon": 169,
+            "quota_1": 154,
+            "mono_quota": 64
+          }
+        },
+        "efficient:2": {
+          "trials": 180,
+          "mean_score_delta": 35.57222222222222,
+          "score_delta_95ci_by_deal": [
+            30.63018584033304,
+            40.514258604111404
+          ],
+          "mean_win_share_delta": 0.4722222222222222,
+          "win_share_delta_95ci_by_deal": [
+            0.411994538159161,
+            0.5324499062852834
+          ],
+          "mean_margin_delta": 45.52777777777778,
+          "mean_achieve_count_delta": 0.8166666666666667,
+          "mean_quota_rank": 6.547217806041336,
+          "high_quota_rate": 0.25373608903020667,
+          "stats": {
+            "decisions": 14200,
+            "quota_10_13": 798,
+            "quota_rank_total": 20591,
+            "collect": 8086,
+            "gold_collected": 1035,
+            "reshuffle": 530,
+            "double": 534,
+            "contested_quota": 494,
+            "quota_2_6": 1413,
+            "pass": 2812,
+            "quota_7_9": 761,
+            "abandon": 157,
+            "quota_1": 173,
+            "mono_quota": 58
+          }
+        },
+        "safe:0": {
+          "trials": 180,
+          "mean_score_delta": 24.572222222222223,
+          "score_delta_95ci_by_deal": [
+            18.881993286137902,
+            30.262451158306536
+          ],
+          "mean_win_share_delta": 0.36666666666666664,
+          "win_share_delta_95ci_by_deal": [
+            0.2973049818940132,
+            0.43602835143932006
+          ],
+          "mean_margin_delta": 34.00555555555555,
+          "mean_achieve_count_delta": 0.8111111111111111,
+          "mean_quota_rank": 6.23142586152387,
+          "high_quota_rate": 0.20550110654441986,
+          "stats": {
+            "decisions": 14128,
+            "quota_10_13": 650,
+            "quota_rank_total": 19710,
+            "collect": 7649,
+            "gold_collected": 996,
+            "reshuffle": 531,
+            "quota_7_9": 758,
+            "quota_2_6": 1575,
+            "quota_1": 180,
+            "contested_quota": 468,
+            "abandon": 162,
+            "mono_quota": 151,
+            "pass": 3154
+          }
+        },
+        "safe:1": {
+          "trials": 180,
+          "mean_score_delta": 31.45,
+          "score_delta_95ci_by_deal": [
+            26.310013763296972,
+            36.58998623670303
+          ],
+          "mean_win_share_delta": 0.4388888888888889,
+          "win_share_delta_95ci_by_deal": [
+            0.37977257431961986,
+            0.4980052034581579
+          ],
+          "mean_margin_delta": 42.0,
+          "mean_achieve_count_delta": 1.0833333333333333,
+          "mean_quota_rank": 6.3044430538172715,
+          "high_quota_rate": 0.22966207759699625,
+          "stats": {
+            "decisions": 14055,
+            "quota_7_9": 732,
+            "quota_rank_total": 20149,
+            "collect": 7860,
+            "gold_collected": 997,
+            "mono_quota": 99,
+            "quota_10_13": 734,
+            "contested_quota": 460,
+            "reshuffle": 526,
+            "quota_2_6": 1563,
+            "pass": 2846,
+            "abandon": 153,
+            "quota_1": 167
+          }
+        },
+        "safe:2": {
+          "trials": 180,
+          "mean_score_delta": 30.88888888888889,
+          "score_delta_95ci_by_deal": [
+            25.826411934802998,
+            35.95136584297478
+          ],
+          "mean_win_share_delta": 0.4212962962962963,
+          "win_share_delta_95ci_by_deal": [
+            0.3583604882973247,
+            0.48423210429526775
+          ],
+          "mean_margin_delta": 40.62222222222222,
+          "mean_achieve_count_delta": 0.8222222222222222,
+          "mean_quota_rank": 6.387819501420006,
+          "high_quota_rate": 0.23382770590091512,
+          "stats": {
+            "decisions": 14108,
+            "quota_7_9": 778,
+            "quota_rank_total": 20243,
+            "collect": 7897,
+            "gold_collected": 1018,
+            "mono_quota": 108,
+            "quota_10_13": 741,
+            "contested_quota": 454,
+            "reshuffle": 526,
+            "pass": 2862,
+            "quota_2_6": 1475,
+            "abandon": 180,
+            "quota_1": 175
+          }
+        },
+        "comeback:0": {
+          "trials": 180,
+          "mean_score_delta": 23.333333333333332,
+          "score_delta_95ci_by_deal": [
+            17.9875314956166,
+            28.679135171050063
+          ],
+          "mean_win_share_delta": 0.28055555555555556,
+          "win_share_delta_95ci_by_deal": [
+            0.20669331435023053,
+            0.3544177967608806
+          ],
+          "mean_margin_delta": 28.988888888888887,
+          "mean_achieve_count_delta": -2.8333333333333335,
+          "mean_quota_rank": 7.8306546452371615,
+          "high_quota_rate": 0.38337906703253627,
+          "stats": {
+            "decisions": 14063,
+            "quota_10_13": 978,
+            "quota_rank_total": 19976,
+            "collect": 7952,
+            "gold_collected": 1113,
+            "reshuffle": 533,
+            "double": 533,
+            "contested_quota": 366,
+            "quota_7_9": 693,
+            "pass": 3383,
+            "quota_2_6": 840,
+            "mono_quota": 68,
+            "abandon": 177,
+            "quota_1": 40
+          }
+        },
+        "comeback:1": {
+          "trials": 180,
+          "mean_score_delta": 34.24444444444445,
+          "score_delta_95ci_by_deal": [
+            29.694348804584923,
+            38.79454008430396
+          ],
+          "mean_win_share_delta": 0.43333333333333335,
+          "win_share_delta_95ci_by_deal": [
+            0.37616996243022,
+            0.4904967042364467
+          ],
+          "mean_margin_delta": 42.861111111111114,
+          "mean_achieve_count_delta": -2.2777777777777777,
+          "mean_quota_rank": 7.894917844860528,
+          "high_quota_rate": 0.39663737103553687,
+          "stats": {
+            "decisions": 14124,
+            "quota_10_13": 1038,
+            "quota_rank_total": 20661,
+            "collect": 8326,
+            "gold_collected": 1066,
+            "reshuffle": 531,
+            "double": 536,
+            "contested_quota": 358,
+            "quota_7_9": 684,
+            "pass": 3021,
+            "quota_2_6": 845,
+            "abandon": 160,
+            "mono_quota": 26,
+            "quota_1": 50
+          }
+        },
+        "comeback:2": {
+          "trials": 180,
+          "mean_score_delta": 37.772222222222226,
+          "score_delta_95ci_by_deal": [
+            33.01490806237484,
+            42.52953638206961
+          ],
+          "mean_win_share_delta": 0.46944444444444444,
+          "win_share_delta_95ci_by_deal": [
+            0.4188305132043965,
+            0.5200583756844923
+          ],
+          "mean_margin_delta": 46.394444444444446,
+          "mean_achieve_count_delta": -2.216666666666667,
+          "mean_quota_rank": 7.98554583491822,
+          "high_quota_rate": 0.40509699505515406,
+          "stats": {
+            "decisions": 14099,
+            "quota_10_13": 1065,
+            "quota_rank_total": 20994,
+            "collect": 8358,
+            "gold_collected": 1081,
+            "reshuffle": 529,
+            "double": 538,
+            "contested_quota": 351,
+            "quota_7_9": 688,
+            "pass": 2939,
+            "quota_2_6": 828,
+            "abandon": 173,
+            "mono_quota": 29,
+            "quota_1": 48
+          }
+        },
+        "denial:0": {
+          "trials": 180,
+          "mean_score_delta": 19.227777777777778,
+          "score_delta_95ci_by_deal": [
+            13.273430441372819,
+            25.18212511418274
+          ],
+          "mean_win_share_delta": 0.32222222222222224,
+          "win_share_delta_95ci_by_deal": [
+            0.24985452287529308,
+            0.3945899215691513
+          ],
+          "mean_margin_delta": 29.633333333333333,
+          "mean_achieve_count_delta": -0.9944444444444445,
+          "mean_quota_rank": 6.728825136612022,
+          "high_quota_rate": 0.25922131147540983,
+          "stats": {
+            "decisions": 14439,
+            "quota_10_13": 759,
+            "quota_rank_total": 19702,
+            "collect": 7644,
+            "gold_collected": 1034,
+            "reshuffle": 538,
+            "double": 521,
+            "quota_2_6": 1257,
+            "contested_quota": 660,
+            "quota_7_9": 761,
+            "pass": 3624,
+            "abandon": 243,
+            "mono_quota": 55,
+            "quota_1": 151
+          }
+        },
+        "denial:1": {
+          "trials": 180,
+          "mean_score_delta": 27.094444444444445,
+          "score_delta_95ci_by_deal": [
+            21.083029731446963,
+            33.10585915744193
+          ],
+          "mean_win_share_delta": 0.37222222222222223,
+          "win_share_delta_95ci_by_deal": [
+            0.29882054773780353,
+            0.4456238967066408
+          ],
+          "mean_margin_delta": 37.25,
+          "mean_achieve_count_delta": -0.7,
+          "mean_quota_rank": 6.845708446866485,
+          "high_quota_rate": 0.28712534059945505,
+          "stats": {
+            "decisions": 14345,
+            "quota_10_13": 843,
+            "quota_rank_total": 20099,
+            "collect": 7954,
+            "gold_collected": 1015,
+            "reshuffle": 530,
+            "double": 527,
+            "contested_quota": 624,
+            "quota_2_6": 1237,
+            "pass": 3257,
+            "abandon": 198,
+            "quota_7_9": 715,
+            "quota_1": 141,
+            "mono_quota": 35
+          }
+        },
+        "denial:2": {
+          "trials": 180,
+          "mean_score_delta": 27.63888888888889,
+          "score_delta_95ci_by_deal": [
+            21.68401911676713,
+            33.593758661010654
+          ],
+          "mean_win_share_delta": 0.36944444444444446,
+          "win_share_delta_95ci_by_deal": [
+            0.29656826422169574,
+            0.4423206246671931
+          ],
+          "mean_margin_delta": 37.99444444444445,
+          "mean_achieve_count_delta": -0.8333333333333334,
+          "mean_quota_rank": 6.912364130434782,
+          "high_quota_rate": 0.29313858695652173,
+          "stats": {
+            "decisions": 14268,
+            "quota_10_13": 863,
+            "quota_rank_total": 20350,
+            "collect": 7965,
+            "gold_collected": 1030,
+            "reshuffle": 531,
+            "double": 525,
+            "contested_quota": 628,
+            "quota_2_6": 1216,
+            "pass": 3129,
+            "abandon": 230,
+            "quota_7_9": 724,
+            "quota_1": 141,
+            "mono_quota": 35
+          }
+        },
+        "title:0": {
+          "trials": 180,
+          "mean_score_delta": 21.066666666666666,
+          "score_delta_95ci_by_deal": [
+            15.47513538026535,
+            26.658197953067983
+          ],
+          "mean_win_share_delta": 0.32222222222222224,
+          "win_share_delta_95ci_by_deal": [
+            0.2532673543588825,
+            0.3911770900855619
+          ],
+          "mean_margin_delta": 29.83888888888889,
+          "mean_achieve_count_delta": -0.38333333333333336,
+          "mean_quota_rank": 6.550763105507631,
+          "high_quota_rate": 0.2435301924353019,
+          "stats": {
+            "decisions": 14594,
+            "quota_10_13": 734,
+            "quota_rank_total": 19744,
+            "collect": 8053,
+            "gold_collected": 1026,
+            "reshuffle": 534,
+            "double": 528,
+            "quota_2_6": 1359,
+            "contested_quota": 437,
+            "pass": 3313,
+            "quota_7_9": 751,
+            "mono_quota": 216,
+            "quota_1": 170,
+            "abandon": 214
+          }
+        },
+        "title:1": {
+          "trials": 180,
+          "mean_score_delta": 28.916666666666668,
+          "score_delta_95ci_by_deal": [
+            23.963942352784887,
+            33.869390980548445
+          ],
+          "mean_win_share_delta": 0.36666666666666664,
+          "win_share_delta_95ci_by_deal": [
+            0.3004169725456847,
+            0.43291636078764856
+          ],
+          "mean_margin_delta": 37.59444444444444,
+          "mean_achieve_count_delta": -0.12222222222222222,
+          "mean_quota_rank": 6.705102717031147,
+          "high_quota_rate": 0.27037773359840955,
+          "stats": {
+            "decisions": 14482,
+            "quota_10_13": 816,
+            "quota_rank_total": 20236,
+            "collect": 8329,
+            "gold_collected": 1007,
+            "reshuffle": 530,
+            "double": 526,
+            "contested_quota": 441,
+            "quota_2_6": 1318,
+            "pass": 2945,
+            "abandon": 190,
+            "quota_7_9": 711,
+            "quota_1": 173,
+            "mono_quota": 182
+          }
+        },
+        "title:2": {
+          "trials": 180,
+          "mean_score_delta": 29.11111111111111,
+          "score_delta_95ci_by_deal": [
+            24.49062475373503,
+            33.73159746848719
+          ],
+          "mean_win_share_delta": 0.38055555555555554,
+          "win_share_delta_95ci_by_deal": [
+            0.3123810643794358,
+            0.44873004673167527
+          ],
+          "mean_margin_delta": 38.69444444444444,
+          "mean_achieve_count_delta": -0.35555555555555557,
+          "mean_quota_rank": 6.842670244884267,
+          "high_quota_rate": 0.28413284132841327,
+          "stats": {
+            "decisions": 14364,
+            "quota_10_13": 847,
+            "quota_rank_total": 20398,
+            "collect": 8341,
+            "gold_collected": 1016,
+            "reshuffle": 530,
+            "double": 527,
+            "contested_quota": 441,
+            "quota_2_6": 1239,
+            "pass": 2833,
+            "abandon": 209,
+            "quota_7_9": 722,
+            "mono_quota": 179,
+            "quota_1": 173
+          }
+        }
+      },
+      "inference_comparison": {
+        "balanced": {
+          "mean_score_delta_level_2_minus_0": 9.277777777777777,
+          "ci_95_by_deal": [
+            4.800603514616241,
+            13.754952040939312
+          ]
+        },
+        "efficient": {
+          "mean_score_delta_level_2_minus_0": 9.505555555555556,
+          "ci_95_by_deal": [
+            5.099087713382004,
+            13.912023397729108
+          ]
+        },
+        "safe": {
+          "mean_score_delta_level_2_minus_0": 6.316666666666666,
+          "ci_95_by_deal": [
+            1.6030225326689456,
+            11.030310800664388
+          ]
+        },
+        "comeback": {
+          "mean_score_delta_level_2_minus_0": 14.438888888888888,
+          "ci_95_by_deal": [
+            10.301728210353822,
+            18.576049567423954
+          ]
+        },
+        "denial": {
+          "mean_score_delta_level_2_minus_0": 8.411111111111111,
+          "ci_95_by_deal": [
+            3.565603457779255,
+            13.256618764442969
+          ]
+        },
+        "title": {
+          "mean_score_delta_level_2_minus_0": 8.044444444444444,
+          "ci_95_by_deal": [
+            3.7078991887172945,
+            12.380989700171593
+          ]
+        }
+      }
+    },
+    "screen_4p": {
+      "config": {
+        "deals": 40,
+        "seed": 20261012,
+        "players": 4,
+        "rounds": 4,
+        "styles": [
+          "balanced",
+          "efficient",
+          "safe",
+          "comeback",
+          "denial",
+          "title"
+        ],
+        "levels": [
+          0,
+          1,
+          2
+        ],
+        "guard_actions": 20000
+      },
+      "summary": {
+        "balanced:0": {
+          "trials": 160,
+          "mean_score_delta": 18.65,
+          "score_delta_95ci_by_deal": [
+            13.38951573351381,
+            23.910484266486186
+          ],
+          "mean_win_share_delta": 0.228125,
+          "win_share_delta_95ci_by_deal": [
+            0.1553153413396906,
+            0.3009346586603094
+          ],
+          "mean_margin_delta": 27.3125,
+          "mean_achieve_count_delta": 0.35625,
+          "mean_quota_rank": 6.144792002579813,
+          "high_quota_rate": 0.17736214124475974,
+          "stats": {
+            "double": 630,
+            "decisions": 13721,
+            "quota_10_13": 550,
+            "quota_rank_total": 19055,
+            "contested_quota": 771,
+            "collect": 7503,
+            "gold_collected": 1096,
+            "reshuffle": 612,
+            "quota_7_9": 876,
+            "pass": 2837,
+            "quota_2_6": 1497,
+            "quota_1": 178,
+            "mono_quota": 191,
+            "abandon": 280
+          }
+        },
+        "balanced:1": {
+          "trials": 160,
+          "mean_score_delta": 23.9,
+          "score_delta_95ci_by_deal": [
+            18.408871084264113,
+            29.391128915735884
+          ],
+          "mean_win_share_delta": 0.3125,
+          "win_share_delta_95ci_by_deal": [
+            0.23910477553437842,
+            0.3858952244656216
+          ],
+          "mean_margin_delta": 34.2125,
+          "mean_achieve_count_delta": 0.825,
+          "mean_quota_rank": 6.127672955974843,
+          "high_quota_rate": 0.180188679245283,
+          "stats": {
+            "double": 636,
+            "decisions": 13306,
+            "quota_10_13": 573,
+            "quota_rank_total": 19486,
+            "contested_quota": 782,
+            "collect": 7585,
+            "gold_collected": 1097,
+            "reshuffle": 596,
+            "quota_7_9": 895,
+            "pass": 2272,
+            "quota_2_6": 1511,
+            "abandon": 269,
+            "quota_1": 201,
+            "mono_quota": 160
+          }
+        },
+        "balanced:2": {
+          "trials": 160,
+          "mean_score_delta": 24.3625,
+          "score_delta_95ci_by_deal": [
+            18.86772433497287,
+            29.85727566502713
+          ],
+          "mean_win_share_delta": 0.31875,
+          "win_share_delta_95ci_by_deal": [
+            0.243824192679931,
+            0.39367580732006896
+          ],
+          "mean_margin_delta": 35.175,
+          "mean_achieve_count_delta": 0.5125,
+          "mean_quota_rank": 6.247277386290839,
+          "high_quota_rate": 0.18737988468930172,
+          "stats": {
+            "double": 635,
+            "decisions": 13307,
+            "quota_10_13": 585,
+            "quota_rank_total": 19504,
+            "contested_quota": 754,
+            "collect": 7632,
+            "gold_collected": 1115,
+            "reshuffle": 593,
+            "quota_7_9": 913,
+            "pass": 2282,
+            "quota_2_6": 1434,
+            "abandon": 271,
+            "quota_1": 190,
+            "mono_quota": 155
+          }
+        },
+        "efficient:0": {
+          "trials": 160,
+          "mean_score_delta": 18.25,
+          "score_delta_95ci_by_deal": [
+            12.621258213191505,
+            23.878741786808497
+          ],
+          "mean_win_share_delta": 0.253125,
+          "win_share_delta_95ci_by_deal": [
+            0.1617539462074895,
+            0.34449605379251047
+          ],
+          "mean_margin_delta": 27.14375,
+          "mean_achieve_count_delta": 2.65625,
+          "mean_quota_rank": 5.468559837728194,
+          "high_quota_rate": 0.10518690234714576,
+          "stats": {
+            "double": 634,
+            "decisions": 13759,
+            "quota_10_13": 363,
+            "quota_rank_total": 18872,
+            "contested_quota": 930,
+            "collect": 7336,
+            "gold_collected": 1076,
+            "reshuffle": 595,
+            "quota_7_9": 927,
+            "pass": 2710,
+            "quota_2_6": 1912,
+            "abandon": 262,
+            "mono_quota": 223,
+            "quota_1": 249
+          }
+        },
+        "efficient:1": {
+          "trials": 160,
+          "mean_score_delta": 23.6625,
+          "score_delta_95ci_by_deal": [
+            18.314969794261838,
+            29.010030205738165
+          ],
+          "mean_win_share_delta": 0.328125,
+          "win_share_delta_95ci_by_deal": [
+            0.2564874043383679,
+            0.3997625956616321
+          ],
+          "mean_margin_delta": 35.75,
+          "mean_achieve_count_delta": 2.9875,
+          "mean_quota_rank": 5.52003459210147,
+          "high_quota_rate": 0.11011818968002306,
+          "stats": {
+            "double": 635,
+            "decisions": 13503,
+            "quota_10_13": 382,
+            "quota_rank_total": 19149,
+            "contested_quota": 919,
+            "collect": 7466,
+            "gold_collected": 1041,
+            "reshuffle": 590,
+            "quota_7_9": 965,
+            "pass": 2341,
+            "quota_2_6": 1850,
+            "quota_1": 272,
+            "mono_quota": 155,
+            "abandon": 227
+          }
+        },
+        "efficient:2": {
+          "trials": 160,
+          "mean_score_delta": 24.275,
+          "score_delta_95ci_by_deal": [
+            18.978098779620147,
+            29.57190122037985
+          ],
+          "mean_win_share_delta": 0.3625,
+          "win_share_delta_95ci_by_deal": [
+            0.2753038609417443,
+            0.4496961390582557
+          ],
+          "mean_margin_delta": 36.55,
+          "mean_achieve_count_delta": 2.58125,
+          "mean_quota_rank": 5.635198135198135,
+          "high_quota_rate": 0.11567599067599067,
+          "stats": {
+            "double": 635,
+            "decisions": 13535,
+            "quota_10_13": 397,
+            "quota_rank_total": 19340,
+            "contested_quota": 899,
+            "collect": 7477,
+            "gold_collected": 1066,
+            "reshuffle": 595,
+            "quota_7_9": 1003,
+            "pass": 2376,
+            "quota_2_6": 1765,
+            "abandon": 250,
+            "mono_quota": 160,
+            "quota_1": 267
+          }
+        },
+        "safe:0": {
+          "trials": 160,
+          "mean_score_delta": 13.8875,
+          "score_delta_95ci_by_deal": [
+            8.121713655269827,
+            19.65328634473017
+          ],
+          "mean_win_share_delta": 0.19375,
+          "win_share_delta_95ci_by_deal": [
+            0.11194994867094583,
+            0.2755500513290542
+          ],
+          "mean_margin_delta": 21.875,
+          "mean_achieve_count_delta": 2.28125,
+          "mean_quota_rank": 5.436867182846933,
+          "high_quota_rate": 0.1015485407980941,
+          "stats": {
+            "decisions": 13328,
+            "quota_10_13": 341,
+            "quota_rank_total": 18257,
+            "contested_quota": 857,
+            "collect": 7048,
+            "gold_collected": 1010,
+            "reshuffle": 598,
+            "pass": 2662,
+            "quota_2_6": 1888,
+            "mono_quota": 257,
+            "quota_7_9": 882,
+            "abandon": 260,
+            "quota_1": 247
+          }
+        },
+        "safe:1": {
+          "trials": 160,
+          "mean_score_delta": 17.5375,
+          "score_delta_95ci_by_deal": [
+            12.128130403689617,
+            22.946869596310385
+          ],
+          "mean_win_share_delta": 0.2,
+          "win_share_delta_95ci_by_deal": [
+            0.11780109333810908,
+            0.28219890666189096
+          ],
+          "mean_margin_delta": 27.56875,
+          "mean_achieve_count_delta": 2.5875,
+          "mean_quota_rank": 5.4396955503512885,
+          "high_quota_rate": 0.10597189695550352,
+          "stats": {
+            "decisions": 13052,
+            "quota_10_13": 362,
+            "quota_rank_total": 18582,
+            "contested_quota": 835,
+            "collect": 7177,
+            "gold_collected": 1030,
+            "reshuffle": 597,
+            "pass": 2227,
+            "quota_2_6": 1870,
+            "quota_1": 264,
+            "quota_7_9": 920,
+            "mono_quota": 224,
+            "abandon": 232
+          }
+        },
+        "safe:2": {
+          "trials": 160,
+          "mean_score_delta": 19.73125,
+          "score_delta_95ci_by_deal": [
+            14.47408498223249,
+            24.988415017767508
+          ],
+          "mean_win_share_delta": 0.2375,
+          "win_share_delta_95ci_by_deal": [
+            0.1562426926362927,
+            0.3187573073637073
+          ],
+          "mean_margin_delta": 29.4875,
+          "mean_achieve_count_delta": 2.525,
+          "mean_quota_rank": 5.496600650310375,
+          "high_quota_rate": 0.11084835944428023,
+          "stats": {
+            "decisions": 12940,
+            "quota_10_13": 375,
+            "quota_rank_total": 18595,
+            "contested_quota": 824,
+            "collect": 7178,
+            "gold_collected": 1019,
+            "reshuffle": 595,
+            "pass": 2151,
+            "quota_2_6": 1828,
+            "quota_1": 256,
+            "quota_7_9": 924,
+            "mono_quota": 237,
+            "abandon": 228
+          }
+        },
+        "comeback:0": {
+          "trials": 160,
+          "mean_score_delta": 18.5,
+          "score_delta_95ci_by_deal": [
+            12.669443455776747,
+            24.330556544223253
+          ],
+          "mean_win_share_delta": 0.196875,
+          "win_share_delta_95ci_by_deal": [
+            0.12675745046206244,
+            0.26699254953793755
+          ],
+          "mean_margin_delta": 28.4,
+          "mean_achieve_count_delta": -1.46875,
+          "mean_quota_rank": 6.808996786861835,
+          "high_quota_rate": 0.24669760799714388,
+          "stats": {
+            "double": 634,
+            "decisions": 13551,
+            "quota_10_13": 691,
+            "quota_rank_total": 19072,
+            "contested_quota": 642,
+            "collect": 7501,
+            "gold_collected": 1087,
+            "reshuffle": 613,
+            "pass": 2992,
+            "quota_2_6": 1184,
+            "quota_7_9": 827,
+            "mono_quota": 154,
+            "quota_1": 99,
+            "abandon": 257
+          }
+        },
+        "comeback:1": {
+          "trials": 160,
+          "mean_score_delta": 25.53125,
+          "score_delta_95ci_by_deal": [
+            19.480318781271592,
+            31.582181218728408
+          ],
+          "mean_win_share_delta": 0.353125,
+          "win_share_delta_95ci_by_deal": [
+            0.2782312959451779,
+            0.4280187040548221
+          ],
+          "mean_margin_delta": 34.86875,
+          "mean_achieve_count_delta": -1.09375,
+          "mean_quota_rank": 6.85938056247775,
+          "high_quota_rate": 0.2548949804200783,
+          "stats": {
+            "double": 633,
+            "decisions": 13283,
+            "quota_10_13": 716,
+            "quota_rank_total": 19268,
+            "contested_quota": 618,
+            "collect": 7727,
+            "gold_collected": 1132,
+            "reshuffle": 606,
+            "quota_7_9": 848,
+            "pass": 2548,
+            "quota_2_6": 1144,
+            "abandon": 199,
+            "quota_1": 101,
+            "mono_quota": 125
+          }
+        },
+        "comeback:2": {
+          "trials": 160,
+          "mean_score_delta": 26.26875,
+          "score_delta_95ci_by_deal": [
+            20.881252336397676,
+            31.656247663602326
+          ],
+          "mean_win_share_delta": 0.359375,
+          "win_share_delta_95ci_by_deal": [
+            0.2784082476631651,
+            0.4403417523368349
+          ],
+          "mean_margin_delta": 36.18125,
+          "mean_achieve_count_delta": -1.28125,
+          "mean_quota_rank": 6.966989594546107,
+          "high_quota_rate": 0.2640832436311446,
+          "stats": {
+            "double": 631,
+            "decisions": 13260,
+            "quota_10_13": 736,
+            "quota_rank_total": 19417,
+            "contested_quota": 584,
+            "collect": 7762,
+            "gold_collected": 1128,
+            "reshuffle": 603,
+            "quota_7_9": 858,
+            "pass": 2501,
+            "quota_2_6": 1104,
+            "abandon": 210,
+            "quota_1": 89,
+            "mono_quota": 123
+          }
+        },
+        "denial:0": {
+          "trials": 160,
+          "mean_score_delta": 11.95,
+          "score_delta_95ci_by_deal": [
+            6.3184370571317245,
+            17.581562942868274
+          ],
+          "mean_win_share_delta": 0.15625,
+          "win_share_delta_95ci_by_deal": [
+            0.07041030332275734,
+            0.24208969667724267
+          ],
+          "mean_margin_delta": 20.625,
+          "mean_achieve_count_delta": 0.775,
+          "mean_quota_rank": 5.792042275411874,
+          "high_quota_rate": 0.1526266708113149,
+          "stats": {
+            "decisions": 14117,
+            "quota_10_13": 491,
+            "quota_rank_total": 18633,
+            "contested_quota": 1171,
+            "collect": 7352,
+            "gold_collected": 1052,
+            "reshuffle": 616,
+            "pass": 3226,
+            "double": 635,
+            "quota_2_6": 1654,
+            "quota_7_9": 838,
+            "abandon": 322,
+            "quota_1": 234,
+            "mono_quota": 128
+          }
+        },
+        "denial:1": {
+          "trials": 160,
+          "mean_score_delta": 21.925,
+          "score_delta_95ci_by_deal": [
+            16.49054648325694,
+            27.359453516743063
+          ],
+          "mean_win_share_delta": 0.34375,
+          "win_share_delta_95ci_by_deal": [
+            0.2588115324530118,
+            0.4286884675469882
+          ],
+          "mean_margin_delta": 32.79375,
+          "mean_achieve_count_delta": 1.9,
+          "mean_quota_rank": 5.767798137578852,
+          "high_quota_rate": 0.15139681586061882,
+          "stats": {
+            "decisions": 13923,
+            "quota_10_13": 504,
+            "quota_rank_total": 19201,
+            "contested_quota": 1173,
+            "collect": 7573,
+            "gold_collected": 1075,
+            "reshuffle": 617,
+            "pass": 2731,
+            "double": 636,
+            "quota_2_6": 1701,
+            "quota_7_9": 865,
+            "quota_1": 259,
+            "abandon": 290,
+            "mono_quota": 109
+          }
+        },
+        "denial:2": {
+          "trials": 160,
+          "mean_score_delta": 21.2625,
+          "score_delta_95ci_by_deal": [
+            16.089964070467204,
+            26.435035929532795
+          ],
+          "mean_win_share_delta": 0.290625,
+          "win_share_delta_95ci_by_deal": [
+            0.2067635858761841,
+            0.37448641412381595
+          ],
+          "mean_margin_delta": 32.20625,
+          "mean_achieve_count_delta": 1.31875,
+          "mean_quota_rank": 5.8766372220530005,
+          "high_quota_rate": 0.15625951873286628,
+          "stats": {
+            "decisions": 13836,
+            "quota_10_13": 513,
+            "quota_rank_total": 19293,
+            "contested_quota": 1138,
+            "collect": 7564,
+            "gold_collected": 1087,
+            "reshuffle": 614,
+            "pass": 2679,
+            "double": 637,
+            "quota_2_6": 1624,
+            "quota_7_9": 900,
+            "abandon": 310,
+            "quota_1": 246,
+            "mono_quota": 103
+          }
+        },
+        "title:0": {
+          "trials": 160,
+          "mean_score_delta": 15.80625,
+          "score_delta_95ci_by_deal": [
+            10.42724087516445,
+            21.18525912483555
+          ],
+          "mean_win_share_delta": 0.21875,
+          "win_share_delta_95ci_by_deal": [
+            0.14870794532513398,
+            0.288792054674866
+          ],
+          "mean_margin_delta": 24.33125,
+          "mean_achieve_count_delta": 1.40625,
+          "mean_quota_rank": 5.73224715647095,
+          "high_quota_rate": 0.14079311404857056,
+          "stats": {
+            "decisions": 14344,
+            "quota_10_13": 458,
+            "quota_rank_total": 18647,
+            "contested_quota": 834,
+            "collect": 7776,
+            "gold_collected": 1054,
+            "reshuffle": 611,
+            "pass": 3043,
+            "double": 633,
+            "quota_2_6": 1681,
+            "quota_7_9": 865,
+            "abandon": 272,
+            "quota_1": 249,
+            "mono_quota": 286
+          }
+        },
+        "title:1": {
+          "trials": 160,
+          "mean_score_delta": 24.25625,
+          "score_delta_95ci_by_deal": [
+            18.061551744817884,
+            30.45094825518212
+          ],
+          "mean_win_share_delta": 0.31875,
+          "win_share_delta_95ci_by_deal": [
+            0.2443395069606512,
+            0.39316049303934875
+          ],
+          "mean_margin_delta": 34.33125,
+          "mean_achieve_count_delta": 1.825,
+          "mean_quota_rank": 5.831306990881459,
+          "high_quota_rate": 0.14559270516717326,
+          "stats": {
+            "decisions": 13901,
+            "quota_10_13": 479,
+            "quota_rank_total": 19185,
+            "contested_quota": 835,
+            "collect": 7975,
+            "gold_collected": 1055,
+            "reshuffle": 602,
+            "pass": 2409,
+            "double": 640,
+            "quota_2_6": 1695,
+            "quota_7_9": 892,
+            "quota_1": 224,
+            "mono_quota": 257,
+            "abandon": 227
+          }
+        },
+        "title:2": {
+          "trials": 160,
+          "mean_score_delta": 25.0375,
+          "score_delta_95ci_by_deal": [
+            18.979390923453646,
+            31.095609076546356
+          ],
+          "mean_win_share_delta": 0.321875,
+          "win_share_delta_95ci_by_deal": [
+            0.2405762695442423,
+            0.4031737304557578
+          ],
+          "mean_margin_delta": 35.725,
+          "mean_achieve_count_delta": 1.73125,
+          "mean_quota_rank": 5.861650485436893,
+          "high_quota_rate": 0.15018203883495146,
+          "stats": {
+            "decisions": 13917,
+            "quota_10_13": 495,
+            "quota_rank_total": 19320,
+            "contested_quota": 827,
+            "collect": 8014,
+            "gold_collected": 1052,
+            "reshuffle": 603,
+            "pass": 2356,
+            "double": 640,
+            "quota_2_6": 1650,
+            "quota_7_9": 908,
+            "abandon": 251,
+            "quota_1": 243,
+            "mono_quota": 260
+          }
+        }
+      },
+      "inference_comparison": {
+        "balanced": {
+          "mean_score_delta_level_2_minus_0": 5.7125,
+          "ci_95_by_deal": [
+            1.1342261461584426,
+            10.290773853841557
+          ]
+        },
+        "efficient": {
+          "mean_score_delta_level_2_minus_0": 6.025,
+          "ci_95_by_deal": [
+            1.9412847358104957,
+            10.108715264189506
+          ]
+        },
+        "safe": {
+          "mean_score_delta_level_2_minus_0": 5.84375,
+          "ci_95_by_deal": [
+            2.511866058299519,
+            9.17563394170048
+          ]
+        },
+        "comeback": {
+          "mean_score_delta_level_2_minus_0": 7.76875,
+          "ci_95_by_deal": [
+            4.212022420423443,
+            11.325477579576557
+          ]
+        },
+        "denial": {
+          "mean_score_delta_level_2_minus_0": 9.3125,
+          "ci_95_by_deal": [
+            4.442597079496533,
+            14.182402920503467
+          ]
+        },
+        "title": {
+          "mean_score_delta_level_2_minus_0": 9.23125,
+          "ci_95_by_deal": [
+            5.0827124079992245,
+            13.379787592000774
+          ]
+        }
+      }
+    },
+    "league_3p": {
+      "config": {
+        "players": 3,
+        "rounds": 3,
+        "deals_per_cast": 12,
+        "seed": 20261013,
+        "roster": [
+          {
+            "id": "ledger_keeper",
+            "name": "慎重な帳簿係",
+            "style": "safe",
+            "inference": 0,
+            "character": "失敗の少ないノルマを選び、公開札の簡単な見込みだけで判断する。"
+          },
+          {
+            "id": "harbor_broker",
+            "name": "港の仲買人",
+            "style": "balanced",
+            "inference": 1,
+            "character": "得点、完成の見込み、残り手番をバランスよく比べる。"
+          },
+          {
+            "id": "quick_trader",
+            "name": "早足の商人",
+            "style": "efficient",
+            "inference": 2,
+            "character": "短い手番で完成できるノルマを好み、公開札の履歴まで読む。"
+          },
+          {
+            "id": "risk_captain",
+            "name": "勝負師の船長",
+            "style": "comeback",
+            "inference": 2,
+            "character": "負けが見えてきたら大きなノルマにも踏み込む。"
+          },
+          {
+            "id": "market_blocker",
+            "name": "目ざとい競売人",
+            "style": "denial",
+            "inference": 1,
+            "character": "競合する相手が欲しい札を取り、相手の完成を遅らせる。"
+          },
+          {
+            "id": "title_collector",
+            "name": "品揃えの収集家",
+            "style": "title",
+            "inference": 1,
+            "character": "無理のない範囲で称号を狙い、完成した束を増やす。"
+          }
+        ],
+        "guard_actions": 20000
+      },
+      "summary": {
+        "ledger_keeper": {
+          "style": "safe",
+          "inference": 0,
+          "independent_casts": 120,
+          "games": 360,
+          "mean_score": 118.95555555555555,
+          "score_95ci_by_cast": [
+            115.6906468346721,
+            122.220464276439
+          ],
+          "mean_win_share": 0.25277777777777777,
+          "win_share_95ci_by_cast": [
+            0.20606804819117303,
+            0.2994875073643825
+          ],
+          "mean_margin": -25.25277777777778,
+          "contested_quota_rate": 0.2373284537968893,
+          "mono_quota_count": 312,
+          "gold_collected": 1195,
+          "title_counts": {
+            "五種の品揃え": 144,
+            "生粋の買い付け": 255,
+            "単色達成": 9
+          },
+          "policy_stats": {
+            "decisions": 26254,
+            "quota_7_9": 1475,
+            "quota_rank_total": 34020,
+            "contested_quota": 1297,
+            "reshuffle": 1072,
+            "collect": 13496,
+            "gold_collected": 1195,
+            "pass": 6847,
+            "quota_2_6": 2584,
+            "quota_10_13": 1026,
+            "quota_1": 380,
+            "mono_quota": 312,
+            "abandon": 446
+          }
+        },
+        "harbor_broker": {
+          "style": "balanced",
+          "inference": 1,
+          "independent_casts": 120,
+          "games": 360,
+          "mean_score": 128.65,
+          "score_95ci_by_cast": [
+            124.79847169965402,
+            132.501528300346
+          ],
+          "mean_win_share": 0.3986111111111111,
+          "win_share_95ci_by_cast": [
+            0.3459865433280876,
+            0.4512356788941346
+          ],
+          "mean_margin": -11.730555555555556,
+          "contested_quota_rate": 0.2369377990430622,
+          "mono_quota_count": 124,
+          "gold_collected": 1351,
+          "title_counts": {
+            "五種の品揃え": 129,
+            "生粋の買い付け": 224,
+            "単色達成": 3
+          },
+          "policy_stats": {
+            "double": 1022,
+            "decisions": 26974,
+            "quota_10_13": 1529,
+            "quota_rank_total": 36779,
+            "collect": 14678,
+            "gold_collected": 1351,
+            "reshuffle": 1067,
+            "pass": 6558,
+            "quota_7_9": 1312,
+            "contested_quota": 1238,
+            "abandon": 513,
+            "quota_2_6": 2136,
+            "quota_1": 248,
+            "mono_quota": 124
+          }
+        },
+        "quick_trader": {
+          "style": "efficient",
+          "inference": 2,
+          "independent_casts": 120,
+          "games": 360,
+          "mean_score": 131.03611111111113,
+          "score_95ci_by_cast": [
+            127.48661069590747,
+            134.58561152631478
+          ],
+          "mean_win_share": 0.4041666666666667,
+          "win_share_95ci_by_cast": [
+            0.354408104709779,
+            0.45392522862355433
+          ],
+          "mean_margin": -6.188888888888889,
+          "contested_quota_rate": 0.2396109637488948,
+          "mono_quota_count": 128,
+          "gold_collected": 1242,
+          "title_counts": {
+            "生粋の買い付け": 258,
+            "五種の品揃え": 177,
+            "単色達成": 6
+          },
+          "policy_stats": {
+            "double": 1026,
+            "decisions": 27022,
+            "quota_10_13": 1283,
+            "quota_rank_total": 36587,
+            "collect": 14531,
+            "gold_collected": 1242,
+            "reshuffle": 1066,
+            "pass": 6390,
+            "quota_2_6": 2560,
+            "contested_quota": 1355,
+            "abandon": 446,
+            "quota_7_9": 1453,
+            "quota_1": 359,
+            "mono_quota": 128
+          }
+        },
+        "risk_captain": {
+          "style": "comeback",
+          "inference": 2,
+          "independent_casts": 120,
+          "games": 360,
+          "mean_score": 125.19166666666666,
+          "score_95ci_by_cast": [
+            121.48493127355998,
+            128.89840205977336
+          ],
+          "mean_win_share": 0.33194444444444443,
+          "win_share_95ci_by_cast": [
+            0.28628439968179725,
+            0.3776044892070916
+          ],
+          "mean_margin": -14.352777777777778,
+          "contested_quota_rate": 0.2386972359117206,
+          "mono_quota_count": 87,
+          "gold_collected": 1370,
+          "title_counts": {
+            "生粋の買い付け": 178,
+            "五種の品揃え": 73,
+            "単色達成": 4
+          },
+          "policy_stats": {
+            "decisions": 26571,
+            "quota_7_9": 1277,
+            "quota_rank_total": 36134,
+            "collect": 14796,
+            "gold_collected": 1370,
+            "double": 1014,
+            "quota_10_13": 1696,
+            "reshuffle": 1070,
+            "pass": 6669,
+            "quota_2_6": 1576,
+            "contested_quota": 1114,
+            "abandon": 439,
+            "mono_quota": 87,
+            "quota_1": 118
+          }
+        },
+        "market_blocker": {
+          "style": "denial",
+          "inference": 1,
+          "independent_casts": 120,
+          "games": 360,
+          "mean_score": 125.01944444444445,
+          "score_95ci_by_cast": [
+            122.31333463113053,
+            127.72555425775836
+          ],
+          "mean_win_share": 0.2819444444444444,
+          "win_share_95ci_by_cast": [
+            0.23623532776234626,
+            0.32765356112654254
+          ],
+          "mean_margin": -20.141666666666666,
+          "contested_quota_rate": 0.3222970445192667,
+          "mono_quota_count": 96,
+          "gold_collected": 1246,
+          "title_counts": {
+            "五種の品揃え": 139,
+            "生粋の買い付け": 259,
+            "単色達成": 4
+          },
+          "policy_stats": {
+            "decisions": 27560,
+            "quota_7_9": 1359,
+            "quota_rank_total": 36155,
+            "contested_quota": 1723,
+            "reshuffle": 1070,
+            "collect": 14366,
+            "gold_collected": 1246,
+            "pass": 7296,
+            "double": 1017,
+            "quota_10_13": 1400,
+            "quota_2_6": 2266,
+            "quota_1": 321,
+            "abandon": 552,
+            "mono_quota": 96
+          }
+        },
+        "title_collector": {
+          "style": "title",
+          "inference": 1,
+          "independent_casts": 120,
+          "games": 360,
+          "mean_score": 128.2722222222222,
+          "score_95ci_by_cast": [
+            124.68465003331747,
+            131.85979441112696
+          ],
+          "mean_win_share": 0.33055555555555555,
+          "win_share_95ci_by_cast": [
+            0.2795626758213465,
+            0.3815484352897646
+          ],
+          "mean_margin": -12.944444444444445,
+          "contested_quota_rate": 0.22027716994894236,
+          "mono_quota_count": 379,
+          "gold_collected": 1200,
+          "title_counts": {
+            "生粋の買い付け": 284,
+            "五種の品揃え": 162,
+            "単色達成": 14
+          },
+          "policy_stats": {
+            "decisions": 27623,
+            "quota_10_13": 1380,
+            "quota_rank_total": 36396,
+            "collect": 14924,
+            "gold_collected": 1200,
+            "reshuffle": 1069,
+            "pass": 6715,
+            "double": 1007,
+            "quota_7_9": 1342,
+            "quota_2_6": 2418,
+            "abandon": 500,
+            "contested_quota": 1208,
+            "quota_1": 344,
+            "mono_quota": 379
+          }
+        }
+      }
+    },
+    "league_4p": {
+      "config": {
+        "players": 4,
+        "rounds": 4,
+        "deals_per_cast": 12,
+        "seed": 20261014,
+        "roster": [
+          {
+            "id": "ledger_keeper",
+            "name": "慎重な帳簿係",
+            "style": "safe",
+            "inference": 0,
+            "character": "失敗の少ないノルマを選び、公開札の簡単な見込みだけで判断する。"
+          },
+          {
+            "id": "harbor_broker",
+            "name": "港の仲買人",
+            "style": "balanced",
+            "inference": 1,
+            "character": "得点、完成の見込み、残り手番をバランスよく比べる。"
+          },
+          {
+            "id": "quick_trader",
+            "name": "早足の商人",
+            "style": "efficient",
+            "inference": 2,
+            "character": "短い手番で完成できるノルマを好み、公開札の履歴まで読む。"
+          },
+          {
+            "id": "risk_captain",
+            "name": "勝負師の船長",
+            "style": "comeback",
+            "inference": 2,
+            "character": "負けが見えてきたら大きなノルマにも踏み込む。"
+          },
+          {
+            "id": "market_blocker",
+            "name": "目ざとい競売人",
+            "style": "denial",
+            "inference": 1,
+            "character": "競合する相手が欲しい札を取り、相手の完成を遅らせる。"
+          },
+          {
+            "id": "title_collector",
+            "name": "品揃えの収集家",
+            "style": "title",
+            "inference": 1,
+            "character": "無理のない範囲で称号を狙い、完成した束を増やす。"
+          }
+        ],
+        "guard_actions": 20000
+      },
+      "summary": {
+        "ledger_keeper": {
+          "style": "safe",
+          "inference": 0,
+          "independent_casts": 120,
+          "games": 480,
+          "mean_score": 116.63333333333334,
+          "score_95ci_by_cast": [
+            114.63886853870962,
+            118.62779812795706
+          ],
+          "mean_win_share": 0.13229166666666667,
+          "win_share_95ci_by_cast": [
+            0.10062301186581626,
+            0.16396032146751707
+          ],
+          "mean_margin": -33.5875,
+          "contested_quota_rate": 0.3417262231995602,
+          "mono_quota_count": 787,
+          "gold_collected": 1514,
+          "title_counts": {
+            "生粋の買い付け": 706,
+            "五種の品揃え": 96,
+            "単色達成": 45
+          },
+          "policy_stats": {
+            "decisions": 38126,
+            "quota_10_13": 841,
+            "quota_rank_total": 49806,
+            "collect": 19131,
+            "gold_collected": 1514,
+            "reshuffle": 1831,
+            "pass": 8945,
+            "quota_2_6": 4965,
+            "mono_quota": 787,
+            "quota_7_9": 2494,
+            "quota_1": 795,
+            "contested_quota": 3108,
+            "abandon": 955
+          }
+        },
+        "harbor_broker": {
+          "style": "balanced",
+          "inference": 1,
+          "independent_casts": 120,
+          "games": 480,
+          "mean_score": 133.14791666666667,
+          "score_95ci_by_cast": [
+            131.08103146939297,
+            135.21480186394038
+          ],
+          "mean_win_share": 0.3416666666666667,
+          "win_share_95ci_by_cast": [
+            0.298200561623982,
+            0.38513277170935134
+          ],
+          "mean_margin": -13.022916666666667,
+          "contested_quota_rate": 0.3295918367346939,
+          "mono_quota_count": 471,
+          "gold_collected": 1785,
+          "title_counts": {
+            "生粋の買い付け": 580,
+            "五種の品揃え": 102,
+            "単色達成": 27
+          },
+          "policy_stats": {
+            "double": 1889,
+            "decisions": 39476,
+            "quota_7_9": 2586,
+            "quota_rank_total": 55570,
+            "collect": 21762,
+            "gold_collected": 1785,
+            "reshuffle": 1853,
+            "pass": 7865,
+            "quota_2_6": 4116,
+            "contested_quota": 2907,
+            "quota_1": 524,
+            "mono_quota": 471,
+            "quota_10_13": 1594,
+            "abandon": 1029
+          }
+        },
+        "quick_trader": {
+          "style": "efficient",
+          "inference": 2,
+          "independent_casts": 120,
+          "games": 480,
+          "mean_score": 130.23125,
+          "score_95ci_by_cast": [
+            128.2084566795142,
+            132.25404332048578
+          ],
+          "mean_win_share": 0.29270833333333335,
+          "win_share_95ci_by_cast": [
+            0.2548489214329295,
+            0.3305677452337372
+          ],
+          "mean_margin": -15.604166666666666,
+          "contested_quota_rate": 0.3451825127334465,
+          "mono_quota_count": 474,
+          "gold_collected": 1724,
+          "title_counts": {
+            "生粋の買い付け": 651,
+            "五種の品揃え": 134,
+            "単色達成": 21
+          },
+          "policy_stats": {
+            "double": 1880,
+            "decisions": 39105,
+            "quota_2_6": 5030,
+            "quota_rank_total": 53113,
+            "collect": 20899,
+            "gold_collected": 1724,
+            "reshuffle": 1841,
+            "pass": 7904,
+            "quota_7_9": 2677,
+            "quota_10_13": 1015,
+            "contested_quota": 3253,
+            "abandon": 878,
+            "quota_1": 702,
+            "mono_quota": 474
+          }
+        },
+        "risk_captain": {
+          "style": "comeback",
+          "inference": 2,
+          "independent_casts": 120,
+          "games": 480,
+          "mean_score": 129.45625,
+          "score_95ci_by_cast": [
+            127.35569917967346,
+            131.55680082032654
+          ],
+          "mean_win_share": 0.2916666666666667,
+          "win_share_95ci_by_cast": [
+            0.253055567310859,
+            0.3302777660224744
+          ],
+          "mean_margin": -16.883333333333333,
+          "contested_quota_rate": 0.33472095746064784,
+          "mono_quota_count": 312,
+          "gold_collected": 1984,
+          "title_counts": {
+            "生粋の買い付け": 401,
+            "単色達成": 17,
+            "五種の品揃え": 52
+          },
+          "policy_stats": {
+            "double": 1876,
+            "decisions": 39298,
+            "quota_10_13": 2008,
+            "quota_rank_total": 54299,
+            "contested_quota": 2573,
+            "collect": 21906,
+            "gold_collected": 1984,
+            "reshuffle": 1866,
+            "quota_7_9": 2348,
+            "pass": 8780,
+            "abandon": 925,
+            "quota_2_6": 3040,
+            "mono_quota": 312,
+            "quota_1": 291
+          }
+        },
+        "market_blocker": {
+          "style": "denial",
+          "inference": 1,
+          "independent_casts": 120,
+          "games": 480,
+          "mean_score": 121.27083333333333,
+          "score_95ci_by_cast": [
+            119.3470027467647,
+            123.19466391990196
+          ],
+          "mean_win_share": 0.165625,
+          "win_share_95ci_by_cast": [
+            0.13267274045207633,
+            0.19857725954792366
+          ],
+          "mean_margin": -28.395833333333332,
+          "contested_quota_rate": 0.4641449960598897,
+          "mono_quota_count": 261,
+          "gold_collected": 1702,
+          "title_counts": {
+            "生粋の買い付け": 589,
+            "五種の品揃え": 94,
+            "単色達成": 14
+          },
+          "policy_stats": {
+            "decisions": 40140,
+            "quota_10_13": 1291,
+            "quota_rank_total": 53125,
+            "collect": 20531,
+            "gold_collected": 1702,
+            "reshuffle": 1877,
+            "pass": 9563,
+            "double": 1869,
+            "quota_2_6": 4307,
+            "contested_quota": 4123,
+            "abandon": 1163,
+            "quota_7_9": 2628,
+            "quota_1": 657,
+            "mono_quota": 261
+          }
+        },
+        "title_collector": {
+          "style": "title",
+          "inference": 1,
+          "independent_casts": 120,
+          "games": 480,
+          "mean_score": 129.43958333333333,
+          "score_95ci_by_cast": [
+            127.25919016473058,
+            131.6199765019361
+          ],
+          "mean_win_share": 0.2760416666666667,
+          "win_share_95ci_by_cast": [
+            0.235981273889705,
+            0.31610205944362835
+          ],
+          "mean_margin": -17.83125,
+          "contested_quota_rate": 0.32668055707862703,
+          "mono_quota_count": 892,
+          "gold_collected": 1710,
+          "title_counts": {
+            "生粋の買い付け": 640,
+            "五種の品揃え": 110,
+            "単色達成": 58
+          },
+          "policy_stats": {
+            "decisions": 40678,
+            "quota_10_13": 1343,
+            "quota_rank_total": 53994,
+            "collect": 21965,
+            "gold_collected": 1710,
+            "reshuffle": 1858,
+            "pass": 8598,
+            "double": 1874,
+            "quota_7_9": 2512,
+            "contested_quota": 2979,
+            "quota_2_6": 4595,
+            "mono_quota": 892,
+            "abandon": 996,
+            "quota_1": 669
+          }
+        }
+      }
+    }
+  }
+}
