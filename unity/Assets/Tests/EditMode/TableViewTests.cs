@@ -77,16 +77,19 @@ namespace Quota.Tests
                 UnityEditor.ImportAssetOptions.ForceUpdate);
             host = Open();
             var sources = host.GetComponents<AudioSource>();
-            Assert.AreEqual(6, sources.Length);
+            Assert.AreEqual(8, sources.Length);
             Assert.IsFalse(sources[0].loop);
             Assert.AreEqual("end", sources[0].clip.name);
             Assert.AreEqual(4.056f, sources[0].clip.length, 0.05f);
-            Assert.IsTrue(sources[2].loop);
-            Assert.AreEqual("Quota BGM loop PCM", sources[2].clip.name);
-            Assert.AreEqual(76f, sources[2].clip.length, 0.05f);
+            Assert.IsFalse(sources[1].loop);
+            Assert.AreEqual("final", sources[1].clip.name);
+            Assert.IsTrue(sources[3].loop);
+            Assert.AreEqual("Quota BGM loop PCM", sources[3].clip.name);
+            Assert.AreEqual(76f, sources[3].clip.length, 0.05f);
             typeof(TableView).GetMethod("SetEndBgmGain", BindingFlags.Instance | BindingFlags.NonPublic)
                 .Invoke(host.GetComponent<TableView>(), new object[] { 0.4f });
             Assert.AreEqual(0.4f, sources[0].volume, 0.001f);
+            Assert.AreEqual(0.4f, sources[1].volume, 0.001f);
         }
 
         [Test]
@@ -99,13 +102,15 @@ namespace Quota.Tests
                 var clip = Resources.Load<AudioClip>("QuotaSe/card_0" + (i + 1));
                 Assert.IsNotNull(clip);
                 Assert.AreEqual(0.3f, clip.length, 0.01f);
-                Assert.AreSame(clip, sources[3 + i].clip);
+                Assert.AreSame(clip, sources[4 + i].clip);
             }
+            Assert.AreEqual("chip_counting", sources[7].clip.name);
+            Assert.IsTrue(sources[7].loop);
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             typeof(TableView).GetField("seLevel", flags).SetValue(view, 2);
             typeof(TableView).GetMethod("SetCardSeGain", flags).Invoke(view, null);
-            for (var i = 3; i < sources.Length; i++) Assert.AreEqual(0.4f, sources[i].volume, 0.001f);
+            for (var i = 4; i < sources.Length; i++) Assert.AreEqual(0.4f, sources[i].volume, 0.001f);
         }
 
         [Test]
