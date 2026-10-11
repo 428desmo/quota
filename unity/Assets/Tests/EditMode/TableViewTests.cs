@@ -139,7 +139,7 @@ namespace Quota.Tests
                 Assert.AreEqual(0.3f, clip.length, 0.01f);
                 Assert.AreSame(clip, sources[4 + i].clip);
             }
-            Assert.AreEqual("chip_counting", sources[7].clip.name);
+            Assert.AreEqual("chip_counting_02", sources[7].clip.name);
             Assert.IsTrue(sources[7].loop);
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;

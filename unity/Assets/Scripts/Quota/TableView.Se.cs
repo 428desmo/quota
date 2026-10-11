@@ -28,7 +28,7 @@ namespace Quota
                 source.volume = SeGain;
                 cardSe[i] = source;
             }
-            var countingClip = Resources.Load<AudioClip>("QuotaSe/chip_counting");
+            var countingClip = Resources.Load<AudioClip>("QuotaSe/chip_counting_02");
             if (countingClip != null)
             {
                 chipCountingSe = gameObject.AddComponent<AudioSource>();
