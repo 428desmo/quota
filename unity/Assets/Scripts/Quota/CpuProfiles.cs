@@ -7,7 +7,7 @@ namespace Quota
     // Stable IDs shared with quota/cpu_roster.py.
     public static class CpuProfiles
     {
-        public static readonly string[] Names = { "慎重な帳簿係", "港の仲買人", "早足の商人", "勝負師の船長", "目ざとい競売人", "品揃えの収集家" };
+        public static readonly string[] Names = { "慎重なピエトロ", "柔軟なマルコ", "手際のよいルチア", "大胆なロレンツォ", "抜け目ないイザベラ", "好奇心旺盛なソフィア" };
         static readonly Dictionary<Player, ProfileMind> Minds = new Dictionary<Player, ProfileMind>();
 
         public static int PickFresh(Random rng, HashSet<int> used)

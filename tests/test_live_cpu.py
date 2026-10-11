@@ -27,7 +27,7 @@ def test_cast_nomination_is_ordered_unique_and_leader_only():
         raise AssertionError("guest nominated CPUs")
     hall.nominate({"cpu_cast": [5, 2, 0]}, "host")
     started = hall.begin("host")
-    assert started["cpus"] == ["品揃えの収集家"]
+    assert started["cpus"] == ["好奇心旺盛なソフィア"]
     mind = mind_for(hall.tables[opened["table_id"]].game.players[2])
     assert mind.character_id == 5
     assert mind.policy.inference == 2
