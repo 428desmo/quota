@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Quota
 {
@@ -26,8 +27,11 @@ namespace Quota
         {
             var seat = Game.Current;
             var turn = Game.TurnNumber;
+            var market = new List<Card>(Game.Market);
+            var deck = Game.Deck.Count;
             Characters.Observe(Game, action);
             Game.Step(action);
+            CpuProfiles.ObserveTransition(Game, market, deck, action is Pass && !market.SequenceEqual(Game.Market), false);
             Characters.CommitIfTurnEnded(Game, seat, turn);
             PumpCpus();
         }
@@ -43,8 +47,11 @@ namespace Quota
             notify?.Invoke(player.Name, action.Key, Game.TurnGain || Game.DoubleGained);
             var seat = Game.Current;
             var turn = Game.TurnNumber;
+            var market = new List<Card>(Game.Market);
+            var deck = Game.Deck.Count;
             Characters.Observe(Game, action);
             Game.Step(action);
+            CpuProfiles.ObserveTransition(Game, market, deck, action is Pass && !market.SequenceEqual(Game.Market), false);
             Characters.CommitIfTurnEnded(Game, seat, turn);
             return true;
         }

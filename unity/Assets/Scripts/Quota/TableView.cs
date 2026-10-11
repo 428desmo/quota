@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
@@ -87,6 +88,9 @@ namespace Quota
         bool sitOut;
         bool onSetup = true;
         readonly List<int> lobbyCast = new List<int>();
+        readonly List<int> nomination = new List<int>();
+        bool nominationOpen;
+        int cpuStrength = 1;
         readonly System.Random lobbyRng = new System.Random();
         NetworkSnapshot networkState;
         readonly List<NetworkTable> networkTables = new List<NetworkTable>();
@@ -705,6 +709,13 @@ namespace Quota
             gameMode = (GameMode)Mathf.Clamp(PlayerPrefs.GetInt("quota.gameMode", (int)GameMode.Internet), 0, (int)GameMode.Internet);
             okTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.okTimeout", 5f), OkTimeoutChoices);
             turnTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.turnTimeout", 30f), TurnTimeoutChoices);
+            cpuStrength = Mathf.Clamp(PlayerPrefs.GetInt("quota.cpuStrength", 1), 0, 2);
+            var savedCast = PlayerPrefs.GetString("quota.cpuCast", "").Split(',');
+            foreach (var entry in savedCast)
+            {
+                int id;
+                if (int.TryParse(entry, out id) && id >= 0 && id < CpuProfiles.Names.Length && !lobbyCast.Contains(id)) lobbyCast.Add(id);
+            }
             confirmActions = PlayerPrefs.GetInt("quota.confirmActions", 1) == 1;
             bgmLevel = Mathf.Clamp(PlayerPrefs.GetInt("quota.bgmVolume", 5), 0, 5);
             seLevel = Mathf.Clamp(PlayerPrefs.GetInt("quota.seVolume", 5), 0, 5);
@@ -730,6 +741,8 @@ namespace Quota
             PlayerPrefs.SetInt("quota.confirmActions", confirmActions ? 1 : 0);
             PlayerPrefs.SetInt("quota.bgmVolume", bgmLevel);
             PlayerPrefs.SetInt("quota.seVolume", seLevel);
+            PlayerPrefs.SetInt("quota.cpuStrength", cpuStrength);
+            PlayerPrefs.SetString("quota.cpuCast", string.Join(",", lobbyCast.ConvertAll(id => id.ToString()).ToArray()));
             PlayerPrefs.Save();
         }
 
@@ -799,6 +812,7 @@ namespace Quota
             else DrawStartMenu(screenW, columnTop, available, showReview);
             if (lobbyOpen && !string.IsNullOrEmpty(lobbyChoice)) DrawLobbyChoice(screenW, screenH);
             if (lobbyOpen && !string.IsNullOrEmpty(lobbySettingsPage)) DrawLobbySettings(screenW, screenH);
+            if (lobbyOpen && nominationOpen) DrawNomination(screenW, screenH);
             if (!lobbyOpen && modeChoiceOpen) DrawModeChoice(screenW, screenH);
             if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
             Shade(TextAt(frame, BuildStamp, 24f, screenH - 56f, screenW - 48f, 40f, 24, Cream, nameFont, TextAnchor.MiddleCenter));
@@ -1037,7 +1051,14 @@ namespace Quota
             {
                 var holder = SetupRightAlignedHolder(column, "shuffle-holder", rowW, buttonH);
                 SetupButton(holder, "CPUプレイヤー入れ替え", NetworkJoined ? (UnityAction)ShuffleNetworkCast : ShuffleCast, seatW, buttonH, font);
+                SetupGap(column, innerGap);
+                var nominateHolder = SetupRightAlignedHolder(column, "nominate-holder", rowW, buttonH);
+                SetupButton(nominateHolder, "CPUプレイヤーの指名", OpenNomination, seatW, buttonH, font);
             }
+            SetupGap(column, innerGap);
+            SetupSegmentedRow(column, "CPUプレイヤーの強さ：", new[] { "弱", "中", "強" }, new[] { "弱", "中", "強" }[cpuStrength],
+                rowW, buttonH, LabelSlot(font, "CPUプレイヤーの強さ："), font, leader,
+                value => SetCpuStrength(value));
             SetupGap(column, buttonH);
             if (gameMode != GameMode.Offline)
             {
@@ -1262,20 +1283,25 @@ namespace Quota
             var seats = new List<KeyValuePair<string, bool>>();
             if (!sitOut) seats.Add(new KeyValuePair<string, bool>(HumanName(), false));
             for (var i = 0; seats.Count < playerCount && i < lobbyCast.Count; i++)
-                seats.Add(new KeyValuePair<string, bool>(Ranking.DisplayName(lobbyCast[i]), true));
+                seats.Add(new KeyValuePair<string, bool>(CpuProfiles.Names[lobbyCast[i]], true));
             return seats;
         }
 
         void EnsureCast()
         {
             var used = new HashSet<int>(lobbyCast);
-            while (lobbyCast.Count < 4) lobbyCast.Add(Characters.PickFresh(lobbyRng, used));
+            while (lobbyCast.Count < 4) lobbyCast.Add(CpuProfiles.PickFresh(lobbyRng, used));
         }
 
         void ShuffleCast()
         {
-            lobbyCast.Clear();
-            EnsureCast();
+            var before = new List<int>(lobbyCast);
+            do
+            {
+                lobbyCast.Clear();
+                EnsureCast();
+            } while (before.Count == lobbyCast.Count && before.SequenceEqual(lobbyCast));
+            SaveRules();
             ShowSetup();
         }
 
@@ -1285,6 +1311,7 @@ namespace Quota
             lobbyOpen = true;
             lobbyChoice = null;
             lobbySettingsPage = null;
+            nominationOpen = false;
             sitOut = false;
             if (Application.isPlaying)
             {
@@ -1443,9 +1470,18 @@ namespace Quota
                 networkTables.Clear();
                 lobbyOpen = true;
                 playerCount = next.players;
+                if (next.cpu_cast != null && next.cpu_cast.Length >= playerCount &&
+                    (lobbyCast.Count < playerCount || !lobbyCast.GetRange(0, playerCount).SequenceEqual(next.cpu_cast)))
+                {
+                    lobbyCast.Clear();
+                    lobbyCast.AddRange(next.cpu_cast);
+                    EnsureCast();
+                    if (next.you != null && next.you.leader) SaveRules();
+                }
                 if (next.you != null) sitOut = next.you.observer;
                 if (next.options != null)
                 {
+                    cpuStrength = Mathf.Clamp(next.options.cpu_strength, 0, 2);
                     okTimeout = next.options.ok_timeout;
                     turnTimeout = next.options.turn_timeout;
                     roundMode = next.options.round_mode;
@@ -1475,6 +1511,7 @@ namespace Quota
                             okTimeout = next.options.ok_timeout;
                             turnTimeout = next.options.turn_timeout;
                             roundMode = next.options.round_mode;
+                            cpuStrength = Mathf.Clamp(next.options.cpu_strength, 0, 2);
                         }
                         StartMatch(false);
                     }
@@ -1604,6 +1641,8 @@ namespace Quota
                 ok_timeout_set = true,
                 turn_timeout = turnTimeout,
                 round_mode = roundMode,
+                cpu_strength = cpuStrength,
+                cpu_cast = lobbyCast.GetRange(0, playerCount).ToArray(),
             };
             yield return NetworkPost("/api/table", JsonUtility.ToJson(body));
         }
@@ -1623,6 +1662,70 @@ namespace Quota
         void ShuffleNetworkCast()
         {
             StartCoroutine(NetworkPost("/api/shuffle", "{}"));
+        }
+
+        [System.Serializable]
+        sealed class NetworkCast { public int[] cpu_cast; }
+
+        void SetCpuStrength(string value)
+        {
+            cpuStrength = value == "弱" ? 0 : value == "強" ? 2 : 1;
+            SaveLobbySettings();
+        }
+
+        void OpenNomination()
+        {
+            nomination.Clear();
+            nominationOpen = true;
+            ShowSetup();
+        }
+
+        void Nominate(int character)
+        {
+            if (nomination.Contains(character)) return;
+            nomination.Add(character);
+            if (nomination.Count == playerCount)
+            {
+                var remaining = new List<int>(lobbyCast);
+                remaining.RemoveAll(id => nomination.Contains(id));
+                lobbyCast.Clear();
+                lobbyCast.AddRange(nomination);
+                lobbyCast.AddRange(remaining);
+                EnsureCast();
+                SaveRules();
+                nominationOpen = false;
+                if (NetworkJoined) StartCoroutine(NetworkPost("/api/cast", JsonUtility.ToJson(new NetworkCast { cpu_cast = lobbyCast.GetRange(0, playerCount).ToArray() })));
+            }
+            ShowSetup();
+        }
+
+        void DrawNomination(float screenW, float screenH)
+        {
+            var overlay = Portrait.Rect(frame, "cpu-nomination", 0f, 0f, screenW, screenH);
+            var wash = overlay.gameObject.AddComponent<Image>();
+            wash.color = new Color(0f, 0f, 0f, 0.62f);
+            var canvas = overlay.gameObject.AddComponent<Canvas>();
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 150;
+            overlay.gameObject.AddComponent<GraphicRaycaster>();
+            var outside = overlay.gameObject.AddComponent<Button>();
+            outside.targetGraphic = wash;
+            outside.onClick.AddListener(() => { nominationOpen = false; ShowSetup(); });
+            var panelW = Mathf.Min(screenW - 40f, 780f);
+            var panelH = 620f;
+            var panel = Portrait.Box(overlay, "nomination-window", (screenW - panelW) * 0.5f,
+                (screenH - panelH) * 0.5f, panelW, panelH, 12f, 1f, Paper, Ink, false);
+            panel.GetComponent<Image>().raycastTarget = true;
+            Bold(TextAt(panel, $"CPUプレイヤーの指名　{nomination.Count}/{playerCount}", 20f, 12f, panelW - 40f, 55f,
+                30, Ink, nameFont, TextAnchor.MiddleCenter));
+            for (var id = 0; id < CpuProfiles.Names.Length; id++)
+            {
+                var character = id;
+                var caption = nomination.Contains(id) ? $"{nomination.IndexOf(id) + 1}. {CpuProfiles.Names[id]}" : CpuProfiles.Names[id];
+                Pill(panel, caption, 20f, 76f + id * 74f, panelW - 40f, 62f, 25, () => Nominate(character), nomination.Contains(id));
+            }
+            Pill(panel, "キャンセル", 20f, panelH - 75f, panelW - 40f, 55f, 25,
+                () => { nominationOpen = false; ShowSetup(); });
         }
 
         [System.Serializable]
@@ -1692,7 +1795,7 @@ namespace Quota
         void StartNetworkMatch()
         {
             StartCoroutine(NetworkPost("/api/start", JsonUtility.ToJson(new NetworkCreate
-            { simple = simpleMode, sequence = sequenceRule, title = titleRule, special = specialRule, ok_timeout = okTimeout, turn_timeout = turnTimeout, round_mode = roundMode })));
+            { simple = simpleMode, sequence = sequenceRule, title = titleRule, special = specialRule, ok_timeout = okTimeout, turn_timeout = turnTimeout, round_mode = roundMode, cpu_strength = cpuStrength })));
         }
 
         void LeaveNetworkTable()
@@ -1818,9 +1921,9 @@ namespace Quota
             {
                 var character = shared && networkState.cpu_cast != null
                     ? networkState.cpu_cast[i - firstCpu]
-                    : spare < lobbyCast.Count ? lobbyCast[spare++] : Characters.PickFresh(lobbyRng, new HashSet<int>(lobbyCast));
+                    : spare < lobbyCast.Count ? lobbyCast[spare++] : CpuProfiles.PickFresh(lobbyRng, new HashSet<int>(lobbyCast));
                 characters.Add(character);
-                names.Add(shared ? networkState.cpus[i - firstCpu] : Ranking.DisplayName(character));
+                names.Add(shared ? networkState.cpus[i - firstCpu] : CpuProfiles.Names[character]);
             }
             orderOverride = null;
             dialogOrder = null;
@@ -1841,7 +1944,7 @@ namespace Quota
                 SpecialActionsRule = specialRule,
                 Rounds = RoundCountForMode(),
             }, pumpCpus: !Application.isPlaying && !shared);
-            Characters.BindInOrder(match.Game, characters);
+            CpuProfiles.BindInOrder(match.Game, characters, cpuStrength);
             BeginCardPresentation();
             confirm = null;
             cpuNotBefore = Application.isPlaying ? Time.time + 1f : 0f;
@@ -2023,6 +2126,8 @@ namespace Quota
             public bool ok_timeout_set;
             public float turn_timeout;
             public int round_mode;
+            public int cpu_strength;
+            public int[] cpu_cast;
         }
 
         [System.Serializable]
@@ -2455,7 +2560,10 @@ namespace Quota
                 return;
             }
             var beforeCards = BoardFrame.Capture(match.Game);
+            var beforeMarket = new List<Card>(match.Game.Market);
+            var beforeDeck = match.Game.Deck.Count;
             match.Game.BeginNextRound();
+            CpuProfiles.ObserveTransition(match.Game, beforeMarket, beforeDeck, false, true);
             TrackCardChange(beforeCards);
             cpuNotBefore = Time.time + 0.6f;
             StartCoroutine(RunCpus(++cpuRun));
@@ -3545,7 +3653,10 @@ namespace Quota
                 confirm = null;
                 if (NetworkPlaying) { SendNetworkAction("reshuffle"); return; }
                 var beforeCards = BoardFrame.Capture(game);
+                var beforeMarket = new List<Card>(game.Market);
+                var beforeDeck = game.Deck.Count;
                 game.DeclareReshuffle();
+                CpuProfiles.ObserveTransition(game, beforeMarket, beforeDeck, true, false);
                 TrackCardChange(beforeCards);
                 ShowTable();
             }));
@@ -4018,7 +4129,7 @@ namespace Quota
         {
             if (NetworkJoined && (networkState.you == null || !networkState.you.leader)) return;
             SaveRules();
-            if (NetworkJoined) StartCoroutine(NetworkPost("/api/settings", JsonUtility.ToJson(new NetworkCreate { ok_timeout = okTimeout, turn_timeout = turnTimeout, round_mode = roundMode })));
+            if (NetworkJoined) StartCoroutine(NetworkPost("/api/settings", JsonUtility.ToJson(new NetworkCreate { ok_timeout = okTimeout, turn_timeout = turnTimeout, round_mode = roundMode, cpu_strength = cpuStrength })));
             ShowSetup();
         }
 
@@ -4117,7 +4228,7 @@ namespace Quota
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
             var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || caption == "CPU模擬戦を見る"
-                || caption == "CPUプレイヤー入れ替え" || caption == "対戦設定" || caption == "個人設定"
+                || caption == "CPUプレイヤー入れ替え" || caption == "CPUプレイヤーの指名" || caption == "対戦設定" || caption == "個人設定"
                 || (parent.name == "table-list" || parent.name == "table-list-content");
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;

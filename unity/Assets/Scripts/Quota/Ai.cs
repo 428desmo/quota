@@ -7,6 +7,8 @@ namespace Quota
     {
         public static GameAction ChooseAction(Game game)
         {
+            var profile = CpuProfiles.MindFor(game.Players[game.Current]);
+            if (profile != null) return profile.Choose(game);
             var mind = Characters.MindFor(game.Players[game.Current]);
             if (mind != null) return mind.Choose(game);
             return ChooseStock(game);

@@ -111,7 +111,10 @@ class TimedLock:
         self.lock.release()
 
 sys.path.insert(0, str(ROOT))
-from quota.characters import pick_cast, display_name, seat_cast, mind_for, bind_replacement
+from quota.characters import mind_for
+from quota.cpu_roster import pick_cast, display_name, validate_cast, validate_strength
+from quota.cpu_observation import observe
+from quota.live_cpu import bind_cast, bind_replacement, observe_transition
 from quota.engine import Game, GameConfig, TakeQuota, Collect, Abandon, Pass
 
 TYPES = {
@@ -201,7 +204,7 @@ class UnityTable:
             "seed": self.seed,
             "options": self.options,
             "actions": self.actions,
-            "cpu_cast": self.cpu_cast[:max(0, self.players - self.seated())],
+            "cpu_cast": self.cpu_cast[:self.players],
             "table_id": self.id,
             "event_n": 1,
             "turn_timeout_active": bool(self.game and not self.game.finished and not self.game.awaiting_next_round and self.game.players[self.game.current].is_human),
@@ -253,7 +256,10 @@ class UnityHall:
         self.leave(client)
         players = int(body.get("players") or 3)
         table = UnityTable(client, str(body.get("name") or "あなた"), players)
-        table.options = {key: body.get(key, default) for key, default in {"simple": False, "sequence": True, "title": True, "special": True, "ok_timeout": 5, "turn_timeout": 30, "round_mode": 1}.items()}
+        table.options = {key: body.get(key, default) for key, default in {"simple": False, "sequence": True, "title": True, "special": True, "ok_timeout": 5, "turn_timeout": 30, "round_mode": 1, "cpu_strength": 1}.items()}
+        table.options["cpu_strength"] = validate_strength(table.options["cpu_strength"])
+        if "cpu_cast" in body:
+            table.cpu_cast = validate_cast(body["cpu_cast"], table.players)
         if table.options["round_mode"] not in (0, 1, 2):
             raise ValueError("ラウンド数の指定が不正です")
         table.options.update(simple=False, sequence=True, title=True, special=True)
@@ -360,6 +366,7 @@ class UnityHall:
         if mode not in (0, 1, 2):
             raise ValueError("ラウンド数の指定が不正です")
         values["round_mode"] = mode
+        values["cpu_strength"] = validate_strength(body.get("cpu_strength", table.options["cpu_strength"]))
         table.options.update(values)
         table.touch()
         return table.recruiting(client)
@@ -373,6 +380,8 @@ class UnityHall:
         if body:
             if body.get("round_mode", table.options["round_mode"]) not in (0, 1, 2):
                 raise ValueError("ラウンド数の指定が不正です")
+            if "cpu_strength" in body:
+                validate_strength(body["cpu_strength"])
             table.options.update({k: body[k] for k in table.options if k in body})
         table.options.update(simple=False, sequence=True, title=True, special=True)
         options = table.options
@@ -383,7 +392,7 @@ class UnityHall:
             sequence_rule=options["sequence"], title_rule=options["title"],
             special_actions_rule=options["special"], rounds=(1 if options["round_mode"] == 0 else table.players * (2 if options["round_mode"] == 2 else 1)),
         ))
-        seat_cast(table.game, table.cpu_cast)
+        bind_cast(table.game, table.cpu_cast, options["cpu_strength"])
         table.cpu_at = time.monotonic() + 0.7
         table.phase = "playing"
         self.update_deadline(table)
@@ -411,16 +420,29 @@ class UnityHall:
     @staticmethod
     def apply_action(table, key):
         game = table.game
+        before = observe(game)
+        action = None
+        phase = "new_round" if key == "next_round" else "declaration" if key in ("double", "reshuffle", "cancel_double") else "action"
+        if key == "pass": action = Pass()
+        elif key == "abandon": action = Abandon()
+        elif key.startswith("take:"): action = TakeQuota(int(key[5:]))
+        elif key.startswith("collect:"): action = Collect(tuple(int(n) for n in key[8:].split(",")))
         if key == "double": game.declare_double()
         elif key == "reshuffle": game.declare_reshuffle()
         elif key == "cancel_double": game.cancel_double()
         elif key == "next_round": game.begin_next_round()
-        elif key == "pass": game.step(Pass())
-        elif key == "abandon": game.step(Abandon())
-        elif key.startswith("take:"): game.step(TakeQuota(int(key[5:])))
-        elif key.startswith("collect:"): game.step(Collect(tuple(int(n) for n in key[8:].split(","))))
+        elif action is not None: game.step(action)
         else: raise ValueError("不明な行動です")
+        observe_transition(game, before, observe(game), action, phase)
         table.actions.append(key)
+
+    def nominate(self, body: dict, client: str) -> dict:
+        table = self._require(client)
+        if table.phase != "recruiting" or table.leader_id() != client:
+            raise ValueError("募集中のリーダーだけが変更できます")
+        table.cpu_cast = validate_cast(body.get("cpu_cast"), table.players)
+        table.touch()
+        return table.recruiting(client)
 
     @staticmethod
     def update_deadline(table):
@@ -445,7 +467,7 @@ class UnityHall:
             return
         player.is_human = False
         table.humans[index].cpu = True
-        bind_replacement(player)
+        bind_replacement(player, table.options["cpu_strength"])
         table.actions.append(f"cpu:{index}")
         table.cpu_at = time.monotonic() + 0.7
 
@@ -602,7 +624,7 @@ class Handler(SimpleHTTPRequestHandler):
         lock_timing = {"wait_ms": 0.0, "held_ms": 0.0}
         route = self.path if self.path in {
             "/api/state", "/api/table", "/api/join", "/api/leave", "/api/participation",
-            "/api/players", "/api/settings", "/api/action", "/api/start", "/api/shuffle",
+            "/api/players", "/api/settings", "/api/action", "/api/start", "/api/shuffle", "/api/cast",
             "/api/diagnostic", "/api/metrics",
         } else "/api/unknown"
         if self.path != "/api/metrics":
@@ -648,6 +670,8 @@ class Handler(SimpleHTTPRequestHandler):
                     payload = HALL.set_players(body, client)
                 elif self.path == "/api/settings":
                     payload = HALL.settings(body, client)
+                elif self.path == "/api/cast":
+                    payload = HALL.nominate(body, client)
                 elif self.path == "/api/action":
                     payload = HALL.action(body, client)
                 elif self.path == "/api/start":
@@ -656,7 +680,9 @@ class Handler(SimpleHTTPRequestHandler):
                     table = HALL._require(client)
                     if table.phase != "recruiting" or table.leader_id() != client:
                         raise ValueError("募集中のリーダーだけが変更できます")
-                    table.cpu_cast = pick_cast(table.players)
+                    original = table.cpu_cast[:table.players]
+                    while table.cpu_cast[:table.players] == original:
+                        table.cpu_cast = pick_cast(table.players)
                     payload = HALL.snapshot(client)
                 else:
                     status = 404
