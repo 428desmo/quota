@@ -2784,7 +2784,8 @@ namespace Quota
                     names.Add(match.Game.Players[seat].Name);
             }
             if (names.Count == 0) return "";
-            return string.Join("さん、", names) + "さん、総合優勝おめでとうございます";
+            if (names.Count == 1) return names[0] + "さん、総合優勝おめでとうございます";
+            return "今回は、" + string.Join("さん、", names) + "さんの同点優勝です。おめでとうございます";
         }
 
         string FigureText(int seat)
@@ -4099,8 +4100,19 @@ namespace Quota
         {
             var screenW = wide ? LandWidth : ScreenWidth;
             var screenH = wide ? LandHeight : ScreenHeight;
-            var veil = Portrait.Solid(frame, "setup-veil", 0f, 0f, screenW, screenH, new Color(0.10f, 0.07f, 0.05f, 0.58f));
+            ViewSize(out var viewW, out var viewH);
+            var scale = Mathf.Max(0.01f, frame.localScale.x);
+            var veilW = Mathf.Max(screenW, viewW / scale) + 8f;
+            var veilH = Mathf.Max(screenH, viewH / scale) + 8f;
+            var veil = Portrait.Solid(frame, "setup-veil", (screenW - veilW) * 0.5f,
+                (screenH - veilH) * 0.5f, veilW, veilH, new Color(0.10f, 0.07f, 0.05f, 0.58f));
             veil.GetComponent<Image>().raycastTarget = true;
+            if (setupPage == "play" || setupPage == "details")
+            {
+                var outside = veil.gameObject.AddComponent<Button>();
+                outside.transition = Selectable.Transition.None;
+                outside.onClick.AddListener(() => { setupPage = null; ShowSetup(); });
+            }
             if (setupPage == "chips")
             {
                 BonusChipLab.Open(frame, screenW, screenH, wide, titleRule, nameFont, Ecru, Ink, chipLabState, () => { setupPage = null; ShowSetup(); }, EditChipColor);

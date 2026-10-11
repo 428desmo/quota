@@ -19,6 +19,41 @@ namespace Quota.Tests
             if (events != null) Object.DestroyImmediate(events.gameObject);
         }
 
+        [TestCase("遊び方")]
+        [TestCase("詳細ルール")]
+        public void GuideVeilCoversFrameAndClosesOnOutsideTap(string title)
+        {
+            host = Open();
+            Click(title);
+            var veil = host.transform.Find("Root/Frame/setup-veil") as RectTransform;
+            var frame = host.transform.Find("Root/Frame") as RectTransform;
+            var panel = host.transform.Find("Root/Frame/setup-dialog");
+            Assert.IsNotNull(veil);
+            Assert.Greater(WorldTop(veil), WorldTop(frame));
+            Assert.Less(WorldBottom(veil), WorldBottom(frame));
+            Assert.IsTrue(panel.GetComponent<Image>().raycastTarget);
+            veil.GetComponent<Button>().onClick.Invoke();
+            Assert.IsNull(host.transform.Find("Root/Frame/setup-dialog"));
+        }
+
+        [Test]
+        public void FinalWinnerMessageNamesAllTiedWinners()
+        {
+            host = Open();
+            Begin();
+            var view = host.GetComponent<TableView>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var game = ((OfflineMatch)typeof(TableView).GetField("match", flags).GetValue(view)).Game;
+            Set("ceremonyWinner", true);
+            Set("dialogOrder", new List<int> { 0, 1, 2 });
+            Set("ceremonyPlaces", new Dictionary<int, int> { { 0, 1 }, { 1, 1 }, { 2, 3 } });
+            var winnerText = typeof(TableView).GetMethod("WinnerText", flags);
+            Assert.AreEqual("今回は、" + game.Players[0].Name + "さん、" + game.Players[1].Name
+                + "さんの同点優勝です。おめでとうございます", winnerText.Invoke(view, null));
+            Set("ceremonyPlaces", new Dictionary<int, int> { { 0, 1 }, { 1, 2 }, { 2, 3 } });
+            Assert.AreEqual(game.Players[0].Name + "さん、総合優勝おめでとうございます", winnerText.Invoke(view, null));
+        }
+
         [Test]
         public void UnityEditorPrefersTheSameLocalServerAsTheLanWebClient()
         {
