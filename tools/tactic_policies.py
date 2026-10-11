@@ -25,6 +25,10 @@ class Decision:
 class Policy:
     name = "baseline"
 
+    def special_declaration(self, observation: Observation) -> str:
+        """'baseline', 'none', 'double', or 'reshuffle' before CPU action selection."""
+        return "baseline"
+
     def on_transition(
         self, before: Observation, after: Observation, action: Action | None, phase: str
     ) -> None:
