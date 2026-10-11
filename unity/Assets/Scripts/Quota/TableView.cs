@@ -253,6 +253,7 @@ namespace Quota
 
         void OnDestroy()
         {
+            StopChipCountingSe(true);
             DisposeRoundBgm();
             if (logoInk != null)
             {
@@ -748,6 +749,7 @@ namespace Quota
 
         void ShowSetup()
         {
+            StopChipCountingSe(true);
             StopEndBgm();
             ceremonyFinishing = false;
             StopRoundBgm();
@@ -2341,6 +2343,7 @@ namespace Quota
                 reviewUntil = Time.realtimeSinceStartup + 180f;
                 ceremonyWinner = true;
                 ceremonyButton = "ゲームを終了";
+                StartFinalBgm();
             }
             else ceremonyButton = "OK";
             RedrawCeremonyPanel();
@@ -2395,12 +2398,17 @@ namespace Quota
                 for (var n = 0; n < titleLines[i].Points; n++)
                     jobs.Add(new TitleJob { Line = i, Seat = titleLines[i].Seat });
             if (jobs.Count == 0) yield break;
+            StartChipCountingSe();
             ceremonyPending = jobs.Count;
             var launched = 0;
             var started = Time.time;
             while (ceremonyPending > 0)
             {
-                if (serial != cpuRun) yield break;
+                if (serial != cpuRun)
+                {
+                    StopChipCountingSe(true);
+                    yield break;
+                }
                 while (launched < jobs.Count && Time.time >= started + launched * 0.1f)
                 {
                     var job = jobs[launched];
@@ -2422,6 +2430,7 @@ namespace Quota
                 }
                 yield return null;
             }
+            StopChipCountingSe();
         }
 
         IEnumerator FlyScores(int serial)
@@ -2440,12 +2449,17 @@ namespace Quota
                 if (pile.Count > max) max = pile.Count;
             }
             if (total == 0) yield break;
+            StartChipCountingSe();
             ceremonyPending = total;
             var wave = 0;
             var started = Time.time;
             while (ceremonyPending > 0)
             {
-                if (serial != cpuRun) yield break;
+                if (serial != cpuRun)
+                {
+                    StopChipCountingSe(true);
+                    yield break;
+                }
                 while (wave < max && Time.time >= started + wave * 0.1f)
                 {
                     for (var p = 0; p < piles.Count; p++)
@@ -2470,6 +2484,7 @@ namespace Quota
                 }
                 yield return null;
             }
+            StopChipCountingSe();
         }
 
         IEnumerator AnimateFly(int serial, Vector3 from, Vector3 to, CoinKind kind, System.Action arrived)
