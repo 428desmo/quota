@@ -1,0 +1,1508 @@
+{
+  "config": {
+    "players": 4,
+    "rounds": 4,
+    "deals_per_cast": 8,
+    "seed": 20261016,
+    "casts": 15,
+    "matches_per_variant": 480,
+    "roster": [
+      {
+        "id": "ledger_keeper",
+        "name": "慎重な帳簿係",
+        "style": "safe",
+        "inference": 0,
+        "character": "失敗の少ないノルマを選び、公開札の簡単な見込みだけで判断する。"
+      },
+      {
+        "id": "harbor_broker",
+        "name": "港の仲買人",
+        "style": "balanced",
+        "inference": 1,
+        "character": "得点、完成の見込み、残り手番をバランスよく比べる。"
+      },
+      {
+        "id": "quick_trader",
+        "name": "早足の商人",
+        "style": "efficient",
+        "inference": 2,
+        "character": "短い手番で完成できるノルマを好み、公開札の履歴まで読む。"
+      },
+      {
+        "id": "risk_captain",
+        "name": "勝負師の船長",
+        "style": "comeback",
+        "inference": 2,
+        "character": "負けが見えてきたら大きなノルマにも踏み込む。"
+      },
+      {
+        "id": "market_blocker",
+        "name": "目ざとい競売人",
+        "style": "denial",
+        "inference": 1,
+        "character": "競合する相手が欲しい札を取り、相手の完成を遅らせる。"
+      },
+      {
+        "id": "title_collector",
+        "name": "品揃えの収集家",
+        "style": "title",
+        "inference": 1,
+        "character": "無理のない範囲で称号を狙い、完成した束を増やす。"
+      }
+    ]
+  },
+  "summary": {
+    "current": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 1,
+        "variety_min_cards": 5,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 127.38385416666667,
+      "variety_per_100_player_rounds": 5.2734375,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 118.303125,
+          "mean_win_share": 0.1296875,
+          "variety_per_100_player_rounds": 5.390625,
+          "mono_per_100_player_rounds": 2.890625,
+          "purist_per_100_player_rounds": 35.234375,
+          "mean_quota_rank": 5.502442996742671,
+          "high_quota_rate": 0.09364820846905537,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 132.253125,
+          "mean_win_share": 0.3234375,
+          "variety_per_100_player_rounds": 4.140625,
+          "mono_per_100_player_rounds": 1.484375,
+          "purist_per_100_player_rounds": 29.53125,
+          "mean_quota_rank": 6.317736108721831,
+          "high_quota_rate": 0.18355410287287116,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 131.35,
+          "mean_win_share": 0.3046875,
+          "variety_per_100_player_rounds": 7.34375,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 37.03125,
+          "mean_quota_rank": 5.579854105230483,
+          "high_quota_rate": 0.10367841067825546,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.715625,
+          "mean_win_share": 0.29375,
+          "variety_per_100_player_rounds": 2.734375,
+          "mono_per_100_player_rounds": 1.09375,
+          "purist_per_100_player_rounds": 20.390625,
+          "mean_quota_rank": 7.099513145082765,
+          "high_quota_rate": 0.27419668938656283,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 123.134375,
+          "mean_win_share": 0.18125,
+          "variety_per_100_player_rounds": 5.078125,
+          "mono_per_100_player_rounds": 0.703125,
+          "purist_per_100_player_rounds": 32.65625,
+          "mean_quota_rank": 5.988794112727881,
+          "high_quota_rate": 0.15002508780732565,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 127.546875,
+          "mean_win_share": 0.2671875,
+          "variety_per_100_player_rounds": 6.953125,
+          "mono_per_100_player_rounds": 2.5,
+          "purist_per_100_player_rounds": 32.265625,
+          "mean_quota_rank": 5.906779661016949,
+          "high_quota_rate": 0.1415752741774676,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "variety_3pt": {
+      "rules": {
+        "variety_points": 3,
+        "variety_copies": 1,
+        "variety_min_cards": 5,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 126.97864583333335,
+      "variety_per_100_player_rounds": 4.817708333333333,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 117.271875,
+          "mean_win_share": 0.115625,
+          "variety_per_100_player_rounds": 5.15625,
+          "mono_per_100_player_rounds": 3.203125,
+          "purist_per_100_player_rounds": 35.0,
+          "mean_quota_rank": 5.464384228460165,
+          "high_quota_rate": 0.08843095894856401,
+          "paired_score_delta": -1.03125,
+          "paired_score_delta_95ci": [
+            -2.419572311634086,
+            0.35707231163408615
+          ],
+          "paired_win_share_delta": -0.0140625,
+          "paired_win_share_delta_95ci": [
+            -0.0371221697347407,
+            0.008997169734740703
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 132.365625,
+          "mean_win_share": 0.3453125,
+          "variety_per_100_player_rounds": 4.0625,
+          "mono_per_100_player_rounds": 1.953125,
+          "purist_per_100_player_rounds": 29.765625,
+          "mean_quota_rank": 6.324035812672176,
+          "high_quota_rate": 0.18302341597796143,
+          "paired_score_delta": 0.1125,
+          "paired_score_delta_95ci": [
+            -1.0376068868873982,
+            1.2626068868873983
+          ],
+          "paired_win_share_delta": 0.021875,
+          "paired_win_share_delta_95ci": [
+            -0.012656536563047167,
+            0.056406536563047165
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 131.853125,
+          "mean_win_share": 0.31875,
+          "variety_per_100_player_rounds": 6.71875,
+          "mono_per_100_player_rounds": 1.25,
+          "purist_per_100_player_rounds": 38.125,
+          "mean_quota_rank": 5.582075618484518,
+          "high_quota_rate": 0.10471448576318655,
+          "paired_score_delta": 0.503125,
+          "paired_score_delta_95ci": [
+            -0.8600437940950745,
+            1.8662937940950746
+          ],
+          "paired_win_share_delta": 0.0140625,
+          "paired_win_share_delta_95ci": [
+            -0.024180352578470232,
+            0.05230535257847023
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.703125,
+          "mean_win_share": 0.30625,
+          "variety_per_100_player_rounds": 3.046875,
+          "mono_per_100_player_rounds": 1.484375,
+          "purist_per_100_player_rounds": 21.09375,
+          "mean_quota_rank": 7.099200935490158,
+          "high_quota_rate": 0.27460534008965115,
+          "paired_score_delta": -0.0125,
+          "paired_score_delta_95ci": [
+            -1.5124300606057803,
+            1.4874300606057804
+          ],
+          "paired_win_share_delta": 0.0125,
+          "paired_win_share_delta_95ci": [
+            -0.022257705638690003,
+            0.04725770563869
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 122.1875,
+          "mean_win_share": 0.1703125,
+          "variety_per_100_player_rounds": 4.921875,
+          "mono_per_100_player_rounds": 0.625,
+          "purist_per_100_player_rounds": 33.125,
+          "mean_quota_rank": 5.9958039610607585,
+          "high_quota_rate": 0.1522322927156764,
+          "paired_score_delta": -0.946875,
+          "paired_score_delta_95ci": [
+            -2.4545051683389594,
+            0.5607551683389594
+          ],
+          "paired_win_share_delta": -0.0109375,
+          "paired_win_share_delta_95ci": [
+            -0.039247939120791206,
+            0.017372939120791207
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 126.490625,
+          "mean_win_share": 0.24375,
+          "variety_per_100_player_rounds": 5.0,
+          "mono_per_100_player_rounds": 3.125,
+          "purist_per_100_player_rounds": 31.484375,
+          "mean_quota_rank": 5.9661357921207046,
+          "high_quota_rate": 0.1485331098072087,
+          "paired_score_delta": -1.05625,
+          "paired_score_delta_95ci": [
+            -2.6545715283758207,
+            0.5420715283758208
+          ],
+          "paired_win_share_delta": -0.0234375,
+          "paired_win_share_delta_95ci": [
+            -0.061205539296817484,
+            0.014330539296817484
+          ]
+        }
+      }
+    },
+    "variety_twice": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 2,
+        "variety_min_cards": 5,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 126.55989583333333,
+      "variety_per_100_player_rounds": 1.0546875,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 117.40625,
+          "mean_win_share": 0.128125,
+          "variety_per_100_player_rounds": 1.015625,
+          "mono_per_100_player_rounds": 2.96875,
+          "purist_per_100_player_rounds": 35.3125,
+          "mean_quota_rank": 5.5081645983017635,
+          "high_quota_rate": 0.09356629653821032,
+          "paired_score_delta": -0.896875,
+          "paired_score_delta_95ci": [
+            -1.5421289656460564,
+            -0.2516210343539437
+          ],
+          "paired_win_share_delta": -0.0015625,
+          "paired_win_share_delta_95ci": [
+            -0.026406553765756964,
+            0.02328155376575696
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 131.76875,
+          "mean_win_share": 0.33125,
+          "variety_per_100_player_rounds": 0.859375,
+          "mono_per_100_player_rounds": 1.5625,
+          "purist_per_100_player_rounds": 29.609375,
+          "mean_quota_rank": 6.311512027491409,
+          "high_quota_rate": 0.18350515463917524,
+          "paired_score_delta": -0.484375,
+          "paired_score_delta_95ci": [
+            -0.9439980343041727,
+            -0.024751965695827327
+          ],
+          "paired_win_share_delta": 0.0078125,
+          "paired_win_share_delta_95ci": [
+            -0.011845441946359888,
+            0.027470441946359888
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 130.071875,
+          "mean_win_share": 0.284375,
+          "variety_per_100_player_rounds": 1.796875,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 37.34375,
+          "mean_quota_rank": 5.577156177156177,
+          "high_quota_rate": 0.10396270396270396,
+          "paired_score_delta": -1.278125,
+          "paired_score_delta_95ci": [
+            -1.8437039851203898,
+            -0.7125460148796101
+          ],
+          "paired_win_share_delta": -0.0203125,
+          "paired_win_share_delta_95ci": [
+            -0.04272467807064394,
+            0.0020996780706439393
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.115625,
+          "mean_win_share": 0.29375,
+          "variety_per_100_player_rounds": 0.46875,
+          "mono_per_100_player_rounds": 1.09375,
+          "purist_per_100_player_rounds": 20.3125,
+          "mean_quota_rank": 7.102883865939205,
+          "high_quota_rate": 0.274551831644583,
+          "paired_score_delta": -0.6,
+          "paired_score_delta_95ci": [
+            -0.8941291910243834,
+            -0.3058708089756166
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            -0.015097782551576356,
+            0.015097782551576356
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 122.375,
+          "mean_win_share": 0.1921875,
+          "variety_per_100_player_rounds": 1.171875,
+          "mono_per_100_player_rounds": 0.703125,
+          "purist_per_100_player_rounds": 32.5,
+          "mean_quota_rank": 5.982133912172316,
+          "high_quota_rate": 0.1501085323092336,
+          "paired_score_delta": -0.759375,
+          "paired_score_delta_95ci": [
+            -1.1131750062499552,
+            -0.40557499375004485
+          ],
+          "paired_win_share_delta": 0.0109375,
+          "paired_win_share_delta_95ci": [
+            -0.0015381705477937584,
+            0.02341317054779376
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 126.621875,
+          "mean_win_share": 0.2703125,
+          "variety_per_100_player_rounds": 1.015625,
+          "mono_per_100_player_rounds": 2.421875,
+          "purist_per_100_player_rounds": 32.34375,
+          "mean_quota_rank": 5.908078457446808,
+          "high_quota_rate": 0.14145611702127658,
+          "paired_score_delta": -0.925,
+          "paired_score_delta_95ci": [
+            -1.3949268189727773,
+            -0.45507318102722283
+          ],
+          "paired_win_share_delta": 0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.01429479245868898,
+            0.02054479245868898
+          ]
+        }
+      }
+    },
+    "variety_thrice": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 3,
+        "variety_min_cards": 5,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 126.31875000000001,
+      "variety_per_100_player_rounds": 0.06510416666666667,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 117.359375,
+          "mean_win_share": 0.1359375,
+          "variety_per_100_player_rounds": 0.0,
+          "mono_per_100_player_rounds": 2.96875,
+          "purist_per_100_player_rounds": 35.3125,
+          "mean_quota_rank": 5.509215462404176,
+          "high_quota_rate": 0.09394878486380688,
+          "paired_score_delta": -0.94375,
+          "paired_score_delta_95ci": [
+            -1.7285914936118862,
+            -0.1589085063881136
+          ],
+          "paired_win_share_delta": 0.00625,
+          "paired_win_share_delta_95ci": [
+            -0.019497511247556297,
+            0.031997511247556294
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 131.775,
+          "mean_win_share": 0.3359375,
+          "variety_per_100_player_rounds": 0.234375,
+          "mono_per_100_player_rounds": 1.5625,
+          "purist_per_100_player_rounds": 29.53125,
+          "mean_quota_rank": 6.301097393689986,
+          "high_quota_rate": 0.1827846364883402,
+          "paired_score_delta": -0.478125,
+          "paired_score_delta_95ci": [
+            -1.0156847757091234,
+            0.059434775709123255
+          ],
+          "paired_win_share_delta": 0.0125,
+          "paired_win_share_delta_95ci": [
+            -0.006296587691939179,
+            0.03129658769193918
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 129.49375,
+          "mean_win_share": 0.2796875,
+          "variety_per_100_player_rounds": 0.078125,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 37.265625,
+          "mean_quota_rank": 5.5811126694717155,
+          "high_quota_rate": 0.10378681626928471,
+          "paired_score_delta": -1.85625,
+          "paired_score_delta_95ci": [
+            -2.4674010144800547,
+            -1.2450989855199452
+          ],
+          "paired_win_share_delta": -0.025,
+          "paired_win_share_delta_95ci": [
+            -0.04942234528801623,
+            -0.0005776547119837709
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 130.8375,
+          "mean_win_share": 0.290625,
+          "variety_per_100_player_rounds": 0.0,
+          "mono_per_100_player_rounds": 1.09375,
+          "purist_per_100_player_rounds": 20.3125,
+          "mean_quota_rank": 7.104288499025341,
+          "high_quota_rate": 0.2746588693957115,
+          "paired_score_delta": -0.878125,
+          "paired_score_delta_95ci": [
+            -1.2564737187328274,
+            -0.49977628126717266
+          ],
+          "paired_win_share_delta": -0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.019417902226880376,
+            0.013167902226880378
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 122.075,
+          "mean_win_share": 0.196875,
+          "variety_per_100_player_rounds": 0.0,
+          "mono_per_100_player_rounds": 0.703125,
+          "purist_per_100_player_rounds": 32.421875,
+          "mean_quota_rank": 5.974145120934112,
+          "high_quota_rate": 0.14962468723936614,
+          "paired_score_delta": -1.059375,
+          "paired_score_delta_95ci": [
+            -1.4667581759135433,
+            -0.6519918240864566
+          ],
+          "paired_win_share_delta": 0.015625,
+          "paired_win_share_delta_95ci": [
+            0.0015866328733617138,
+            0.029663367126638286
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 126.371875,
+          "mean_win_share": 0.2609375,
+          "variety_per_100_player_rounds": 0.078125,
+          "mono_per_100_player_rounds": 2.34375,
+          "purist_per_100_player_rounds": 32.421875,
+          "mean_quota_rank": 5.902110686388566,
+          "high_quota_rate": 0.14076782449725778,
+          "paired_score_delta": -1.175,
+          "paired_score_delta_95ci": [
+            -1.7507912387601183,
+            -0.5992087612398819
+          ],
+          "paired_win_share_delta": -0.00625,
+          "paired_win_share_delta_95ci": [
+            -0.027556960145288474,
+            0.015056960145288472
+          ]
+        }
+      }
+    },
+    "variety_8cards": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 1,
+        "variety_min_cards": 8,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 127.38385416666667,
+      "variety_per_100_player_rounds": 5.2734375,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 118.303125,
+          "mean_win_share": 0.1296875,
+          "variety_per_100_player_rounds": 5.390625,
+          "mono_per_100_player_rounds": 2.890625,
+          "purist_per_100_player_rounds": 35.234375,
+          "mean_quota_rank": 5.502442996742671,
+          "high_quota_rate": 0.09364820846905537,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 132.253125,
+          "mean_win_share": 0.3234375,
+          "variety_per_100_player_rounds": 4.140625,
+          "mono_per_100_player_rounds": 1.484375,
+          "purist_per_100_player_rounds": 29.53125,
+          "mean_quota_rank": 6.317736108721831,
+          "high_quota_rate": 0.18355410287287116,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 131.35,
+          "mean_win_share": 0.3046875,
+          "variety_per_100_player_rounds": 7.34375,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 37.03125,
+          "mean_quota_rank": 5.579854105230483,
+          "high_quota_rate": 0.10367841067825546,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.715625,
+          "mean_win_share": 0.29375,
+          "variety_per_100_player_rounds": 2.734375,
+          "mono_per_100_player_rounds": 1.09375,
+          "purist_per_100_player_rounds": 20.390625,
+          "mean_quota_rank": 7.099513145082765,
+          "high_quota_rate": 0.27419668938656283,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 123.134375,
+          "mean_win_share": 0.18125,
+          "variety_per_100_player_rounds": 5.078125,
+          "mono_per_100_player_rounds": 0.703125,
+          "purist_per_100_player_rounds": 32.65625,
+          "mean_quota_rank": 5.988794112727881,
+          "high_quota_rate": 0.15002508780732565,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 127.546875,
+          "mean_win_share": 0.2671875,
+          "variety_per_100_player_rounds": 6.953125,
+          "mono_per_100_player_rounds": 2.5,
+          "purist_per_100_player_rounds": 32.265625,
+          "mean_quota_rank": 5.906779661016949,
+          "high_quota_rate": 0.1415752741774676,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "variety_10cards": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 1,
+        "variety_min_cards": 10,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 127.38385416666667,
+      "variety_per_100_player_rounds": 5.2734375,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 118.303125,
+          "mean_win_share": 0.1296875,
+          "variety_per_100_player_rounds": 5.390625,
+          "mono_per_100_player_rounds": 2.890625,
+          "purist_per_100_player_rounds": 35.234375,
+          "mean_quota_rank": 5.502442996742671,
+          "high_quota_rate": 0.09364820846905537,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 132.253125,
+          "mean_win_share": 0.3234375,
+          "variety_per_100_player_rounds": 4.140625,
+          "mono_per_100_player_rounds": 1.484375,
+          "purist_per_100_player_rounds": 29.53125,
+          "mean_quota_rank": 6.317736108721831,
+          "high_quota_rate": 0.18355410287287116,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 131.35,
+          "mean_win_share": 0.3046875,
+          "variety_per_100_player_rounds": 7.34375,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 37.03125,
+          "mean_quota_rank": 5.579854105230483,
+          "high_quota_rate": 0.10367841067825546,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.715625,
+          "mean_win_share": 0.29375,
+          "variety_per_100_player_rounds": 2.734375,
+          "mono_per_100_player_rounds": 1.09375,
+          "purist_per_100_player_rounds": 20.390625,
+          "mean_quota_rank": 7.099513145082765,
+          "high_quota_rate": 0.27419668938656283,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 123.134375,
+          "mean_win_share": 0.18125,
+          "variety_per_100_player_rounds": 5.078125,
+          "mono_per_100_player_rounds": 0.703125,
+          "purist_per_100_player_rounds": 32.65625,
+          "mean_quota_rank": 5.988794112727881,
+          "high_quota_rate": 0.15002508780732565,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 127.546875,
+          "mean_win_share": 0.2671875,
+          "variety_per_100_player_rounds": 6.953125,
+          "mono_per_100_player_rounds": 2.5,
+          "purist_per_100_player_rounds": 32.265625,
+          "mean_quota_rank": 5.906779661016949,
+          "high_quota_rate": 0.1415752741774676,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "variety_15cards": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 1,
+        "variety_min_cards": 15,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 127.37604166666667,
+      "variety_per_100_player_rounds": 5.234375,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 118.271875,
+          "mean_win_share": 0.1328125,
+          "variety_per_100_player_rounds": 5.234375,
+          "mono_per_100_player_rounds": 2.890625,
+          "purist_per_100_player_rounds": 35.234375,
+          "mean_quota_rank": 5.502442996742671,
+          "high_quota_rate": 0.09364820846905537,
+          "paired_score_delta": -0.03125,
+          "paired_score_delta_95ci": [
+            -0.0742853015969948,
+            0.011785301596994799
+          ],
+          "paired_win_share_delta": 0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.002999999999999999,
+            0.00925
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 132.253125,
+          "mean_win_share": 0.3234375,
+          "variety_per_100_player_rounds": 4.140625,
+          "mono_per_100_player_rounds": 1.484375,
+          "purist_per_100_player_rounds": 29.53125,
+          "mean_quota_rank": 6.317736108721831,
+          "high_quota_rate": 0.18355410287287116,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 131.334375,
+          "mean_win_share": 0.3015625,
+          "variety_per_100_player_rounds": 7.265625,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 37.03125,
+          "mean_quota_rank": 5.579854105230483,
+          "high_quota_rate": 0.10367841067825546,
+          "paired_score_delta": -0.015625,
+          "paired_score_delta_95ci": [
+            -0.04625,
+            0.014999999999999996
+          ],
+          "paired_win_share_delta": -0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.00925,
+            0.002999999999999999
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.715625,
+          "mean_win_share": 0.29375,
+          "variety_per_100_player_rounds": 2.734375,
+          "mono_per_100_player_rounds": 1.09375,
+          "purist_per_100_player_rounds": 20.390625,
+          "mean_quota_rank": 7.099513145082765,
+          "high_quota_rate": 0.27419668938656283,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 123.134375,
+          "mean_win_share": 0.18125,
+          "variety_per_100_player_rounds": 5.078125,
+          "mono_per_100_player_rounds": 0.703125,
+          "purist_per_100_player_rounds": 32.65625,
+          "mean_quota_rank": 5.988794112727881,
+          "high_quota_rate": 0.15002508780732565,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 127.546875,
+          "mean_win_share": 0.2671875,
+          "variety_per_100_player_rounds": 6.953125,
+          "mono_per_100_player_rounds": 2.5,
+          "purist_per_100_player_rounds": 32.265625,
+          "mean_quota_rank": 5.906779661016949,
+          "high_quota_rate": 0.1415752741774676,
+          "paired_score_delta": 0.0,
+          "paired_score_delta_95ci": [
+            0.0,
+            0.0
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "variety_20cards": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 1,
+        "variety_min_cards": 20,
+        "achievement_min": 7
+      },
+      "mean_score_across_characters": 127.25364583333334,
+      "variety_per_100_player_rounds": 4.596354166666667,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 118.09375,
+          "mean_win_share": 0.1296875,
+          "variety_per_100_player_rounds": 4.53125,
+          "mono_per_100_player_rounds": 2.890625,
+          "purist_per_100_player_rounds": 35.234375,
+          "mean_quota_rank": 5.502117263843648,
+          "high_quota_rate": 0.09381107491856677,
+          "paired_score_delta": -0.209375,
+          "paired_score_delta_95ci": [
+            -0.32678998995233244,
+            -0.09196001004766757
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            -0.008716708820319045,
+            0.008716708820319045
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 132.2,
+          "mean_win_share": 0.3265625,
+          "variety_per_100_player_rounds": 3.90625,
+          "mono_per_100_player_rounds": 1.484375,
+          "purist_per_100_player_rounds": 29.453125,
+          "mean_quota_rank": 6.315490533562823,
+          "high_quota_rate": 0.18330464716006883,
+          "paired_score_delta": -0.053125,
+          "paired_score_delta_95ci": [
+            -0.2800431733514349,
+            0.17379317335143493
+          ],
+          "paired_win_share_delta": 0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.002999999999999999,
+            0.00925
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 131.1625,
+          "mean_win_share": 0.2984375,
+          "variety_per_100_player_rounds": 6.40625,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 37.03125,
+          "mean_quota_rank": 5.578212290502793,
+          "high_quota_rate": 0.10350713842333954,
+          "paired_score_delta": -0.1875,
+          "paired_score_delta_95ci": [
+            -0.2951434133162812,
+            -0.0798565866837188
+          ],
+          "paired_win_share_delta": -0.00625,
+          "paired_win_share_delta_95ci": [
+            -0.01485706031939896,
+            0.0023570603193989598
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.696875,
+          "mean_win_share": 0.29375,
+          "variety_per_100_player_rounds": 2.65625,
+          "mono_per_100_player_rounds": 1.09375,
+          "purist_per_100_player_rounds": 20.46875,
+          "mean_quota_rank": 7.097314130011678,
+          "high_quota_rate": 0.27364733359283766,
+          "paired_score_delta": -0.01875,
+          "paired_score_delta_95ci": [
+            -0.20299553435668322,
+            0.16549553435668324
+          ],
+          "paired_win_share_delta": 0.0,
+          "paired_win_share_delta_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 122.890625,
+          "mean_win_share": 0.178125,
+          "variety_per_100_player_rounds": 4.21875,
+          "mono_per_100_player_rounds": 0.703125,
+          "purist_per_100_player_rounds": 32.65625,
+          "mean_quota_rank": 5.990794979079498,
+          "high_quota_rate": 0.1501255230125523,
+          "paired_score_delta": -0.24375,
+          "paired_score_delta_95ci": [
+            -0.5264691641738126,
+            0.03896916417381266
+          ],
+          "paired_win_share_delta": -0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.00925,
+            0.002999999999999999
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 127.478125,
+          "mean_win_share": 0.2734375,
+          "variety_per_100_player_rounds": 5.859375,
+          "mono_per_100_player_rounds": 2.5,
+          "purist_per_100_player_rounds": 32.421875,
+          "mean_quota_rank": 5.906478405315615,
+          "high_quota_rate": 0.14169435215946843,
+          "paired_score_delta": -0.06875,
+          "paired_score_delta_95ci": [
+            -0.2565085959366475,
+            0.11900859593664748
+          ],
+          "paired_win_share_delta": 0.00625,
+          "paired_win_share_delta_95ci": [
+            -0.0023570603193989598,
+            0.01485706031939896
+          ]
+        }
+      }
+    },
+    "achievement_from_6": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 1,
+        "variety_min_cards": 5,
+        "achievement_min": 6
+      },
+      "mean_score_across_characters": 128.47083333333333,
+      "variety_per_100_player_rounds": 5.260416666666667,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 119.765625,
+          "mean_win_share": 0.146875,
+          "variety_per_100_player_rounds": 5.703125,
+          "mono_per_100_player_rounds": 2.421875,
+          "purist_per_100_player_rounds": 35.234375,
+          "mean_quota_rank": 5.507843137254902,
+          "high_quota_rate": 0.08970588235294118,
+          "paired_score_delta": 1.4625,
+          "paired_score_delta_95ci": [
+            -0.5308476001599143,
+            3.455847600159914
+          ],
+          "paired_win_share_delta": 0.0171875,
+          "paired_win_share_delta_95ci": [
+            -0.03149041195137895,
+            0.06586541195137896
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 133.96875,
+          "mean_win_share": 0.340625,
+          "variety_per_100_player_rounds": 5.0,
+          "mono_per_100_player_rounds": 1.5625,
+          "purist_per_100_player_rounds": 30.15625,
+          "mean_quota_rank": 6.2429177268871925,
+          "high_quota_rate": 0.17116200169635284,
+          "paired_score_delta": 1.715625,
+          "paired_score_delta_95ci": [
+            -0.6065190519958994,
+            4.037769051995899
+          ],
+          "paired_win_share_delta": 0.0171875,
+          "paired_win_share_delta_95ci": [
+            -0.04026079429155832,
+            0.07463579429155832
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 132.565625,
+          "mean_win_share": 0.2671875,
+          "variety_per_100_player_rounds": 6.5625,
+          "mono_per_100_player_rounds": 1.25,
+          "purist_per_100_player_rounds": 36.171875,
+          "mean_quota_rank": 5.575185643564357,
+          "high_quota_rate": 0.09870049504950495,
+          "paired_score_delta": 1.215625,
+          "paired_score_delta_95ci": [
+            -1.073150097642192,
+            3.5044000976421916
+          ],
+          "paired_win_share_delta": -0.0375,
+          "paired_win_share_delta_95ci": [
+            -0.090414084291951,
+            0.015414084291951007
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 131.196875,
+          "mean_win_share": 0.290625,
+          "variety_per_100_player_rounds": 2.5,
+          "mono_per_100_player_rounds": 1.328125,
+          "purist_per_100_player_rounds": 20.859375,
+          "mean_quota_rank": 7.078829268292683,
+          "high_quota_rate": 0.27063414634146343,
+          "paired_score_delta": -0.51875,
+          "paired_score_delta_95ci": [
+            -2.736133641681956,
+            1.6986336416819559
+          ],
+          "paired_win_share_delta": -0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.0462650038108189,
+            0.04001500381081889
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 123.353125,
+          "mean_win_share": 0.171875,
+          "variety_per_100_player_rounds": 4.921875,
+          "mono_per_100_player_rounds": 0.9375,
+          "purist_per_100_player_rounds": 31.328125,
+          "mean_quota_rank": 5.954998339422119,
+          "high_quota_rate": 0.14530056459647958,
+          "paired_score_delta": 0.21875,
+          "paired_score_delta_95ci": [
+            -2.449949449614628,
+            2.887449449614628
+          ],
+          "paired_win_share_delta": -0.009375,
+          "paired_win_share_delta_95ci": [
+            -0.05524655076192429,
+            0.03649655076192429
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 129.975,
+          "mean_win_share": 0.2828125,
+          "variety_per_100_player_rounds": 6.875,
+          "mono_per_100_player_rounds": 2.34375,
+          "purist_per_100_player_rounds": 33.90625,
+          "mean_quota_rank": 5.869543732498765,
+          "high_quota_rate": 0.13655081535167188,
+          "paired_score_delta": 2.428125,
+          "paired_score_delta_95ci": [
+            0.06496119469824091,
+            4.791288805301759
+          ],
+          "paired_win_share_delta": 0.015625,
+          "paired_win_share_delta_95ci": [
+            -0.03298091129010722,
+            0.06423091129010722
+          ]
+        }
+      }
+    },
+    "achievement_from_5": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 1,
+        "variety_min_cards": 5,
+        "achievement_min": 5
+      },
+      "mean_score_across_characters": 129.2265625,
+      "variety_per_100_player_rounds": 5.377604166666667,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 121.55625,
+          "mean_win_share": 0.1703125,
+          "variety_per_100_player_rounds": 5.546875,
+          "mono_per_100_player_rounds": 2.34375,
+          "purist_per_100_player_rounds": 36.328125,
+          "mean_quota_rank": 5.455803353410386,
+          "high_quota_rate": 0.08627706332410874,
+          "paired_score_delta": 3.253125,
+          "paired_score_delta_95ci": [
+            0.735648135665306,
+            5.770601864334694
+          ],
+          "paired_win_share_delta": 0.040625,
+          "paired_win_share_delta_95ci": [
+            -0.007272303691850612,
+            0.08852230369185062
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 133.790625,
+          "mean_win_share": 0.3109375,
+          "variety_per_100_player_rounds": 4.609375,
+          "mono_per_100_player_rounds": 1.171875,
+          "purist_per_100_player_rounds": 29.0625,
+          "mean_quota_rank": 6.18872091048072,
+          "high_quota_rate": 0.1703754034312893,
+          "paired_score_delta": 1.5375,
+          "paired_score_delta_95ci": [
+            -1.3702913727985226,
+            4.445291372798523
+          ],
+          "paired_win_share_delta": -0.0125,
+          "paired_win_share_delta_95ci": [
+            -0.07723293480216438,
+            0.052232934802164385
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 135.1125,
+          "mean_win_share": 0.33125,
+          "variety_per_100_player_rounds": 7.421875,
+          "mono_per_100_player_rounds": 0.859375,
+          "purist_per_100_player_rounds": 35.9375,
+          "mean_quota_rank": 5.512859534317456,
+          "high_quota_rate": 0.09237558971237254,
+          "paired_score_delta": 3.7625,
+          "paired_score_delta_95ci": [
+            1.1777511023459075,
+            6.347248897654093
+          ],
+          "paired_win_share_delta": 0.0265625,
+          "paired_win_share_delta_95ci": [
+            -0.03685024615252386,
+            0.08997524615252386
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 129.390625,
+          "mean_win_share": 0.25,
+          "variety_per_100_player_rounds": 2.265625,
+          "mono_per_100_player_rounds": 0.9375,
+          "purist_per_100_player_rounds": 18.671875,
+          "mean_quota_rank": 7.069161442006269,
+          "high_quota_rate": 0.2664576802507837,
+          "paired_score_delta": -2.325,
+          "paired_score_delta_95ci": [
+            -4.800428670203571,
+            0.1504286702035711
+          ],
+          "paired_win_share_delta": -0.04375,
+          "paired_win_share_delta_95ci": [
+            -0.09131400584369165,
+            0.0038140058436916535
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 124.71875,
+          "mean_win_share": 0.178125,
+          "variety_per_100_player_rounds": 6.015625,
+          "mono_per_100_player_rounds": 0.859375,
+          "purist_per_100_player_rounds": 31.875,
+          "mean_quota_rank": 5.86952945047713,
+          "high_quota_rate": 0.13754524514642974,
+          "paired_score_delta": 1.584375,
+          "paired_score_delta_95ci": [
+            -0.8603307493186332,
+            4.029080749318633
+          ],
+          "paired_win_share_delta": -0.003125,
+          "paired_win_share_delta_95ci": [
+            -0.04965438834145985,
+            0.04340438834145984
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 130.790625,
+          "mean_win_share": 0.259375,
+          "variety_per_100_player_rounds": 6.40625,
+          "mono_per_100_player_rounds": 2.421875,
+          "purist_per_100_player_rounds": 32.96875,
+          "mean_quota_rank": 5.860411899313501,
+          "high_quota_rate": 0.13729977116704806,
+          "paired_score_delta": 3.24375,
+          "paired_score_delta_95ci": [
+            0.44377304499198633,
+            6.0437269550080135
+          ],
+          "paired_win_share_delta": -0.0078125,
+          "paired_win_share_delta_95ci": [
+            -0.058140407657296785,
+            0.042515407657296785
+          ]
+        }
+      }
+    },
+    "variety_twice_and_from_6": {
+      "rules": {
+        "variety_points": 5,
+        "variety_copies": 2,
+        "variety_min_cards": 5,
+        "achievement_min": 6
+      },
+      "mean_score_across_characters": 127.62135416666666,
+      "variety_per_100_player_rounds": 1.1588541666666667,
+      "characters": {
+        "ledger_keeper": {
+          "games": 320,
+          "mean_score": 118.8,
+          "mean_win_share": 0.1359375,
+          "variety_per_100_player_rounds": 0.9375,
+          "mono_per_100_player_rounds": 2.421875,
+          "purist_per_100_player_rounds": 35.0,
+          "mean_quota_rank": 5.507679738562092,
+          "high_quota_rate": 0.090359477124183,
+          "paired_score_delta": 0.496875,
+          "paired_score_delta_95ci": [
+            -1.5681295782104365,
+            2.5618795782104367
+          ],
+          "paired_win_share_delta": 0.00625,
+          "paired_win_share_delta_95ci": [
+            -0.040872660100388106,
+            0.0533726601003881
+          ]
+        },
+        "harbor_broker": {
+          "games": 320,
+          "mean_score": 133.259375,
+          "mean_win_share": 0.3484375,
+          "variety_per_100_player_rounds": 1.640625,
+          "mono_per_100_player_rounds": 1.484375,
+          "purist_per_100_player_rounds": 29.84375,
+          "mean_quota_rank": 6.24593220338983,
+          "high_quota_rate": 0.17067796610169492,
+          "paired_score_delta": 1.00625,
+          "paired_score_delta_95ci": [
+            -1.2379423991773328,
+            3.250442399177333
+          ],
+          "paired_win_share_delta": 0.025,
+          "paired_win_share_delta_95ci": [
+            -0.03054123795815187,
+            0.08054123795815188
+          ]
+        },
+        "quick_trader": {
+          "games": 320,
+          "mean_score": 131.54375,
+          "mean_win_share": 0.26875,
+          "variety_per_100_player_rounds": 1.25,
+          "mono_per_100_player_rounds": 1.328125,
+          "purist_per_100_player_rounds": 36.5625,
+          "mean_quota_rank": 5.585010839269124,
+          "high_quota_rate": 0.09894704242799629,
+          "paired_score_delta": 0.19375,
+          "paired_score_delta_95ci": [
+            -2.0689030298271707,
+            2.456403029827171
+          ],
+          "paired_win_share_delta": -0.0359375,
+          "paired_win_share_delta_95ci": [
+            -0.08881455121780625,
+            0.016939551217806256
+          ]
+        },
+        "risk_captain": {
+          "games": 320,
+          "mean_score": 130.721875,
+          "mean_win_share": 0.284375,
+          "variety_per_100_player_rounds": 0.3125,
+          "mono_per_100_player_rounds": 1.328125,
+          "purist_per_100_player_rounds": 21.015625,
+          "mean_quota_rank": 7.079312365696425,
+          "high_quota_rate": 0.27036530572377415,
+          "paired_score_delta": -0.99375,
+          "paired_score_delta_95ci": [
+            -3.230447547039022,
+            1.242947547039022
+          ],
+          "paired_win_share_delta": -0.009375,
+          "paired_win_share_delta_95ci": [
+            -0.051580211354835426,
+            0.03283021135483542
+          ]
+        },
+        "market_blocker": {
+          "games": 320,
+          "mean_score": 122.575,
+          "mean_win_share": 0.1734375,
+          "variety_per_100_player_rounds": 1.5625,
+          "mono_per_100_player_rounds": 0.9375,
+          "purist_per_100_player_rounds": 31.328125,
+          "mean_quota_rank": 5.953360995850622,
+          "high_quota_rate": 0.1458921161825726,
+          "paired_score_delta": -0.559375,
+          "paired_score_delta_95ci": [
+            -3.1892400531133767,
+            2.0704900531133763
+          ],
+          "paired_win_share_delta": -0.0078125,
+          "paired_win_share_delta_95ci": [
+            -0.0531778718164799,
+            0.0375528718164799
+          ]
+        },
+        "title_collector": {
+          "games": 320,
+          "mean_score": 128.828125,
+          "mean_win_share": 0.2890625,
+          "variety_per_100_player_rounds": 1.25,
+          "mono_per_100_player_rounds": 2.03125,
+          "purist_per_100_player_rounds": 34.0625,
+          "mean_quota_rank": 5.860996874485935,
+          "high_quota_rate": 0.1357131107089982,
+          "paired_score_delta": 1.28125,
+          "paired_score_delta_95ci": [
+            -1.0325457223528791,
+            3.595045722352879
+          ],
+          "paired_win_share_delta": 0.021875,
+          "paired_win_share_delta_95ci": [
+            -0.028155985256733587,
+            0.07190598525673358
+          ]
+        }
+      }
+    }
+  }
+}
