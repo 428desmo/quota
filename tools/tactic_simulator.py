@@ -27,8 +27,8 @@ if str(ROOT) not in sys.path:
 
 from quota.ai import choose_action  # noqa: E402
 from quota.cards import Card  # noqa: E402
-from quota.characters import Mind, bind, character_count  # noqa: E402
-from quota.engine import Action, Game, GameConfig  # noqa: E402
+from quota.characters import Mind, bind, character_count, mind_for  # noqa: E402
+from quota.engine import Abandon, Action, Game, GameConfig  # noqa: E402
 from tools.tactic_policies import Decision, Policy, policy as builtin_policy  # noqa: E402
 
 
@@ -61,6 +61,7 @@ class Observation:
     plan: str
     double_stage: int
     legal_actions: tuple[Action, ...]
+    turn_gain: bool = False
 
 
 def observe(game: Game) -> Observation:
@@ -90,6 +91,7 @@ def observe(game: Game) -> Observation:
         plan=game.plan,
         double_stage=game.double_stage,
         legal_actions=tuple(game.legal_actions()),
+        turn_gain=game.turn_gain,
     )
 
 
@@ -148,9 +150,28 @@ def run_game(
             raise RuntimeError(f"game exceeded {guard_actions} actions (seed={seed}, focal={focal})")
         before_choice = observe(game) if candidate is not None else None
         if candidate is not None and game.current == focal:
+            mind = mind_for(game.players[focal])
+            mind_action_state = (
+                (mind.abandoned, mind.block_seat, mind.block_suit, mind.block_turn)
+                if mind is not None else None
+            )
+            declaration = candidate.special_declaration(before_choice)
+            if declaration not in ("baseline", "none", "double", "reshuffle"):
+                raise ValueError(f"unknown special declaration {declaration!r}")
+            if declaration in ("double", "reshuffle"):
+                me = before_choice.players[focal]
+                if (before_choice.plan != "normal" or game.turn_gain or
+                    (declaration == "double" and me.double_action_left < 1) or
+                    (declaration == "reshuffle" and me.reshuffle_take_left < 1)):
+                    raise ValueError(f"illegal special declaration {declaration!r}")
+                if declaration == "double":
+                    game.declare_double()
+                else:
+                    game.declare_reshuffle()
+
             def special_guard(kind: str) -> bool:
                 counters.special_offered += 1
-                allowed = candidate.allow_special(observe(game), kind)
+                allowed = declaration == "baseline" and candidate.allow_special(observe(game), kind)
                 if not allowed:
                     counters.special_blocked += 1
                 return allowed
@@ -172,6 +193,11 @@ def run_game(
             counters.changed += action != baseline
             if not game.is_legal(action):
                 raise ValueError(f"candidate returned illegal action {action!r}")
+            if action != baseline and mind is not None and mind_action_state is not None:
+                (mind.abandoned, mind.block_seat,
+                 mind.block_suit, mind.block_turn) = mind_action_state
+                if isinstance(action, Abandon):
+                    mind.abandoned = True
         else:
             action = choose_action(game)
             if candidate is not None:
