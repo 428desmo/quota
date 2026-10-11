@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from quota.cards import Card, score_for, sequence_at
 from quota.engine import Abandon, Action, Collect, Pass, TakeQuota
+from tools.bonus_rules import BonusRules
 
 if TYPE_CHECKING:
     from tools.tactic_simulator import Observation
@@ -65,12 +66,13 @@ def bundles(cards: tuple[Card, ...]) -> list[tuple[str, bool]]:
 
 
 class CharacterPolicy:
-    def __init__(self, style: str, inference: int):
+    def __init__(self, style: str, inference: int, bonus_rules: BonusRules | None = None):
         if style not in STYLE or inference not in LEVELS:
             raise ValueError(f"invalid style/inference: {style}, {inference}")
         self.style_name = style
         self.style = STYLE[style]
         self.inference = inference
+        self.bonus_rules = bonus_rules
         self.returned: Counter[str] = Counter()
         self.stats: Counter[str] = Counter()
 
@@ -150,9 +152,18 @@ class CharacterPolicy:
         if groups and len(groups) < 3 and len({kind for kind, _ in groups}) == 1:
             if card.suit == groups[0][0]:
                 value += 3.0 * chance
-        if card.suit not in {item.suit for item in mine.achieved}:
-            value += 0.5 * chance
+        if self.bonus_rules is None:
+            if card.suit not in {item.suit for item in mine.achieved}:
+                value += 0.5 * chance
+        elif self.bonus_rules.variety_points:
+            counts = Counter(item.suit for item in mine.achieved)
+            needed = self.bonus_rules.variety_copies
+            if counts[card.suit] < needed:
+                value += 0.5 * chance * self.bonus_rules.variety_points / 5
         return value * self.style.title
+
+    def score_for(self, rank: int) -> int:
+        return self.bonus_rules.score_for(rank) if self.bonus_rules else score_for(rank)
 
     def denial_value(self, observation: Observation, card: Card) -> float:
         impact = 0.0
@@ -216,7 +227,7 @@ class CharacterPolicy:
                     upside *= 1.4
                 if lead <= -10 and remaining_rounds <= 1:
                     upside *= 0.8
-                score = (score_for(card.rank) * chance * upside
+                score = (self.score_for(card.rank) * chance * upside
                          - self.style.risk * (1 - chance)
                          - self.style.time * card.rank * 0.65)
                 score += self.title_value(observation, card, chance)

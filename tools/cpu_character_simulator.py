@@ -21,19 +21,26 @@ from quota.ai import choose_action  # noqa: E402
 from quota.characters import Mind, bind, character_count  # noqa: E402
 from quota.engine import Game, GameConfig  # noqa: E402
 from tools.cpu_character_policy import LEVELS, STYLES, CharacterPolicy  # noqa: E402
+from tools.bonus_rules import BonusGame, BonusGameConfig, BonusRules  # noqa: E402
 from tools.tactic_simulator import confidence_interval, mean, observe  # noqa: E402
 
 
 def run_match(seed: int, legacy: tuple[int, ...],
               candidates: dict[int, tuple[str, int]], rounds: int,
-              guard_actions: int = 20_000) -> dict:
-    game = Game.start(GameConfig(
+              guard_actions: int = 20_000,
+              bonus_rules: BonusRules | None = None) -> dict:
+    config_type = BonusGameConfig if bonus_rules is not None else GameConfig
+    game_type = BonusGame if bonus_rules is not None else Game
+    config_options = {"bonus_rules": bonus_rules} if bonus_rules is not None else {}
+    game = game_type.start(config_type(
         num_players=len(legacy), seed=seed, human_seats=[],
         names=[f"P{i + 1}" for i in range(len(legacy))],
         rounds=rounds, sequence_rule=True, title_rule=True,
         special_actions_rule=True,
+        **config_options,
     ))
-    policies = {seat: CharacterPolicy(*spec) for seat, spec in candidates.items()}
+    policies = {seat: CharacterPolicy(*spec, bonus_rules=bonus_rules)
+                for seat, spec in candidates.items()}
     for seat, character in enumerate(legacy):
         if seat not in policies:
             bind(game.players[seat], Mind(character))
