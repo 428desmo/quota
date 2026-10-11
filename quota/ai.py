@@ -71,10 +71,16 @@ def _maybe_special(game: Game) -> None:
     if not game.config.special_actions_rule or game.finished or game.plan != "normal" or game.turn_gain:
         return
     player = game.players[game.current]
-    if player.reshuffle_take_left > 0 and not _market_helps(game, player):
+    # Experimental simulations can veto a declaration without changing normal play.
+    special_guard = getattr(game, "experimental_special_guard", None)
+    if player.reshuffle_take_left > 0 and not _market_helps(game, player) and (
+        special_guard is None or special_guard("reshuffle")
+    ):
         game.declare_reshuffle()
         return
-    if player.double_action_left > 0 and _worth_double(game, player):
+    if player.double_action_left > 0 and _worth_double(game, player) and (
+        special_guard is None or special_guard("double")
+    ):
         game.declare_double()
 
 
