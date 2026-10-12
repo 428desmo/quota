@@ -1366,7 +1366,7 @@ namespace Quota.Tests
                 labels.Add(caption.text);
                 Assert.AreEqual(72f, button.sizeDelta.y, 0.01f);
                 Assert.AreEqual(1080f, button.anchoredPosition.x + button.sizeDelta.x, 0.01f);
-                Assert.AreEqual(-i * (380f - 72f) / (controls.childCount - 1), button.anchoredPosition.y, 0.01f);
+                Assert.AreEqual(-i * (380f - 72f) / 3f, button.anchoredPosition.y, 0.01f);
             }
             CollectionAssert.AreEqual(new[] { "ダブル", "配り直し", "パス" }, labels);
 
@@ -1374,6 +1374,10 @@ namespace Quota.Tests
             Assert.IsNull(FindButton("パスする"));
             Assert.IsNotNull(FindText("ダブル：1回目の行動です。"));
             Assert.IsNull(host.transform.Find("Root/Frame/controls/ダブル"));
+            controls = host.transform.Find("Root/Frame/controls") as RectTransform;
+            Assert.AreEqual(2, controls.childCount);
+            Assert.AreEqual(-(380f - 72f) / 3f,
+                ((RectTransform)controls.GetChild(1)).anchoredPosition.y, 0.01f);
             Click("キャンセル");
             Assert.IsNotNull(ButtonNamed("ダブル"));
             Assert.IsNull(FindButton("キャンセル"));
