@@ -3685,10 +3685,15 @@ namespace Quota
             }));
             var edge = wide ? LandWidth - LandButtonRight : ScreenWidth;
             var y = wide ? LandMarketY + LandMarketH + 16f : 0f;
+            const float buttonHeight = 72f;
+            var stride = wide ? ActionStride : entries.Count > 1
+                ? (SeatHeight - buttonHeight) / (entries.Count - 1)
+                : 0f;
+            if (!wide && entries.Count == 1) y = (SeatHeight - buttonHeight) * 0.5f;
             for (var i = 0; i < entries.Count; i++)
             {
                 var width = entries[i].Key.Length * 48f + 30f;
-                Pill(controls, entries[i].Key, edge - width, y + i * ActionStride, width, 72f, 40, entries[i].Value, fill: Hex("#D6B98C"));
+                Pill(controls, entries[i].Key, edge - width, y + i * stride, width, buttonHeight, 40, entries[i].Value, fill: Hex("#D6B98C"));
                 var actionButton = controls.Find(entries[i].Key);
                 foreach (var label in actionButton.GetComponentsInChildren<Text>()) label.fontStyle = FontStyle.Bold;
             }
