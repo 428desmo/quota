@@ -110,7 +110,7 @@ namespace Quota
         bool confirmActions = true;
         string lobbyChoice;
         enum GameMode { Offline, Internet, Local }
-        GameMode gameMode = GameMode.Internet;
+        GameMode gameMode = GameMode.Offline;
         bool modeChoiceOpen;
         float okTimeout = 5f;
         float turnTimeout = 30f;
@@ -707,7 +707,7 @@ namespace Quota
             roundMode = Mathf.Clamp(PlayerPrefs.GetInt("quota.roundMode", 1), 0, 2);
             playerName = PlayerPrefs.GetString("quota.name", "あなた");
             if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
-            gameMode = (GameMode)Mathf.Clamp(PlayerPrefs.GetInt("quota.gameMode", (int)GameMode.Internet), 0, (int)GameMode.Internet);
+            gameMode = (GameMode)Mathf.Clamp(PlayerPrefs.GetInt("quota.gameMode", (int)GameMode.Offline), 0, (int)GameMode.Internet);
             okTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.okTimeout", 5f), OkTimeoutChoices);
             turnTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.turnTimeout", 30f), TurnTimeoutChoices);
             cpuStrength = Mathf.Clamp(PlayerPrefs.GetInt("quota.cpuStrength", 1), 0, 2);

@@ -152,8 +152,7 @@ namespace Quota.Tests
         public void OfflineModeStartsWithOneHumanAndNoNetworkTable()
         {
             host = Open();
-            Click("インターネット通信");
-            Click("オフライン");
+            Assert.IsNotNull(FindButton("オフライン"));
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             Assert.IsFalse((bool)typeof(TableView).GetProperty("SharedNetwork", flags).GetValue(view));
@@ -168,8 +167,6 @@ namespace Quota.Tests
         public void OfflineLobbyCanStartCpuOnlySpectatorMatch()
         {
             host = Open();
-            Click("インターネット通信");
-            Click("オフライン");
             Click("新規ゲーム卓の準備");
             Assert.IsNull(FindText("自分は参加せずに観戦："));
             var start = ButtonNamed("ゲーム開始");
@@ -333,6 +330,7 @@ namespace Quota.Tests
         public void GuestLobbyShowsRulesReadOnlyAndKeepsPersonalConfirmationEditable()
         {
             host = Open();
+            ChooseInternetMode();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             var json = "{\"phase\":\"recruiting\",\"table_id\":\"test\",\"players\":4,\"seats\":[{\"name\":\"A\"},{\"name\":\"B\"}],\"cpus\":[\"C\",\"D\"],\"you\":{\"seat\":1,\"leader\":false},\"options\":{\"round_mode\":2,\"ok_timeout\":4,\"turn_timeout\":25}}";
@@ -361,6 +359,7 @@ namespace Quota.Tests
         public void LeaderChoosesRoundsAndTimeoutsFromListsBeforeStarting()
         {
             host = Open();
+            ChooseInternetMode();
             Click("新規ゲーム卓の準備");
             Assert.IsNull(host.transform.Find("Root/Frame/lobby-choice"));
             Assert.IsNotNull(host.transform.Find("Root/Frame/lobby-viewport/setup/ラウンド数：/choices/3"));
@@ -643,6 +642,7 @@ namespace Quota.Tests
         public void SixTablesScrollInsideFourRowViewportAndLogosAreWhite(bool wide)
         {
             host = Open();
+            ChooseInternetMode();
             Set("widePreview", wide);
             var view = host.GetComponent<TableView>();
             var entries = new List<string>();
@@ -977,6 +977,9 @@ namespace Quota.Tests
         {
             host = new GameObject("Quota");
             var view = host.AddComponent<TableView>();
+            var modeType = typeof(TableView).GetNestedType("GameMode", BindingFlags.NonPublic);
+            typeof(TableView).GetField("gameMode", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(view, System.Enum.Parse(modeType, "Internet"));
             typeof(TableView).GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic)
                 .Invoke(view, null);
 
@@ -1115,6 +1118,7 @@ namespace Quota.Tests
         public void TheLobbyListsTheWaitingCpusAndOpensSeparateSettings()
         {
             host = Open();
+            ChooseInternetMode();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             Click("新規ゲーム卓の準備");
@@ -1284,8 +1288,6 @@ namespace Quota.Tests
 
             Click("EXIT");
             Click("抜ける");
-            Click("インターネット通信");
-            Click("オフライン");
             Click("新規ゲーム卓の準備");
             Click("CPU模擬戦を見る");
             Assert.IsTrue((bool)noHuman.Invoke(view, null));
@@ -2033,6 +2035,12 @@ namespace Quota.Tests
         {
             ButtonNamed(caption).onClick.Invoke();
             Rebuild(host);
+        }
+
+        void ChooseInternetMode()
+        {
+            Click("オフライン");
+            Click("インターネット通信");
         }
 
         void Begin()
