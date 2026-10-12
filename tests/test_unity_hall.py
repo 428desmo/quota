@@ -152,6 +152,40 @@ def test_timeout_replaces_human_without_renaming_or_resetting_board():
     assert len(table.actions) >= 2
 
 
+@pytest.mark.parametrize('special', ['double', 'reshuffle'])
+def test_timeout_proxy_never_declares_special_actions(monkeypatch, special):
+    from quota.live_cpu import LiveMind
+
+    hall, table = playing_pair()
+    game = table.game
+    game.current = 1
+    game.order_cursor = game.turn_order.index(1)
+    hall.update_deadline(table)
+    table.turn_deadline = 0
+    hall.snapshot('a')
+    mind = game.players[1].cpu_mind
+    assert isinstance(mind, LiveMind)
+    monkeypatch.setattr(mind.policy, 'special', lambda _observation: special)
+    table.cpu_at = 0
+    hall.snapshot('a')
+    assert special not in table.actions
+
+
+def test_regular_cpu_can_still_declare_special_action(monkeypatch):
+    from quota.live_cpu import LiveMind
+
+    hall, table = playing_pair()
+    game = table.game
+    game.current = 2
+    game.order_cursor = game.turn_order.index(2)
+    mind = game.players[2].cpu_mind
+    assert isinstance(mind, LiveMind)
+    monkeypatch.setattr(mind.policy, 'special', lambda _observation: 'double')
+    table.cpu_at = 0
+    hall.snapshot('a')
+    assert 'double' in table.actions
+
+
 def test_abandon_keeps_same_turn_and_can_pass_without_matching_card():
     from quota.cards import Card
     hall, table = playing_pair()
