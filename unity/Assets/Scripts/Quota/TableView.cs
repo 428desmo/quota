@@ -3686,10 +3686,8 @@ namespace Quota
             var edge = wide ? LandWidth - LandButtonRight : ScreenWidth;
             var y = wide ? LandMarketY + LandMarketH + 16f : 0f;
             const float buttonHeight = 72f;
-            var stride = wide ? ActionStride : entries.Count > 1
-                ? (SeatHeight - buttonHeight) / (entries.Count - 1)
-                : 0f;
-            if (!wide && entries.Count == 1) y = (SeatHeight - buttonHeight) * 0.5f;
+            // Keep the four-button spacing even when some actions are unavailable.
+            var stride = wide ? ActionStride : (SeatHeight - buttonHeight) / 3f;
             for (var i = 0; i < entries.Count; i++)
             {
                 var width = entries[i].Key.Length * 48f + 30f;
