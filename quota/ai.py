@@ -6,17 +6,19 @@ from quota.cards import score_for, sequence_at
 from quota.engine import Abandon, Action, Collect, Game, Pass, TakeQuota
 
 
-def choose_action(game: Game) -> Action:
+def choose_action(game: Game, allow_special: bool = True) -> Action:
     from quota.characters import mind_for
 
     mind = mind_for(game.players[game.current])
     if mind is not None:
-        return mind.choose(game)
-    return choose_stock(game)
+        from quota.live_cpu import LiveMind
+        return mind.choose(game, allow_special=allow_special) if isinstance(mind, LiveMind) else mind.choose(game)
+    return choose_stock(game, allow_special=allow_special)
 
 
-def choose_stock(game: Game) -> Action:
-    _maybe_special(game)
+def choose_stock(game: Game, allow_special: bool = True) -> Action:
+    if allow_special:
+        _maybe_special(game)
     actions = game.legal_actions()
     player = game.players[game.current]
     takes = [a for a in actions if isinstance(a, TakeQuota)]

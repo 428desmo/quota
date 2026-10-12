@@ -424,7 +424,7 @@ class Table:
         self.turn_deadline = None
         self._announce(f"{player.name}が応答しないので、CPUが代わりにプレイしました")
         self.touch()
-        self._apply(choose_action(game))
+        self._apply(choose_action(game, allow_special=False))
 
     def snapshot(self, client_id: str = "") -> dict:
         if self.phase == "recruiting" or self.game is None:

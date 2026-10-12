@@ -159,6 +159,7 @@ class UnityTable:
         self.cpu_at = 0.0
         self.turn_key = None
         self.turn_deadline = 0.0
+        self.timeout_proxy_turn = None
         self.round_at = None
 
     def touch(self) -> None:
@@ -450,6 +451,7 @@ class UnityHall:
         key = (game.round_index, game.turn_number, game.current)
         if key != table.turn_key:
             table.turn_key = key
+            table.timeout_proxy_turn = None
             table.turn_deadline = time.monotonic() + max(1, float(table.options["turn_timeout"]))
             if game.current < len(table.humans):
                 seat = table.humans[game.current]
@@ -491,6 +493,7 @@ class UnityHall:
             table.actions.append(f"timeout:{game.current}")
             self.replace_human(table, game.current)
             table.humans[game.current].resume_after = table.turn_key
+            table.timeout_proxy_turn = table.turn_key
 
         game = table.game
         if game is None or game.finished or game.awaiting_next_round or game.players[game.current].is_human or time.monotonic() < table.cpu_at:
@@ -498,7 +501,8 @@ class UnityHall:
         plan = game.plan
         thinking_at = time.perf_counter()
         try:
-            action = mind_for(game.players[game.current]).choose(game)
+            mind = mind_for(game.players[game.current])
+            action = mind.choose(game, allow_special=table.timeout_proxy_turn != table.turn_key)
         finally:
             METRICS.observe_cpu((time.perf_counter() - thinking_at) * 1000)
         if game.plan != plan:

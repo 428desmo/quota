@@ -16,9 +16,9 @@ class LiveMind:
         self.character_id = character_id
         self.policy = CharacterPolicy(CHARACTERS[character_id][1], validate_strength(strength))
 
-    def choose(self, game: Game):
+    def choose(self, game: Game, allow_special: bool = True):
         before = observe(game)
-        if game.config.special_actions_rule:
+        if allow_special and game.config.special_actions_rule:
             special = self.policy.special(before)
             if special == "double":
                 game.declare_double()

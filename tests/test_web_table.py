@@ -47,6 +47,30 @@ def test_turn_timeout_is_thirty_seconds_for_a_lone_online_human():
     assert "CPUが代わり" in table.cover["text"]
 
 
+@pytest.mark.parametrize("special", ["double", "reshuffle"])
+def test_web_timeout_proxy_skips_special_actions(monkeypatch, special):
+    from quota.live_cpu import LiveMind
+
+    for seed in range(40):
+        table = Table()
+        table.open({"players": 3, "name": "a", "seed": seed}, "human")
+        table.begin("human")
+        if table.game.players[table.game.current].is_human:
+            break
+    else:
+        pytest.fail("no opening human turn")
+
+    player = table.game.players[table.game.current]
+    from quota.live_cpu import bind_replacement
+    bind_replacement(player)
+    assert isinstance(player.cpu_mind, LiveMind)
+    monkeypatch.setattr(player.cpu_mind.policy, "special", lambda _observation: special)
+    table.step_timeout()
+    table.turn_deadline = 0
+    table.step_timeout()
+    assert table.game.plan == "normal"
+
+
 def test_two_humans_still_get_a_turn_clock():
     found = False
     for seed in range(40):
