@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -62,6 +63,7 @@ namespace Quota.EditorTools
                     Debug.LogError("WebGL export failed: " + report.summary.result);
                     EditorApplication.Exit(1);
                 }
+                WriteOfflineFiles(dest);
             }
             finally
             {
@@ -79,6 +81,24 @@ namespace Quota.EditorTools
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 AssetDatabase.SaveAssets();
             }
+        }
+
+        [System.Serializable]
+        sealed class OfflineManifest
+        {
+            public string[] assets;
+        }
+
+        static void WriteOfflineFiles(string dest)
+        {
+            var assets = Directory.GetFiles(dest, "*", SearchOption.AllDirectories)
+                .Select(file => Path.GetRelativePath(dest, file).Replace('\\', '/'))
+                .Where(path => path.StartsWith("Build/") || path.StartsWith("StreamingAssets/") || path.StartsWith("TemplateData/"))
+                .OrderBy(path => path, System.StringComparer.Ordinal)
+                .ToArray();
+            File.WriteAllText(Path.Combine(dest, "offline-manifest.json"),
+                JsonUtility.ToJson(new OfflineManifest { assets = assets }));
+            File.Copy("Assets/WebGLTemplates/Quota/offline-sw.js", Path.Combine(dest, "offline-sw.js"), true);
         }
 
         static void StageWebResources()
