@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quota｜インターネット対戦 画面イメージ</title>
+  <style>
+    :root{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;color:#f8f1e7;background:#191611;font-synthesis:none}
+    *{box-sizing:border-box} button,input{font:inherit} button{cursor:pointer}
+    body{margin:0;min-height:100vh;background:radial-gradient(circle at 75% 10%,#493023 0,#1b1713 52%,#13110f 100%)}
+    .shell{max-width:1280px;margin:auto;padding:28px 24px 60px;display:grid;grid-template-columns:minmax(270px,345px) minmax(0,1fr);gap:34px}
+    .intro{position:sticky;top:24px;align-self:start}.eyebrow{font-size:12px;letter-spacing:.18em;color:#d3ad74;font-weight:800}.intro h1{font-size:30px;line-height:1.25;margin:8px 0 8px}.intro p{color:#d4c7b7;font-size:14px;line-height:1.7;margin:0 0 20px}.status{display:inline-flex;align-items:center;border:1px solid #ab8862;background:#33271e;border-radius:99px;padding:6px 11px;font-size:12px;color:#f5dec0;margin-bottom:16px}
+    .nav{display:grid;gap:8px}.nav button{width:100%;text-align:left;border:1px solid #655140;border-radius:12px;padding:11px 13px;color:#f3e9dc;background:#30251e;display:flex;gap:10px;align-items:flex-start}.nav button:hover{border-color:#c89a57}.nav button.active{background:#8c4029;border-color:#e1b178;box-shadow:0 0 0 2px #1b1410,0 0 0 3px #a77a49}.nav .num{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#f2dfbf;color:#562c20;font-size:12px;font-weight:800}.nav strong{display:block;font-size:14px;line-height:1.3}.nav small{display:block;font-size:11px;opacity:.82;margin-top:3px;line-height:1.35}.note{margin-top:20px;padding:14px 16px;background:#211b16;border-left:3px solid #bd8d50;font-size:12px;line-height:1.6;color:#d5c7b6}.note a{color:#e9bd82}
+    .stage{min-width:0;display:flex;flex-direction:column;align-items:center}.stage-head{width:min(100%,820px);display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:3px 0 14px}.stage-head h2{margin:0;font-size:22px}.stage-head p{margin:5px 0 0;font-size:13px;color:#d0beaa}.step{color:#d6aa6c;font-weight:800;font-size:13px;white-space:nowrap}
+    .device{width:min(100%,428px);height:800px;padding:10px;border:2px solid #8d7c68;border-radius:34px;background:#0d0c0a;box-shadow:0 26px 65px #0009,0 0 0 6px #1e1915;position:relative}.device:before{content:"";position:absolute;width:84px;height:13px;background:#0d0c0a;border-radius:0 0 13px 13px;left:50%;top:9px;transform:translateX(-50%);z-index:5}.viewport{height:100%;border-radius:24px;overflow:hidden;position:relative;background:linear-gradient(#0008,#0007),url('../visual/vertical_base.jpg') center/cover}.view{position:absolute;inset:0;overflow:auto;scrollbar-width:thin;display:none;padding:31px 19px 24px}.view.active{display:block}.view>*{position:relative}.brand{width:100%;max-width:320px;margin:27px auto 6px;display:block;filter:brightness(0) invert(1)}.tagline{display:block;width:72%;margin:0 auto 28px;filter:brightness(0) invert(1)}.brand-small{width:210px;margin:4px auto 13px;display:block;filter:brightness(0) invert(1)}
+    .paper{background:linear-gradient(120deg,#faf4e9e8,#f3eadced);color:#332920;border:1px solid #c7aa80;border-radius:7px;padding:14px;box-shadow:0 3px 14px #0003}.paper h3{margin:0 0 11px;font-size:17px}.label{font-size:12px;color:#f4e8d7;font-weight:800;letter-spacing:.02em;margin:15px 1px 8px}.field{width:100%;height:43px;padding:0 12px;border-radius:5px;border:1px solid #a68a6e;color:#2e261f;background:#fff9ee;font-size:16px}.field.fake{display:flex;align-items:center}.pill-row{display:flex;gap:6px}.pill{padding:8px 11px;background:#f3eadb;color:#392a21;border:1px solid #92785f;border-radius:5px;font-size:13px;flex:1;text-align:center}.pill.selected{background:#ad7833;color:white;border-color:#dfb978;font-weight:800}.action{width:100%;min-height:48px;border:1px solid #71391f;border-radius:5px;background:#91402a;color:#fff;font-weight:800;font-size:17px;box-shadow:0 2px 0 #3c231c;padding:9px 13px}.action.secondary{background:#f5e8d0;color:#4c2b1f;border-color:#aa8c63}.action.quiet{background:#36251cda;border-color:#c7a377;color:#fff}.action.muted{background:#6f675e;color:#ddd0bd;border-color:#86725e;box-shadow:none}.action+.action{margin-top:10px}.action.small{min-height:38px;font-size:13px}.action:disabled{background:#6c6259;box-shadow:none;color:#eee1cf;cursor:default}.spacer{height:14px}.spacer.big{height:28px}.topline{display:flex;align-items:center;justify-content:space-between;color:#fff;font-size:12px;font-weight:800}.back{border:0;background:none;color:#fff;font-weight:800;padding:4px 0}.chip{display:inline-flex;align-items:center;gap:5px;color:#fff;border-radius:99px;background:#34251acb;border:1px solid #dbb17c;padding:5px 9px;font-size:11px;font-weight:800}.chip.private{background:#57372a}.chip.public{background:#2d5b49}.chip.wait{background:#6c4c27}.section-title{text-align:center;margin:13px 0 5px;font-size:21px;color:#fff;text-shadow:0 2px 4px #000}.sub{text-align:center;color:#f5e7d4;font-size:12px;line-height:1.5;margin:0 0 14px}.surface{background:#20140fbc;border:1px solid #b38a5e;border-radius:7px;padding:13px}.surface+.surface{margin-top:11px}.surface h3{margin:0 0 9px;font-size:15px;color:#fff}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;line-height:1.35;color:#f8eee0}.row+.row{margin-top:7px}.row .value{color:#ffdaa1;font-weight:800;text-align:right}.divider{height:1px;background:#c5a57b7a;margin:10px 0}.hint{color:#ead7bb;font-size:11px;line-height:1.5;margin:8px 0 0}.hint.dark{color:#67523f}.counter{text-align:center;color:#fff;font-size:42px;font-weight:900;letter-spacing:.04em;line-height:1;margin:6px 0}.counter small{font-size:17px}.seats{display:grid;gap:7px}.seat{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border-radius:5px;background:#fff0c5;color:#32251a;font-size:13px;min-height:42px}.seat.cpu{background:#e6dbc6}.seat b{font-size:13px}.seat span:last-child{font-size:11px;white-space:nowrap}.seat .ready{color:#17664f;font-weight:900}.seat .waiting{color:#8b5c1f;font-weight:800}.seat .leader{color:#873824;font-weight:800}.table-card{width:100%;text-align:left;border:1px solid #a9855a;border-radius:6px;background:#f4e7d5;color:#332820;padding:10px 12px;display:block}.table-card+.table-card{margin-top:8px}.table-card.disabled{opacity:.65}.table-card strong{display:block;font-size:15px}.table-card small{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:11px;color:#6b5846}.table-card em{font-style:normal;color:#8e4028;font-weight:800}.table-card .good{color:#17644e}.inline{display:flex;gap:7px}.inline>*{flex:1}.modal-shade{position:absolute;inset:0;background:#100c08b8;display:flex;align-items:center;justify-content:center;padding:21px}.modal{width:100%;background:#f5ebdb;border:2px solid #c59a6d;border-radius:11px;padding:19px 15px;color:#31261c;box-shadow:0 15px 40px #0009}.modal h3{margin:0 0 10px;text-align:center;font-size:21px}.modal p{font-size:13px;line-height:1.6;margin:0 0 13px}.modal .action{margin-top:9px}.mini{font-size:11px;color:#645140;text-align:center;margin:11px 0 0}.accent{color:#ffcd87;font-weight:800}.foot{width:min(100%,720px);margin-top:18px;color:#cbb9a5;font-size:12px;line-height:1.55}.foot strong{color:#ead1af}
+    @media(max-width:760px){.shell{display:block;padding:17px 14px 45px}.intro{position:static}.intro h1{font-size:23px}.intro p{margin-bottom:12px}.nav{display:flex;overflow-x:auto;padding:4px 2px 12px;scroll-snap-type:x mandatory}.nav button{flex:0 0 210px;scroll-snap-align:start}.note{display:none}.stage-head{margin-top:12px}.stage-head h2{font-size:19px}.device{height:min(800px,calc(100dvh - 195px));min-height:560px;width:min(100%,428px)}.view{padding:27px 16px 20px}.foot{margin-top:12px}}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <aside class="intro">
+    <div class="eyebrow">QUOTA / SCREEN CONCEPT</div>
+    <h1>インターネット対戦<br>画面イメージ</h1>
+    <p>スタートメニューから卓の参加・募集・開始まで。左の場面を選ぶと、右のスマートフォン画面が切り替わります。</p>
+    <div class="status">設計用モック · 実装画面ではありません</div>
+    <nav class="nav" aria-label="画面を選ぶ">
+      <button class="active" data-screen="start"><span class="num">1</span><span><strong>スタートメニュー</strong><small>インターネット通信を選択</small></span></button>
+      <button data-screen="browse"><span class="num">2</span><span><strong>公開卓を探す</strong><small>空席と募集状態を比較</small></span></button>
+      <button data-screen="code"><span class="num">3</span><span><strong>卓IDで参加</strong><small>招待コード入力と参加確認</small></span></button>
+      <button data-screen="create"><span class="num">4</span><span><strong>新規卓の作成</strong><small>公開範囲・人数・開始時間</small></span></button>
+      <button data-screen="leader-private"><span class="num">5</span><span><strong>リーダー・準備中</strong><small>非公開卓を作り招待を共有</small></span></button>
+      <button data-screen="leader-open"><span class="num">6</span><span><strong>リーダー・募集中</strong><small>途中から公開し募集開始</small></span></button>
+      <button data-screen="guest-wait"><span class="num">7</span><span><strong>参加者・待機中</strong><small>開始可能を宣言する前</small></span></button>
+      <button data-screen="guest-ready"><span class="num">8</span><span><strong>参加者・開始可能</strong><small>宣言後、開始を待つ</small></span></button>
+      <button data-screen="leader-ready"><span class="num">9</span><span><strong>リーダー・全員準備完了</strong><small>いますぐ開始を押せる</small></span></button>
+      <button data-screen="alone"><span class="num">10</span><span><strong>一人で時間切れ</strong><small>延長・CPU戦・キャンセル</small></span></button>
+      <button data-screen="recovery"><span class="num">11</span><span><strong>通信断後の復帰</strong><small>通常メニューより先に表示</small></span></button>
+    </nav>
+    <div class="note">画面の流れと文言は<a href="internet_match_design.md">対戦設計メモ</a>に基づきます。ここにある卓IDやプレイヤー名は架空の例です。</div>
+  </aside>
+  <section class="stage">
+    <header class="stage-head"><div><h2 id="screen-title">スタートメニュー</h2><p id="screen-description">プレイヤー名を入力し、インターネット対戦の入口を選びます。</p></div><span class="step" id="screen-index">01 / 11</span></header>
+    <div class="device"><div class="viewport">
+      <section class="view active" id="start" aria-label="スタートメニュー">
+        <img class="brand" src="../visual/title1.png" alt="Quota 揃えて、達成。"><img class="tagline" src="../visual/title2.png" alt="ノルマは、自分で決めろ。">
+        <div class="surface"><h3>ゲームモード</h3><div class="pill-row"><div class="pill">オフライン</div><div class="pill selected">インターネット通信</div></div></div>
+        <div class="label">あなたの名前</div><div class="field fake">凄腕の買付人</div><div class="spacer big"></div>
+        <button class="action" data-go="browse">公開卓を探す</button><button class="action" data-go="code">卓IDで参加</button><button class="action" data-go="create">新しい卓を作る</button>
+        <div class="spacer big"></div><button class="action secondary small">遊び方</button><button class="action secondary small">詳細ルール</button>
+      </section>
+      <section class="view" id="browse" aria-label="公開卓一覧">
+        <div class="topline"><button class="back" data-go="start">‹ 戻る</button><span class="chip public">公開卓</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">参加できる卓</h2><p class="sub">募集中の卓から選んでください。<br>空席は開始時にCPUで埋まります。</p>
+        <div class="surface"><h3>募集中 · 2卓</h3><button class="table-card" data-go="guest-wait"><strong>ロレンツォの卓 <em>残り2席</em></strong><small><span>3人 / 3ラウンド</span><span class="good">残り 1:32 · 参加</span></small></button><button class="table-card" data-go="guest-wait"><strong>ルチアの卓 <em>残り1席</em></strong><small><span>4人 / 4ラウンド</span><span class="good">残り 0:48 · 参加</span></small></button></div>
+        <div class="spacer"></div><div class="surface"><h3>観戦できる卓</h3><div class="table-card disabled"><strong>マルコの卓 · 対局中</strong><small><span>4人 / 8ラウンド</span><span>観戦のみ</span></small></div></div><div class="spacer"></div><button class="action secondary" data-go="code">卓IDで参加</button>
+      </section>
+      <section class="view" id="code" aria-label="卓IDで参加">
+        <div class="topline"><button class="back" data-go="start">‹ 戻る</button><span class="chip private">招待</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">卓IDで参加</h2><p class="sub">友人から届いた招待コードまたは<br>招待リンクを使います。</p>
+        <div class="paper"><h3>招待コード</h3><div class="field fake" style="letter-spacing:.08em">QTA-7P9K-R4C2</div><p class="hint dark">例示用コードです。実際の非公開卓では推測されにくいコードを使います。</p></div><div class="spacer"></div>
+        <div class="paper"><h3>参加前の確認</h3><div class="row" style="color:#31261c"><span>卓</span><b>ロレンツォの卓</b></div><div class="row" style="color:#31261c"><span>公開範囲</span><b>非公開</b></div><div class="row" style="color:#31261c"><span>席</span><b>3人中 1席空き</b></div></div><div class="spacer"></div><button class="action" data-go="guest-wait">プレイヤーとして参加</button><button class="action secondary">観戦する</button>
+      </section>
+      <section class="view" id="create" aria-label="新規卓の作成">
+        <div class="topline"><button class="back" data-go="start">‹ 戻る</button><span class="chip">新規</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">新しい卓を作る</h2><p class="sub">卓のリーダーとして対局条件を選びます。</p>
+        <div class="surface"><h3>公開範囲</h3><div class="pill-row"><div class="pill">公開</div><div class="pill selected">非公開</div></div><p class="hint">非公開卓は一覧に出ません。後から公開できます。</p></div><div class="spacer"></div>
+        <div class="surface"><h3>ゲーム設定</h3><div class="row"><span>プレイヤーの数</span><span class="value">3人</span></div><div class="row"><span>ラウンド数</span><span class="value">3</span></div><div class="row"><span>CPUプレイヤーの強さ</span><span class="value">中</span></div></div><div class="spacer"></div>
+        <div class="surface"><h3>開始までの時間</h3><div class="pill-row"><div class="pill selected">120秒</div><div class="pill">90秒</div><div class="pill">60秒</div></div><p class="hint">卓の作成後、リーダーが「募集開始」を押すと計測が始まります。</p></div><div class="spacer big"></div><button class="action" data-go="leader-private">卓を作成する</button>
+      </section>
+      <section class="view" id="leader-private" aria-label="リーダー・非公開卓の準備中">
+        <div class="topline"><button class="back" data-go="start">‹ 戻る</button><span class="chip private">非公開 · 準備中</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">ゲーム卓の準備</h2><p class="sub">リーダー：あなた · 3人 / 3ラウンド</p>
+        <div class="paper"><h3>友人を招待</h3><div class="field fake" style="justify-content:center;font-weight:900;letter-spacing:.05em">QTA-7P9K-R4C2</div><div class="spacer"></div><div class="inline"><button class="action secondary small">コードをコピー</button><button class="action secondary small">リンクを共有</button></div><p class="hint dark">招待した人は募集前でも参加できます。</p></div><div class="spacer"></div>
+        <div class="surface"><h3>参加プレイヤー · 1 / 3</h3><div class="seats"><div class="seat"><b>1. 凄腕の買付人</b><span class="leader">リーダー</span></div><div class="seat cpu"><b>2. 慎重なルチア</b><span>CPU予定</span></div><div class="seat cpu"><b>3. 勝負師のマルコ</b><span>CPU予定</span></div></div><p class="hint">空席には人間が入れます。対局開始時に残席をCPUが埋めます。</p></div><div class="spacer"></div>
+        <div class="surface"><div class="row"><span>開始タイマー</span><span class="value">120秒 · まだ開始していません</span></div><div class="row"><span>公開範囲</span><span class="value">非公開</span></div></div><div class="spacer"></div><button class="action" data-go="leader-open">募集開始</button><button class="action secondary small">対戦設定</button><button class="action secondary small">個人設定</button><button class="action quiet small" data-go="start">卓を閉じる</button>
+      </section>
+      <section class="view" id="leader-open" aria-label="リーダー・公開卓の募集中">
+        <div class="topline"><button class="back" data-go="start">‹ 戻る</button><span class="chip public">公開 · 募集中</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">ゲーム卓のロビー</h2><p class="sub">リーダー：あなた · 3人 / 3ラウンド</p>
+        <div class="surface"><h3>開始まで</h3><div class="counter">1:32</div><p class="hint" style="text-align:center">0秒で開始。あなた一人なら確認を表示します。</p></div><div class="spacer"></div>
+        <div class="surface"><h3>参加プレイヤー · 2 / 3</h3><div class="seats"><div class="seat"><b>1. 凄腕の買付人</b><span class="waiting">待機中</span></div><div class="seat"><b>2. ロレンツォ</b><span class="ready">開始可能</span></div><div class="seat cpu"><b>3. 慎重なルチア</b><span>CPU予定 · 空席</span></div></div><p class="hint">全員が開始可能になると、時間前でも開始できます。</p></div><div class="spacer"></div>
+        <div class="surface"><div class="row"><span>公開範囲</span><span class="value">公開中 · 一覧に表示</span></div><div class="row"><span>招待コード</span><span class="value">コピー</span></div></div><div class="spacer"></div>
+        <button class="action secondary" data-go="leader-ready">自分も開始可能にする</button><button class="action" disabled>いますぐ開始</button><button class="action quiet small">対戦設定</button><button class="action quiet small">個人設定</button><button class="action quiet small" data-go="start">卓から抜ける</button>
+      </section>
+      <section class="view" id="guest-wait" aria-label="参加者・待機中">
+        <div class="topline"><button class="back" data-go="browse">‹ 戻る</button><span class="chip public">公開 · 募集中</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">ロレンツォの卓</h2><p class="sub">3人 / 3ラウンド · リーダー：ロレンツォ</p>
+        <div class="surface"><h3>開始まで</h3><div class="counter">0:48</div><p class="hint" style="text-align:center">宣言しなくても、0秒になると対局が始まります。</p></div><div class="spacer"></div>
+        <div class="surface"><h3>参加プレイヤー · 2 / 3</h3><div class="seats"><div class="seat"><b>1. ロレンツォ</b><span class="ready">開始可能 · リーダー</span></div><div class="seat"><b>2. あなた</b><span class="waiting">待機中</span></div><div class="seat cpu"><b>3. 慎重なルチア</b><span>CPU予定 · 空席</span></div></div></div><div class="spacer"></div>
+        <div class="surface"><h3>対戦設定</h3><div class="row"><span>OKタイムアウト</span><span class="value">3秒</span></div><div class="row"><span>手番タイムアウト</span><span class="value">30秒</span></div></div><div class="spacer big"></div>
+        <button class="action" data-go="guest-ready">開始可能</button><button class="action secondary small">個人設定</button><button class="action quiet" data-go="browse">卓から抜ける</button><p class="hint">開始前は「開始可能」宣言後でも自由に抜けられます。</p>
+      </section>
+      <section class="view" id="guest-ready" aria-label="参加者・開始可能">
+        <div class="topline"><button class="back" data-go="browse">‹ 戻る</button><span class="chip public">公開 · 募集中</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">ロレンツォの卓</h2><p class="sub">3人 / 3ラウンド · リーダー：ロレンツォ</p>
+        <div class="surface"><h3>開始まで</h3><div class="counter">0:43</div><p class="hint" style="text-align:center">リーダーが押せば、時間前でも始まります。</p></div><div class="spacer"></div>
+        <div class="surface"><h3>参加プレイヤー · 2 / 3</h3><div class="seats"><div class="seat"><b>1. ロレンツォ</b><span class="ready">開始可能 · リーダー</span></div><div class="seat"><b>2. あなた</b><span class="ready">開始可能</span></div><div class="seat cpu"><b>3. 慎重なルチア</b><span>CPU予定 · 空席</span></div></div></div><div class="spacer"></div>
+        <div class="paper" style="text-align:center"><b>リーダーの開始操作を待っています</b><p class="hint dark">開始前に条件が変わると、開始可能の宣言は取り消されます。</p></div><div class="spacer big"></div>
+        <button class="action secondary" data-go="guest-wait">待機中に戻す</button><button class="action quiet" data-go="browse">卓から抜ける</button>
+      </section>
+      <section class="view" id="leader-ready" aria-label="リーダー・全員準備完了">
+        <div class="topline"><button class="back" data-go="start">‹ 戻る</button><span class="chip public">公開 · 募集中</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">ゲーム卓のロビー</h2><p class="sub">リーダー：あなた · 3人 / 3ラウンド</p>
+        <div class="surface"><h3>開始まで</h3><div class="counter">1:18</div><p class="hint" style="text-align:center">全員が開始可能です。今すぐ開始できます。</p></div><div class="spacer"></div>
+        <div class="surface"><h3>参加プレイヤー · 2 / 3</h3><div class="seats"><div class="seat"><b>1. 凄腕の買付人</b><span class="ready">開始可能 · リーダー</span></div><div class="seat"><b>2. ロレンツォ</b><span class="ready">開始可能</span></div><div class="seat cpu"><b>3. 慎重なルチア</b><span>CPU予定 · 空席</span></div></div></div><div class="spacer"></div>
+        <div class="paper"><b>開始の条件がそろいました</b><p class="hint dark">3人目が今から入室した場合、その人も開始可能の宣言が必要です。</p></div><div class="spacer big"></div>
+        <button class="action">いますぐ開始</button><button class="action secondary" data-go="leader-open">待機中に戻す</button><button class="action quiet small">対戦設定</button><button class="action quiet small">個人設定</button>
+      </section>
+      <section class="view" id="alone" aria-label="リーダー一人の時間切れ">
+        <div class="topline"><button class="back" data-go="start">‹ 戻る</button><span class="chip wait">開始判断中</span></div><img class="brand-small" src="../visual/title1.png" alt="Quota"><h2 class="section-title">ゲーム卓のロビー</h2><div class="surface"><h3>開始まで</h3><div class="counter">0:00</div><div class="seats"><div class="seat"><b>1. 凄腕の買付人</b><span class="leader">リーダー</span></div><div class="seat cpu"><b>2. 慎重なルチア</b><span>CPU予定</span></div><div class="seat cpu"><b>3. 勝負師のマルコ</b><span>CPU予定</span></div></div></div>
+        <div class="modal-shade"><div class="modal"><h3>開始までの時間が終了</h3><p>ほかの人間プレイヤーは参加していません。どうしますか？</p><button class="action" data-go="leader-open">もう一度待つ</button><button class="action secondary">一人で開始</button><button class="action quiet" data-go="start">対戦をやめる</button><p class="mini">再延長は1回まで · 30秒間操作がなければ卓を閉じます</p></div></div>
+      </section>
+      <section class="view" id="recovery" aria-label="通信断後の復帰">
+        <img class="brand" src="../visual/title1.png" alt="Quota"><div class="spacer big"></div><div class="paper"><h3>進行中の卓があります</h3><p style="font-size:14px;line-height:1.6;margin:0 0 11px">通信が切れた後も、あなたの席は残っています。</p><div class="row" style="color:#31261c"><span>卓</span><b>ロレンツォの卓</b></div><div class="row" style="color:#31261c"><span>現在</span><b>第2ラウンド · 対局中</b></div><p class="hint dark">通信断はEXITとして扱われません。復帰すると、元の席で次の手番から操作できます。</p></div><div class="spacer big"></div><button class="action">卓に復帰する</button><button class="action secondary">EXITしてオフラインに切り替える</button><p class="hint">対局中の明示的EXIT後は、60秒間、新しいインターネット卓へプレイヤーとして参加できません。</p>
+      </section>
+    </div></div>
+    <div class="foot"><strong>このモックについて：</strong>ボタンを押して場面間を移動できます。画面は今後の対戦機能の構想です。既存のUnity/Web版にこれらの画面や挙動が追加されたわけではありません。</div>
+  </section>
+</main>
+<script>
+  const descriptions={
+    start:'プレイヤー名を入力し、インターネット対戦の入口を選びます。',
+    browse:'公開中の卓だけを表示。空席・残り時間・観戦可否が分かります。',
+    code:'非公開卓へは招待コードを使い、参加か観戦かを選びます。',
+    create:'リーダーが公開範囲と開始タイマーを決めます。',
+    'leader-private':'招待コードを共有。準備中はタイマーをまだ動かしません。',
+    'leader-open':'友人が入室後に公開した例。タイマーが進行中です。',
+    'guest-wait':'参加者は待機中のまま時間切れ開始を待つこともできます。',
+    'guest-ready':'宣言後も対局が始まる前なら自由に退出できます。',
+    'leader-ready':'人間プレイヤー全員が開始可能なら、早期開始できます。',
+    alone:'人間プレイヤーがリーダーだけなら自動開始しません。',
+    recovery:'切断や再起動の後は、通常メニューより先に復帰を案内します。'
+  };
+  const navButtons=[...document.querySelectorAll('.nav button')];
+  function show(id){
+    const target=document.getElementById(id); if(!target||!target.classList.contains('view'))return;
+    document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el===target));
+    navButtons.forEach(el=>el.classList.toggle('active',el.dataset.screen===id));
+    const n=navButtons.findIndex(el=>el.dataset.screen===id)+1;
+    document.getElementById('screen-title').textContent=navButtons[n-1].querySelector('strong').textContent;
+    document.getElementById('screen-description').textContent=descriptions[id];
+    document.getElementById('screen-index').textContent=String(n).padStart(2,'0')+' / '+navButtons.length;
+    target.scrollTop=0;
+    if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);
+  }
+  navButtons.forEach(button=>button.addEventListener('click',()=>show(button.dataset.screen)));
+  document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>show(button.dataset.go)));
+  if(location.hash&&document.getElementById(location.hash.slice(1)))show(location.hash.slice(1));
+</script>
+</body>
+</html>
