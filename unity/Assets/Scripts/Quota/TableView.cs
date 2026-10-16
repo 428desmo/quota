@@ -31,7 +31,14 @@ namespace Quota
         const float SplashSeconds = 3f;
         const float SplashFadeSeconds = 0.5f;
         const string SplashCopy = "あなたは港で働く仲買人だ。\n大口顧客のために、舶来の交易品を買い集めよう。\n買い付けノルマは、自分で決める。";
-        const string BuildStamp = "UNITY-WEBGL modes-bgm";
+        static string BuildStamp
+        {
+            get
+            {
+                var commit = Resources.Load<TextAsset>("QuotaWebGenerated/build_commit");
+                return commit == null ? "開発版" : "build " + commit.text.Trim().Substring(0, 12);
+            }
+        }
         const float MarketScale = 144f / 95f;
         const float CardWidth = 95f;
         const float CardHeight = 132f;
