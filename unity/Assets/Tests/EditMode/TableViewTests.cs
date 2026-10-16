@@ -357,6 +357,32 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void InternetLobbyKeepsRoomIdAndExitVisibleWithScrollableContent()
+        {
+            host = Open();
+            ChooseInternetMode();
+            var view = host.GetComponent<TableView>();
+            typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, new object[] { "{\"phase\":\"recruiting\",\"table_id\":\"internal\",\"invite_code\":\"secret-invite\",\"visibility\":\"private\",\"players\":3,\"lobby_duration\":120,\"seats\":[{\"name\":\"あなた\",\"leader\":true}],\"cpus\":[\"A\",\"B\"],\"you\":{\"seat\":0,\"leader\":true}}" });
+            var frame = host.transform.Find("Root/Frame") as RectTransform;
+            var setup = frame.Find("lobby-viewport/setup");
+            var roomCode = setup.Find("room-code");
+            Assert.IsNotNull(roomCode);
+            Assert.IsNotNull(FindText("ルームID：secret-invite"));
+            Assert.AreNotEqual(roomCode.GetComponent<Image>().color, FindText("ルームID：secret-invite").color);
+            var settings = setup.Find("lobby-settings-buttons");
+            Assert.IsNotNull(settings.Find("対戦設定"));
+            Assert.IsNotNull(settings.Find("個人設定"));
+            var exit = frame.Find("lobby-footer/ルームから抜ける") as RectTransform;
+            Assert.IsNotNull(exit);
+            Assert.IsNull(setup.Find("ルームから抜ける"));
+            Assert.GreaterOrEqual(WorldBottom(exit), WorldBottom(frame));
+            var scroll = frame.Find("lobby-viewport").GetComponent<ScrollRect>();
+            Assert.IsTrue(scroll.vertical);
+            Assert.IsNotNull(scroll.viewport.GetComponent<Image>());
+        }
+
+        [Test]
         public void GuestLobbyShowsRulesReadOnlyAndKeepsPersonalConfirmationEditable()
         {
             host = Open();
