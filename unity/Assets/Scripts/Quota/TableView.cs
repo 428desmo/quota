@@ -112,6 +112,15 @@ namespace Quota
         enum GameMode { Offline, Internet, Local }
         GameMode gameMode = GameMode.Offline;
         bool modeChoiceOpen;
+        string internetPage;
+        string roomVisibility = "private";
+        int lobbyDuration = 120;
+        string joinCode = "";
+        NetworkTable joinPreview;
+        string networkError;
+        float lobbyScroll = 1f;
+        bool recoveryPending;
+        bool recoveryExitOffline;
         float okTimeout = 5f;
         float turnTimeout = 30f;
         static readonly float[] OkTimeoutChoices = { 1f, 2f, 3f, 4f, 5f };
@@ -186,6 +195,12 @@ namespace Quota
 
         [System.Runtime.InteropServices.DllImport("__Internal")]
         static extern void QuotaEditName(string value, string target);
+
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void QuotaEditJoinCode(string value, string target);
+
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void QuotaCopyText(string value);
 
         [System.Runtime.InteropServices.DllImport("__Internal")]
         static extern void QuotaEditTimeout(string value, string kind, string target);
@@ -708,6 +723,10 @@ namespace Quota
             playerName = PlayerPrefs.GetString("quota.name", "あなた");
             if (string.IsNullOrWhiteSpace(playerName)) playerName = "あなた";
             gameMode = (GameMode)Mathf.Clamp(PlayerPrefs.GetInt("quota.gameMode", (int)GameMode.Offline), 0, (int)GameMode.Internet);
+            recoveryPending = gameMode == GameMode.Internet && PlayerPrefs.GetInt("quota.network.active", 0) == 1;
+            roomVisibility = PlayerPrefs.GetString("quota.roomVisibility", "private");
+            lobbyDuration = PlayerPrefs.GetInt("quota.lobbyDuration", 120);
+            if (lobbyDuration != 60 && lobbyDuration != 90 && lobbyDuration != 120) lobbyDuration = 120;
             okTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.okTimeout", 5f), OkTimeoutChoices);
             turnTimeout = NearestChoice(PlayerPrefs.GetFloat("quota.turnTimeout", 30f), TurnTimeoutChoices);
             cpuStrength = Mathf.Clamp(PlayerPrefs.GetInt("quota.cpuStrength", 1), 0, 2);
@@ -732,6 +751,8 @@ namespace Quota
             PlayerPrefs.SetInt("quota.special", specialRule ? 1 : 0);
             PlayerPrefs.SetString("quota.name", string.IsNullOrWhiteSpace(playerName) ? "あなた" : playerName.Trim());
             PlayerPrefs.SetInt("quota.gameMode", (int)gameMode);
+            PlayerPrefs.SetString("quota.roomVisibility", roomVisibility);
+            PlayerPrefs.SetInt("quota.lobbyDuration", lobbyDuration);
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
             {
                 PlayerPrefs.SetInt("quota.players", playerCount);
@@ -837,7 +858,7 @@ namespace Quota
         {
             const float innerGap = 16f;
             var online = gameMode == GameMode.Internet;
-            var tableCount = online ? Mathf.Min(4, networkTables.Count) : 0;
+            var tableCount = online && internetPage == "browse" ? Mathf.Min(4, networkTables.Count) : 0;
             var fixedSpace = 80f + Mathf.Max(1, tableCount) * 12f + (showReview ? 16f : 0f);
             var buttonH = Mathf.Clamp((available - fixedSpace) / (14f + Mathf.Max(1, tableCount) + (showReview ? 1f : 0f)), 28f, 72f);
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
@@ -846,6 +867,16 @@ namespace Quota
             var rowW = screenW * 0.60f;
             var actionW = screenW * 0.35f;
             var section = buttonH * 2f;
+            if (recoveryPending)
+            {
+                SetupNotice(column, "前回の対戦ルームへの復帰を確認中", rowW, buttonH, font, true);
+                SetupGap(column, section);
+                if (networkState != null && networkState.phase != "hall")
+                    SetupButton(column, "ルームに復帰する", ResumeNetworkRoom, rowW, buttonH * 1.5f, font);
+                SetupGap(column, innerGap);
+                SetupButton(column, "EXITしてオフラインに切り替える", ExitRecoveredRoom, rowW, buttonH, font);
+                return;
+            }
             SetupButton(column, "遊び方", () => OpenPage("play"), guideW, buttonH, font);
             SetupGap(column, innerGap);
             SetupButton(column, "詳細ルール", () => OpenPage("details"), guideW, buttonH, font);
@@ -863,8 +894,36 @@ namespace Quota
             name.onValueChanged.AddListener(value => playerName = value);
 #endif
             SetupGap(column, section);
-            SetupButton(column, "新規ゲーム卓の準備", OpenLobby, rowW, buttonH * 2f, Mathf.RoundToInt(font * 1.3f));
-            if (online)
+            if (!online)
+                SetupButton(column, "新しいゲームの準備", OpenLobby, rowW, buttonH * 2f, Mathf.RoundToInt(font * 1.3f));
+            else if (string.IsNullOrEmpty(internetPage))
+            {
+                SetupButton(column, "公開ルームを探す", () => { internetPage = "browse"; ShowSetup(); }, rowW, buttonH, font);
+                SetupGap(column, innerGap);
+                SetupButton(column, "ルームIDで参加", () => { internetPage = "code"; ShowSetup(); }, rowW, buttonH, font);
+                SetupGap(column, innerGap);
+                SetupButton(column, "新しい対戦ルームを作る", OpenLobby, rowW, buttonH, font);
+            }
+            else
+            {
+                SetupButton(column, "‹ メニューに戻る", () => { internetPage = null; joinPreview = null; ShowSetup(); }, rowW, buttonH, font);
+                SetupGap(column, innerGap);
+                if (internetPage == "code")
+                {
+                    SetupNotice(column, "招待されたルームのIDを入力", rowW, buttonH, font, true);
+#if UNITY_WEBGL && !UNITY_EDITOR
+                    SetupButton(column, string.IsNullOrEmpty(joinCode) ? "ルームIDを入力" : joinCode,
+                        () => QuotaEditJoinCode(joinCode, gameObject.name), rowW, buttonH, font);
+#else
+                    var field = SetupNameRow(column, "ルームID：", joinCode, rowW, buttonH,
+                        LabelSlot(font, "ルームID："), rowW * 0.64f, font);
+                    field.onValueChanged.AddListener(value => joinCode = value.Trim());
+#endif
+                    SetupGap(column, innerGap);
+                    SetupButton(column, "ルームを確認", LookupJoinCode, rowW, buttonH, font);
+                }
+            }
+            if (online && internetPage == "browse")
             {
                 SetupGap(column, innerGap);
                 var tablePanel = new GameObject("table-list", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(VerticalLayoutGroup));
@@ -884,7 +943,7 @@ namespace Quota
                 layout.childForceExpandWidth = false;
                 layout.childForceExpandHeight = false;
                 var tableRoot = tablePanel.GetComponent<RectTransform>();
-                SetupNotice(tableRoot, "参加・観戦できるゲーム卓", rowW - 40f, buttonH, font);
+                SetupNotice(tableRoot, "公開中の対戦ルーム", rowW - 40f, buttonH, font);
                 var viewportHeight = Mathf.Max(1, tableCount) * (buttonH + 12f) - 12f;
                 var viewportObject = new GameObject("table-viewport", typeof(RectTransform), typeof(LayoutElement), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
                 viewportObject.transform.SetParent(tableRoot, false);
@@ -913,10 +972,40 @@ namespace Quota
                 for (var i = 0; i < networkTables.Count; i++)
                 {
                     var table = networkTables[i];
-                    var action = table.rejoin ? "再び参加" : (table.status == "募集中" && table.seated < table.players ? "参加" : "観戦");
-                    SetupButton(content, $"{table.leader}　人間 {table.seated}/{table.players}　{action}", () => JoinNetworkTable(table.id), rowW - 40f, buttonH, font);
+                    var action = table.rejoin ? "再び参加" : (table.status == "募集中" && table.seated < table.players ? "参加可能" : "観戦のみ");
+                    SetupButton(content, $"{table.leader}　人間 {table.seated}/{table.players}　{action}",
+                        () => OpenJoinPreview(table), rowW - 40f, buttonH, font);
                 }
-                if (tableCount == 0) SetupNotice(content, "現在、卓はありません", rowW - 40f, buttonH, font);
+                if (tableCount == 0) SetupNotice(content, "現在、公開ルームはありません", rowW - 40f, buttonH, font);
+            }
+            if (online && joinPreview != null && (internetPage == "browse" || internetPage == "code"))
+            {
+                SetupGap(column, innerGap);
+                SetupNotice(column, $"{joinPreview.leader}のルーム　{joinPreview.seated}/{joinPreview.players}人", rowW, buttonH, font, true);
+                SetupNotice(column, joinPreview.visibility == "private" ? "非公開ルーム" : "公開ルーム", rowW, buttonH, Mathf.Min(font, 22));
+                if (joinPreview.turn_timeout > 0f)
+                    SetupNotice(column, $"{(joinPreview.round_mode == 0 ? 1 : joinPreview.round_mode == 2 ? joinPreview.players * 2 : joinPreview.players)}ラウンド　手番{joinPreview.turn_timeout:0}秒　{joinPreview.status}", rowW, buttonH, Mathf.Min(font, 22));
+                if (joinPreview.status == "開始判断中")
+                    SetupNotice(column, "参加受付は終了しました", rowW, buttonH, font);
+                else if (joinPreview.rejoin)
+                    SetupButton(column, "元の席に再び参加", () => JoinNetworkTable(joinPreview.id, "auto"), rowW, buttonH, font);
+                else if ((joinPreview.status == "募集中" || joinPreview.status == "準備中") && joinPreview.seated < joinPreview.players)
+                    SetupButton(column, "プレイヤーとして参加", () => JoinNetworkTable(joinPreview.id, "player"), rowW, buttonH, font);
+                if (joinPreview.status != "開始判断中")
+                {
+                    SetupGap(column, innerGap);
+                    SetupButton(column, "観戦する", () => JoinNetworkTable(joinPreview.id, "observer"), rowW, buttonH, font);
+                }
+            }
+            if (online && !string.IsNullOrEmpty(networkError))
+            {
+                SetupGap(column, innerGap);
+                SetupNotice(column, networkError, rowW, buttonH, font);
+            }
+            if (online && networkState != null && networkState.guard_remaining > 0f)
+            {
+                SetupGap(column, innerGap);
+                SetupNotice(column, $"EXIT後の参加待機：残り{Mathf.CeilToInt(networkState.guard_remaining)}秒（観戦は可能）", rowW, buttonH, font);
             }
             if (ShowImplementationTest(Application.absoluteURL, Application.isEditor))
             {
@@ -926,7 +1015,7 @@ namespace Quota
             if (showReview)
             {
                 SetupGap(column, innerGap);
-                SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
+                SetupButton(column, "終了したゲームを見る", ShowReview, actionW, buttonH, font);
             }
         }
 
@@ -1032,6 +1121,15 @@ namespace Quota
             var actionW = screenW * 0.35f;
             var labelW = LabelSlot(font, "プレイヤーの数：", "ラウンド数：");
             SetupNotice(column, "ゲーム設定", rowW, buttonH, font, true);
+            if (SharedNetwork && !NetworkJoined)
+            {
+                SetupGap(column, innerGap);
+                SetupSegmentedRow(column, "公開範囲：", new[] { "公開", "非公開" }, roomVisibility == "public" ? "公開" : "非公開",
+                    rowW, buttonH, LabelSlot(font, "公開範囲："), font, true, value => { roomVisibility = value == "公開" ? "public" : "private"; SaveRules(); ShowSetup(); });
+                SetupGap(column, innerGap);
+                SetupSegmentedRow(column, "開始まで：", new[] { "60秒", "90秒", "120秒" }, lobbyDuration + "秒",
+                    rowW, buttonH, LabelSlot(font, "開始まで："), font, true, value => { lobbyDuration = int.Parse(value.Replace("秒", "")); SaveRules(); ShowSetup(); });
+            }
             SetupSegmentedRow(column, "プレイヤーの数：", new[] { "3人", "4人" }, playerCount == 4 ? "4人" : "3人",
                 rowW, buttonH, labelW, font, leader, value => ChooseInlineLobbyChoice("players", value));
             SetupGap(column, innerGap);
@@ -1041,6 +1139,23 @@ namespace Quota
             SetupGap(column, innerGap);
             SetupLobbyHeading(column, "参加プレイヤー：", rowW, buttonH, font);
             SetupGap(column, innerGap);
+            if (NetworkJoined)
+            {
+                if (leader || networkState.visibility == "public")
+                    SetupNotice(column, "ルームID：" + (string.IsNullOrEmpty(networkState.invite_code) ? networkState.table_id : networkState.invite_code), rowW, buttonH, Mathf.Min(font, 20));
+                if (leader && !string.IsNullOrEmpty(networkState.invite_code))
+                {
+                    SetupGap(column, innerGap);
+                    SetupButton(column, "ルームIDをコピー", CopyInviteCode, seatW, buttonH, font);
+                }
+                if (leader && networkState.phase == "recruiting")
+                {
+                    SetupGap(column, innerGap);
+                    SetupButton(column, networkState.visibility == "private" ? "公開ルームに変更" : "非公開ルームに変更",
+                        () => StartCoroutine(NetworkPost("/api/visibility", JsonUtility.ToJson(new NetworkVisibility { visibility = networkState.visibility == "private" ? "public" : "private" }))), seatW, buttonH, font);
+                }
+                SetupGap(column, innerGap);
+            }
             var seatNumber = 1;
             foreach (var seat in LobbySeats())
             {
@@ -1071,11 +1186,49 @@ namespace Quota
             SetupGap(column, buttonH);
             if (NetworkJoined)
             {
-                if (leader) SetupButton(column, "ゲーム開始", StartNetworkMatch, actionW, buttonH * 2f, font * 2);
-                else SetupNotice(column, "ゲーム開始待ち", rowW, buttonH, font, true);
+                if (networkState.phase == "preparing")
+                {
+                    SetupNotice(column, $"{(networkState.visibility == "public" ? "公開" : "非公開")}ルームの準備中", rowW, buttonH, font, true);
+                    SetupGap(column, innerGap);
+                    SetupButton(column, "募集を開始", () => StartCoroutine(NetworkPost("/api/open", "{}")), actionW, buttonH, font);
+                }
+                else
+                {
+                    SetupNotice(column, networkState.lobby_duration == 0 ? "ゲーム開始待ち" : networkState.lobby_decision ? "参加者を待っています" : $"開始まで {Mathf.CeilToInt(networkState.lobby_remaining)}秒", rowW, buttonH, font, true);
+                    SetupGap(column, innerGap);
+                    if (networkState.lobby_duration > 0 && networkState.you != null && !networkState.you.observer)
+                    {
+                        var currentSeat = networkState.you.seat;
+                        var ready = networkState.seats != null && currentSeat >= 0 && currentSeat < networkState.seats.Length && networkState.seats[currentSeat].ready;
+                        SetupButton(column, ready ? "開始可能を取り消す" : "開始可能", () => SetNetworkReady(!ready), actionW, buttonH, font);
+                        SetupGap(column, innerGap);
+                    }
+                    if (leader)
+                    {
+                        var canStart = networkState.lobby_duration == 0 || networkState.lobby_decision
+                            || (networkState.seats != null && networkState.seats.Length >= 2 && networkState.seats.All(seat => seat.ready));
+                        if (canStart)
+                            SetupButton(column, networkState.lobby_decision ? "一人でも始める" : networkState.lobby_duration == 0 ? "ゲーム開始" : "いますぐ開始", StartNetworkMatch, actionW, buttonH, font);
+                        else SetupNotice(column, "全員の開始可能宣言を待っています", rowW, buttonH, font);
+                        if (networkState.lobby_decision)
+                        {
+                            SetupGap(column, innerGap);
+                            if (!networkState.lobby_extended) SetupButton(column, "タイマーをリセットして待つ", () => StartCoroutine(NetworkPost("/api/extend", "{}")), rowW, buttonH, font);
+                            SetupGap(column, innerGap);
+                            SetupButton(column, "対戦をキャンセル", () => StartCoroutine(NetworkPost("/api/cancel", "{}")), rowW, buttonH, font);
+                        }
+                    }
+                    else if (networkState.lobby_duration > 0) SetupNotice(column, "ゲーム開始待ち", rowW, buttonH, font, true);
+                }
             }
-            else if (SharedNetwork) SetupNotice(column, "卓の準備中", rowW, buttonH, font, true);
+            else if (SharedNetwork)
+                SetupButton(column, "ルームを作成する", () => StartCoroutine(CreateNetworkTable()), actionW, buttonH * 2f, font);
             else SetupButton(column, "ゲーム開始", () => StartMatch(false), actionW, buttonH * 2f, font * 2);
+            if (SharedNetwork && !string.IsNullOrEmpty(networkError))
+            {
+                SetupGap(column, innerGap);
+                SetupNotice(column, networkError, rowW, buttonH, font);
+            }
             if (gameMode == GameMode.Offline)
             {
                 SetupGap(column, innerGap);
@@ -1084,10 +1237,10 @@ namespace Quota
             SetupGap(column, gameMode == GameMode.Offline ? buttonH : innerGap);
             if (showReview)
             {
-                SetupButton(column, "ゲーム終了の卓を見る", ShowReview, actionW, buttonH, font);
+                SetupButton(column, "終了したゲームを見る", ShowReview, actionW, buttonH, font);
                 SetupGap(column, innerGap);
             }
-            SetupButton(column, "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
+            SetupButton(column, NetworkJoined ? "ルームから抜ける" : "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
             LayoutRebuilder.ForceRebuildLayoutImmediate(column);
             var contentH = Mathf.Max(available + 24f, LayoutUtility.GetPreferredHeight(column));
             column.anchorMin = new Vector2(0f, 1f);
@@ -1102,6 +1255,8 @@ namespace Quota
             scroll.vertical = contentH > available + 24f;
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 48f;
+            if (scroll.vertical) scroll.verticalNormalizedPosition = lobbyScroll;
+            scroll.onValueChanged.AddListener(value => lobbyScroll = value.y);
         }
 
         void OpenLobbyChoice(string key)
@@ -1275,7 +1430,7 @@ namespace Quota
                 var networkSeats = new List<KeyValuePair<string, bool>>();
                 if (networkState.seats != null)
                     foreach (var seat in networkState.seats ?? new NetworkSeat[0])
-                        networkSeats.Add(new KeyValuePair<string, bool>(seat.name, false));
+                        networkSeats.Add(new KeyValuePair<string, bool>(seat.name + (seat.ready ? "　✓ 開始可能" : ""), false));
                 if (networkState.cpus != null)
                     foreach (var cpu in networkState.cpus)
                         networkSeats.Add(new KeyValuePair<string, bool>(cpu, true));
@@ -1309,6 +1464,7 @@ namespace Quota
 
         void OpenLobby()
         {
+            lobbyScroll = 1f;
             modeChoiceOpen = false;
             lobbyOpen = true;
             lobbyChoice = null;
@@ -1324,11 +1480,12 @@ namespace Quota
             }
             EnsureCast();
             ShowSetup();
-            if (SharedNetwork && !NetworkJoined) StartCoroutine(CreateNetworkTable());
+            networkError = null;
         }
 
         void CloseLobby()
         {
+            lobbyScroll = 1f;
             lobbyOpen = false;
             settingsOpen = false;
             lobbyChoice = null;
@@ -1337,7 +1494,7 @@ namespace Quota
         }
 
         bool SharedNetwork => Application.isPlaying && gameMode == GameMode.Internet;
-        bool NetworkJoined => networkState != null && networkState.phase == "recruiting" && !string.IsNullOrEmpty(networkState.table_id);
+        bool NetworkJoined => networkState != null && (networkState.phase == "preparing" || networkState.phase == "recruiting") && !string.IsNullOrEmpty(networkState.table_id);
 
         IEnumerator PollNetworkLobby()
         {
@@ -1385,7 +1542,13 @@ namespace Quota
             {
                 var response = JsonUtility.FromJson<WebNetworkResult>(webNetworkResponse);
                 if (response != null && response.ok) ApplyNetworkState(response.body);
-                else MarkWeb("ロビー通信失敗 " + (response != null ? response.error : "invalid response"));
+                else
+                {
+                    var failure = response != null ? JsonUtility.FromJson<NetworkSnapshot>(response.body) : null;
+                    networkError = failure != null && !string.IsNullOrEmpty(failure.error) ? failure.error : "通信に失敗しました";
+                    MarkWeb("ロビー通信失敗 " + networkError);
+                    if (onSetup) ShowSetup();
+                }
             }
             else MarkWeb("ロビー通信タイムアウト " + path);
             networkRequest = false;
@@ -1410,6 +1573,13 @@ namespace Quota
                 {
                     nativeNetworkRoot = root;
                     ApplyNetworkState(request.downloadHandler.text);
+                    break;
+                }
+                if (request.responseCode >= 400 && !string.IsNullOrEmpty(request.downloadHandler.text))
+                {
+                    var failure = JsonUtility.FromJson<NetworkSnapshot>(request.downloadHandler.text);
+                    networkError = failure != null ? failure.error : "通信に失敗しました";
+                    if (onSetup) ShowSetup();
                     break;
                 }
             }
@@ -1444,6 +1614,12 @@ namespace Quota
             if (onSetup) ShowSetup();
         }
 
+        public void OnJoinCodeEdited(string value)
+        {
+            joinCode = (value ?? "").Trim();
+            if (onSetup) ShowSetup();
+        }
+
         public void OnNetworkResponse(string response)
         {
             webNetworkResponse = response;
@@ -1455,22 +1631,36 @@ namespace Quota
             if (Application.isPlaying && !SharedNetwork) return;
             if (string.IsNullOrEmpty(json)) return;
             var next = JsonUtility.FromJson<NetworkSnapshot>(json);
-            if (next == null || !string.IsNullOrEmpty(next.error)) return;
-            var wasRecruiting = networkState != null && networkState.phase == "recruiting";
+            if (next == null) return;
+            if (!string.IsNullOrEmpty(next.error)) { networkError = next.error; if (onSetup) ShowSetup(); return; }
+            if (next.phase == null && !string.IsNullOrEmpty(next.id))
+            {
+                networkError = null;
+                joinPreview = JsonUtility.FromJson<NetworkTable>(json);
+                if (onSetup) ShowSetup();
+                return;
+            }
+            if (next.phase != "hall") networkError = null;
+            var wasRecruiting = networkState != null && (networkState.phase == "preparing" || networkState.phase == "recruiting");
             networkState = next;
             networkTurnDeadline = Time.realtimeSinceStartupAsDouble + next.turn_remaining;
             if (next.phase == "hall")
             {
+                recoveryPending = false;
+                PlayerPrefs.SetInt("quota.network.active", 0);
+                PlayerPrefs.Save();
                 networkLeaving = false;
                 networkNavigating = false;
                 ReadHallTables(json);
                 if (wasRecruiting) lobbyOpen = false;
                 if (!onSetup && match.Game != null) { match.Clear(); cpuRun++; busy = false; ShowSetup(); }
             }
-            else if (next.phase == "recruiting")
+            else if (next.phase == "preparing" || next.phase == "recruiting")
             {
+                PlayerPrefs.SetInt("quota.network.active", 1);
+                PlayerPrefs.Save();
                 networkTables.Clear();
-                lobbyOpen = true;
+                if (!recoveryPending) lobbyOpen = true;
                 playerCount = next.players;
                 if (next.cpu_cast != null && next.cpu_cast.Length >= playerCount &&
                     (lobbyCast.Count < playerCount || !lobbyCast.GetRange(0, playerCount).SequenceEqual(next.cpu_cast)))
@@ -1492,6 +1682,9 @@ namespace Quota
             else if (next.phase == "playing")
             {
                 if (networkLeaving) return;
+                PlayerPrefs.SetInt("quota.network.active", 1);
+                PlayerPrefs.Save();
+                if (recoveryPending) { if (onSetup) ShowSetup(); return; }
                 catchingUpCards = !networkNavigating && next.actions != null && next.actions.Length > 0;
                 if (!networkNavigating)
                 {
@@ -1563,9 +1756,13 @@ namespace Quota
                     id = JsonString(chunk, "id"),
                     leader = JsonString(chunk, "leader"),
                     status = JsonString(chunk, "status"),
+                    visibility = JsonString(chunk, "visibility"),
                     players = JsonInt(chunk, "players"),
                     seated = JsonInt(chunk, "seated"),
                     rejoin = JsonUtility.FromJson<NetworkTable>(chunk).rejoin,
+                    lobby_remaining = JsonUtility.FromJson<NetworkTable>(chunk).lobby_remaining,
+                    round_mode = JsonUtility.FromJson<NetworkTable>(chunk).round_mode,
+                    turn_timeout = JsonUtility.FromJson<NetworkTable>(chunk).turn_timeout,
                 };
                 if (!string.IsNullOrEmpty(table.id)) networkTables.Add(table);
                 start = close + 1;
@@ -1645,14 +1842,73 @@ namespace Quota
                 round_mode = roundMode,
                 cpu_strength = cpuStrength,
                 cpu_cast = lobbyCast.GetRange(0, playerCount).ToArray(),
+                visibility = roomVisibility,
+                lobby_duration = lobbyDuration,
+                prepare = true,
             };
             yield return NetworkPost("/api/table", JsonUtility.ToJson(body));
         }
 
-        void JoinNetworkTable(string table)
+        void JoinNetworkTable(string table, string role)
         {
             if (!SharedNetwork || string.IsNullOrEmpty(table)) return;
-            StartCoroutine(NetworkPost("/api/join", JsonUtility.ToJson(new NetworkJoin { table = table, name = HumanName() })));
+            StartCoroutine(NetworkPost("/api/join", JsonUtility.ToJson(new NetworkJoin
+            { table = table, name = HumanName(), role = role, invite_code = joinCode })));
+        }
+
+        void OpenJoinPreview(NetworkTable table) { joinPreview = table; networkError = null; ShowSetup(); }
+
+        void LookupJoinCode()
+        {
+            if (string.IsNullOrWhiteSpace(joinCode)) { networkError = "ルームIDを入力してください"; ShowSetup(); return; }
+            joinPreview = null;
+            StartCoroutine(NetworkPost("/api/lookup", JsonUtility.ToJson(new NetworkLookup { code = joinCode.Trim() })));
+        }
+
+        void ResumeNetworkRoom()
+        {
+            recoveryPending = false;
+            if (networkState != null && (networkState.phase == "preparing" || networkState.phase == "recruiting"))
+            {
+                lobbyOpen = true;
+                ShowSetup();
+            }
+            else if (networkState != null && networkState.phase == "playing")
+            {
+                networkNavigating = false;
+                ApplyNetworkState(JsonUtility.ToJson(networkState));
+            }
+        }
+
+        void ExitRecoveredRoom()
+        {
+            recoveryPending = false;
+            if (networkState != null && networkState.phase != "hall") StartCoroutine(NetworkPost("/api/leave", "{}"));
+            PlayerPrefs.SetInt("quota.network.active", 0);
+            gameMode = GameMode.Offline;
+            SaveRules();
+            ShowSetup();
+        }
+
+        [System.Serializable]
+        sealed class NetworkLookup { public string code; }
+
+        [System.Serializable]
+        sealed class NetworkVisibility { public string visibility; }
+
+        [System.Serializable]
+        sealed class NetworkReady { public bool ready; }
+
+        void SetNetworkReady(bool ready) => StartCoroutine(NetworkPost("/api/ready", JsonUtility.ToJson(new NetworkReady { ready = ready })));
+
+        void CopyInviteCode()
+        {
+            if (networkState == null || string.IsNullOrEmpty(networkState.invite_code)) return;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            QuotaCopyText(networkState.invite_code);
+#else
+            GUIUtility.systemCopyBuffer = networkState.invite_code;
+#endif
         }
 
         void SetNetworkPlayers(int players)
@@ -2064,10 +2320,14 @@ namespace Quota
         {
             public string id;
             public string leader;
+            public string visibility;
             public int players;
             public int seated;
             public bool rejoin;
             public string status;
+            public float lobby_remaining;
+            public int round_mode;
+            public float turn_timeout;
         }
 
         [System.Serializable]
@@ -2076,6 +2336,7 @@ namespace Quota
             public string name;
             public bool leader;
             public bool cpu;
+            public bool ready;
         }
 
         [System.Serializable]
@@ -2090,7 +2351,15 @@ namespace Quota
         sealed class NetworkSnapshot
         {
             public string phase;
+            public string id;
             public string table_id;
+            public string visibility;
+            public string invite_code;
+            public int lobby_duration;
+            public float lobby_remaining;
+            public bool lobby_decision;
+            public bool lobby_extended;
+            public float guard_remaining;
             public bool turn_timeout_active;
             public float turn_remaining;
             public int players;
@@ -2130,6 +2399,9 @@ namespace Quota
             public int round_mode;
             public int cpu_strength;
             public int[] cpu_cast;
+            public string visibility;
+            public int lobby_duration;
+            public bool prepare;
         }
 
         [System.Serializable]
@@ -2137,6 +2409,8 @@ namespace Quota
         {
             public string table;
             public string name;
+            public string role;
+            public string invite_code;
         }
 
         [System.Serializable]
@@ -2557,7 +2831,7 @@ namespace Quota
             CleanupFlyers();
             if (last)
             {
-                if (NetworkPlaying) { networkLeaving = true; StartCoroutine(NetworkPost("/api/leave", "{}")); }
+                if (NetworkPlaying) { networkLeaving = true; StartCoroutine(NetworkPost("/api/leave", "{\"explicit_exit\":false}")); }
                 ceremonyDismissed = true;
                 orderOverride = null;
                 dialogOrder = null;
@@ -4257,8 +4531,11 @@ namespace Quota
             var go = new GameObject(caption, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
-            var accent = caption == "新規ゲーム卓の準備" || caption == "ゲーム開始" || caption == "CPU模擬戦を見る"
+            var accent = caption == "新しい対戦ルームを作る" || caption == "新しいゲームの準備" || caption == "ゲーム開始" || caption == "CPU模擬戦を見る"
                 || caption == "CPUプレイヤー入れ替え" || caption == "CPUプレイヤーの指名" || caption == "対戦設定" || caption == "個人設定"
+                || caption == "公開ルームを探す" || caption == "ルームIDで参加" || caption == "ルームを作成する"
+                || caption == "プレイヤーとして参加" || caption == "観戦する" || caption == "募集を開始"
+                || caption == "開始可能" || caption == "いますぐ開始" || caption == "一人でも始める"
                 || (parent.name == "table-list" || parent.name == "table-list-content");
             image.sprite = Portrait.SlicedRound;
             image.type = Image.Type.Sliced;

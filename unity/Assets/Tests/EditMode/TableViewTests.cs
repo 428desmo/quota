@@ -167,7 +167,7 @@ namespace Quota.Tests
         public void OfflineLobbyCanStartCpuOnlySpectatorMatch()
         {
             host = Open();
-            Click("新規ゲーム卓の準備");
+            Click("新しいゲームの準備");
             Assert.IsNull(FindText("自分は参加せずに観戦："));
             var start = ButtonNamed("ゲーム開始");
             var simulation = ButtonNamed("CPU模擬戦を見る");
@@ -327,6 +327,36 @@ namespace Quota.Tests
         }
 
         [Test]
+        public void InternetMenuSeparatesBrowseInviteAndCreate()
+        {
+            host = Open();
+            ChooseInternetMode();
+            Assert.IsNotNull(FindButton("公開ルームを探す"));
+            Assert.IsNotNull(FindButton("ルームIDで参加"));
+            Assert.IsNotNull(FindButton("新しい対戦ルームを作る"));
+            Click("ルームIDで参加");
+            Assert.IsNotNull(FindButton("ルームを確認"));
+            var view = host.GetComponent<TableView>();
+            typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, new object[] { "{\"id\":\"invite\",\"leader\":\"ルチア\",\"players\":3,\"seated\":1,\"status\":\"募集中\"}" });
+            Assert.IsNotNull(FindButton("プレイヤーとして参加"));
+            Assert.IsNotNull(FindButton("観戦する"));
+        }
+
+        [Test]
+        public void PreparingRoomShowsInvitationAndRecruitmentAction()
+        {
+            host = Open();
+            ChooseInternetMode();
+            var view = host.GetComponent<TableView>();
+            typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(view, new object[] { "{\"phase\":\"preparing\",\"table_id\":\"internal\",\"invite_code\":\"secret-invite\",\"visibility\":\"private\",\"players\":3,\"lobby_duration\":120,\"seats\":[{\"name\":\"あなた\",\"leader\":true}],\"you\":{\"seat\":0,\"leader\":true}}" });
+            Assert.IsNotNull(FindText("ルームID：secret-invite"));
+            Assert.IsNotNull(FindButton("募集を開始"));
+            Assert.IsNotNull(FindButton("ルームIDをコピー"));
+        }
+
+        [Test]
         public void GuestLobbyShowsRulesReadOnlyAndKeepsPersonalConfirmationEditable()
         {
             host = Open();
@@ -360,7 +390,7 @@ namespace Quota.Tests
         {
             host = Open();
             ChooseInternetMode();
-            Click("新規ゲーム卓の準備");
+            Click("新しい対戦ルームを作る");
             Assert.IsNull(host.transform.Find("Root/Frame/lobby-choice"));
             Assert.IsNotNull(host.transform.Find("Root/Frame/lobby-viewport/setup/ラウンド数：/choices/3"));
             ChooseSegment("ラウンド数：", "6");
@@ -416,7 +446,7 @@ namespace Quota.Tests
         public void PersonalLobbyChoiceUsesTheSameListWithoutChangingOtherSettings()
         {
             host = Open();
-            Click("新規ゲーム卓の準備");
+            Click("新しいゲームの準備");
             Click("個人設定");
             var confirmation = host.transform.Find("Root/Frame/lobby-settings/settings-window/settings-list/放棄などに確認を求める：");
             Assert.IsNotNull(confirmation);
@@ -649,6 +679,7 @@ namespace Quota.Tests
             for (var i = 0; i < 6; i++) entries.Add("{\"id\":\"table" + i + "\",\"leader\":\"卓" + i + "\",\"players\":3,\"seated\":1,\"status\":\"募集中\"}");
             typeof(TableView).GetMethod("ApplyNetworkState", BindingFlags.Instance | BindingFlags.NonPublic)
                 .Invoke(view, new object[] { "{\"phase\":\"hall\",\"tables\":[" + string.Join(",", entries) + "]}" });
+            Click("公開ルームを探す");
             Canvas.ForceUpdateCanvases();
             var scroll = host.GetComponentInChildren<ScrollRect>();
             Assert.IsNotNull(scroll);
@@ -1048,22 +1079,12 @@ namespace Quota.Tests
 
             var guide = ButtonNamed("遊び方").GetComponent<RectTransform>();
             var rules = ButtonNamed("詳細ルール").GetComponent<RectTransform>();
-            var start = ButtonNamed("新規ゲーム卓の準備").GetComponent<RectTransform>();
+            var start = ButtonNamed("新しい対戦ルームを作る").GetComponent<RectTransform>();
             Assert.AreEqual(1080f * 0.40f, guide.rect.width, 2f);
             Assert.AreEqual(guide.rect.width, rules.rect.width, 1f);
             Assert.AreEqual(1080f * 0.60f, start.rect.width, 2f);
-            Assert.AreEqual(guide.rect.height * 2f, start.rect.height, 2f);
-            Assert.AreEqual(Mathf.RoundToInt(guide.GetComponentInChildren<Text>().fontSize * 1.3f), start.GetComponentInChildren<Text>().fontSize);
-            var tables = host.transform.Find("Root/Frame/setup-column/table-list") as RectTransform;
-            if (tables == null)
-                foreach (var rect in host.GetComponentsInChildren<RectTransform>()) if (rect.name == "table-list") tables = rect;
-            Assert.IsNotNull(tables);
-            Assert.Less(WorldTop(tables), WorldBottom(start));
-            Assert.IsNotNull(FindText("参加・観戦できるゲーム卓"));
-            Assert.IsNull(FindButton("設定"));
-            Assert.IsNull(FindButton("CPU模擬戦を観戦"));
-            Assert.IsNull(FindText("プレイヤーの数："));
-
+            Assert.AreEqual(guide.rect.height, start.rect.height, 2f);
+            Assert.AreEqual(guide.GetComponentInChildren<Text>().fontSize, start.GetComponentInChildren<Text>().fontSize);
             var nameLabel = FindText("あなたの名前：");
             Assert.IsNotNull(nameLabel);
             var nameRow = nameLabel.rectTransform.parent as RectTransform;
@@ -1078,7 +1099,8 @@ namespace Quota.Tests
             Assert.IsNotNull(modeRow);
             Assert.AreEqual(section, (WorldBottom(rules) - WorldTop(modeRow)) / scaleY, 3f);
             Assert.AreEqual(16f, (WorldBottom(modeRow) - WorldTop(nameRow)) / scaleY, 3f);
-            Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(start)) / scaleY, 3f);
+            var browse = ButtonNamed("公開ルームを探す").GetComponent<RectTransform>();
+            Assert.AreEqual(section, (WorldBottom(nameRow) - WorldTop(browse)) / scaleY, 3f);
 
             Assert.AreEqual(WorldMidX(frame), WorldMidX(guide), 2f);
             Assert.AreEqual(WorldMidX(frame), WorldMidX(start), 2f);
@@ -1095,6 +1117,16 @@ namespace Quota.Tests
             Color accent;
             ColorUtility.TryParseHtmlString("#8C3D2A", out accent);
             Assert.AreEqual(accent, start.GetComponent<Image>().color);
+
+            Click("公開ルームを探す");
+            var tables = host.transform.Find("Root/Frame/setup-column/table-list") as RectTransform;
+            if (tables == null)
+                foreach (var rect in host.GetComponentsInChildren<RectTransform>()) if (rect.name == "table-list") tables = rect;
+            Assert.IsNotNull(tables);
+            Assert.IsNotNull(FindText("公開中の対戦ルーム"));
+            Assert.IsNull(FindButton("設定"));
+            Assert.IsNull(FindButton("CPU模擬戦を観戦"));
+            Assert.IsNull(FindText("プレイヤーの数："));
 
             Click("遊び方");
             Assert.IsNotNull(FindText("遊び方"));
@@ -1121,16 +1153,16 @@ namespace Quota.Tests
             ChooseInternetMode();
             var view = host.GetComponent<TableView>();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            Click("新規ゲーム卓の準備");
-            Assert.IsNull(FindButton("新規ゲーム卓の準備"));
+            Click("新しい対戦ルームを作る");
+            Assert.IsNull(FindButton("新しい対戦ルームを作る"));
             Assert.IsNotNull(FindText("プレイヤーの数："));
             Assert.IsNotNull(FindText("1. あなた"));
             Assert.AreEqual(2, CountText("CPU"));
 
             Click("戻る");
-            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
+            Assert.IsNotNull(ButtonNamed("新しい対戦ルームを作る"));
             Assert.IsNull(FindButton("ゲーム開始"));
-            Click("新規ゲーム卓の準備");
+            Click("新しい対戦ルームを作る");
 
             ChooseLobbyOption("3人", "4人");
             Assert.IsNotNull(ButtonNamed("4人"));
@@ -1288,7 +1320,7 @@ namespace Quota.Tests
 
             Click("EXIT");
             Click("抜ける");
-            Click("新規ゲーム卓の準備");
+            Click("新しいゲームの準備");
             Click("CPU模擬戦を見る");
             Assert.IsTrue((bool)noHuman.Invoke(view, null));
             Assert.AreEqual(5f, (float)typeof(TableView).GetField("okTimeout", flags).GetValue(view));
@@ -1552,7 +1584,7 @@ namespace Quota.Tests
             Assert.AreEqual(-(panel.sizeDelta.y - 80f), leave.anchoredPosition.y, 1f);
             Assert.IsNull(FindButton("ゲームを終了"));
             Click("抜ける");
-            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
+            Assert.IsNotNull(ButtonNamed("新しいゲームの準備"));
         }
 
         [Test]
@@ -1918,20 +1950,20 @@ namespace Quota.Tests
             Click("抜ける");
             Assert.IsNull(match.Game);
             Assert.IsNull(FindText("本当にゲームから抜けますか？"));
-            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
+            Assert.IsNotNull(ButtonNamed("新しいゲームの準備"));
             Assert.IsNull(host.transform.Find("Root/Frame/seat0"));
             Assert.IsNull(FindButton("パス"));
             Assert.IsTrue((bool)typeof(TableView).GetField("onSetup", flags).GetValue(view));
             typeof(TableView).GetField("laidOutWide", flags).SetValue(view, true);
             typeof(TableView).GetMethod("Update", flags).Invoke(view, null);
             Rebuild(host);
-            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
+            Assert.IsNotNull(ButtonNamed("新しいゲームの準備"));
             Assert.IsNull(host.transform.Find("Root/Frame/seat0"));
             Assert.IsNull(FindButton("パス"));
             var run = (IEnumerator)typeof(TableView).GetMethod("RunCpus", flags).Invoke(view, new object[] { ticket });
             Drive(run);
             Assert.IsNull(match.Game);
-            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
+            Assert.IsNotNull(ButtonNamed("新しいゲームの準備"));
             Assert.IsNull(FindButton("パス"));
         }
 
@@ -1960,7 +1992,7 @@ namespace Quota.Tests
             Assert.IsNull(host.transform.Find("Root/Frame/seat" + match.Game.Current + "/confirm"));
             Click("抜ける");
             Assert.IsNull(match.Game);
-            Assert.IsNotNull(ButtonNamed("新規ゲーム卓の準備"));
+            Assert.IsNotNull(ButtonNamed("新しいゲームの準備"));
         }
 
         [Test]
@@ -2045,7 +2077,7 @@ namespace Quota.Tests
 
         void Begin()
         {
-            Click("新規ゲーム卓の準備");
+            Click("新しいゲームの準備");
             Click("ゲーム開始");
         }
 

@@ -22,6 +22,19 @@ mergeInto(LibraryManager.library, {
     }
   },
 
+  QuotaEditJoinCode: function (valuePtr, targetPtr) {
+    var code = window.prompt("ルームID", UTF8ToString(valuePtr));
+    if (code !== null && window.quotaUnityInstance)
+      window.quotaUnityInstance.SendMessage(UTF8ToString(targetPtr), "OnJoinCodeEdited", code);
+  },
+
+  QuotaCopyText: function (valuePtr) {
+    var value = UTF8ToString(valuePtr);
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(value).catch(function () { window.prompt("ルームIDをコピー", value); });
+    else window.prompt("ルームIDをコピー", value);
+  },
+
   QuotaFetch: function (methodPtr, urlPtr, bodyPtr, clientPtr, targetPtr) {
     var method = UTF8ToString(methodPtr);
     var url = UTF8ToString(urlPtr);

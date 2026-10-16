@@ -780,7 +780,7 @@ class Hall:
     def _require(self, client: str) -> Table:
         table = self._table(client)
         if table is None:
-            raise ValueError("卓に入っていません")
+            raise ValueError("ルームに入っていません")
         return table
 
     def _detach(self, client: str) -> None:
@@ -829,7 +829,7 @@ class Hall:
         self.sweep()
         table = self.tables.get(str(body.get("table") or ""))
         if table is None:
-            raise ValueError("その卓はありません")
+            raise ValueError("そのルームはありません")
         self._detach(client)
         table.admit(client, body.get("name"))
         self.where[client] = table.table_id

@@ -17,6 +17,7 @@ def test_editor_and_browser_see_the_same_recruiting_table():
         "leader": "竜二郎",
         "players": 4,
         "seated": 1,
+        "visibility": "public",
         "status": "募集中",
         "observers": 0,
     }]
@@ -276,6 +277,7 @@ def test_departed_player_rejoins_original_seat_on_next_turn_only():
     assert table.humans[0].departed
     assert hall.snapshot('a')['tables'][0]['rejoin']
     assert 'rejoin' not in hall.snapshot('stranger')['tables'][0]
+    hall.exit_guard_until['a'] = 0  # Rejoin after the explicit EXIT guard expires.
     state = hall.join({'table': table.id, 'name': '別の名前'}, 'a')
     assert state['you']['observer']
     assert len(table.humans) == 2
@@ -300,6 +302,7 @@ def test_last_departed_player_can_rejoin_and_cancel_pending_return():
     hall.leave('b')
     assert table.id in hall.tables
     assert hall.snapshot('a')['tables'][0]['rejoin']
+    hall.exit_guard_until['a'] = 0
     hall.join({'table': table.id}, 'a')
     hall.leave('a')
     assert table.humans[0].resume_after is None
@@ -365,6 +368,8 @@ def test_second_returning_participant_does_not_reset_existing_timer():
     table.options['turn_timeout'] = 30
     hall.leave('a')
     hall.leave('b')
+    hall.exit_guard_until['a'] = 0
+    hall.exit_guard_until['b'] = 0
     hall.join({'table': table.id}, 'a')
     assert table.participating_humans() == 1
     game = table.game
