@@ -19,6 +19,9 @@ namespace Quota.EditorTools
         {
             HardenWebGlPlayer();
             StageWebResources();
+            var commit = BuildCommit();
+            File.WriteAllText(Path.Combine(ResourceRoot, "build_commit.txt"), commit);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             Directory.CreateDirectory("Assets/Scenes");
             if (!File.Exists(ScenePath))
             {
@@ -64,6 +67,7 @@ namespace Quota.EditorTools
                     EditorApplication.Exit(1);
                 }
                 WriteOfflineFiles(dest);
+                File.WriteAllText(Path.Combine(dest, "build-commit.txt"), commit + "\n");
             }
             finally
             {
@@ -81,6 +85,33 @@ namespace Quota.EditorTools
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 AssetDatabase.SaveAssets();
             }
+        }
+
+        static string BuildCommit()
+        {
+            var commit = System.Environment.GetEnvironmentVariable("QUOTA_GIT_COMMIT");
+            if (string.IsNullOrWhiteSpace(commit))
+            {
+                using (var process = new System.Diagnostics.Process())
+                {
+                    process.StartInfo = new System.Diagnostics.ProcessStartInfo("git", "rev-parse HEAD")
+                    {
+                        WorkingDirectory = Path.GetFullPath(".."),
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                    };
+                    process.Start();
+                    commit = process.StandardOutput.ReadToEnd().Trim();
+                    process.WaitForExit();
+                    if (process.ExitCode != 0)
+                        throw new System.InvalidOperationException("Could not read Git commit for WebGL build: " + process.StandardError.ReadToEnd());
+                }
+            }
+            commit = commit.Trim();
+            if (!System.Text.RegularExpressions.Regex.IsMatch(commit, "^[0-9a-fA-F]{40}$"))
+                throw new System.InvalidOperationException("QUOTA_GIT_COMMIT must be a full 40-character Git commit hash.");
+            return commit.ToLowerInvariant();
         }
 
         [System.Serializable]
