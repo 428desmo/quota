@@ -380,6 +380,10 @@ namespace Quota.Tests
             var scroll = frame.Find("lobby-viewport").GetComponent<ScrollRect>();
             Assert.IsTrue(scroll.vertical);
             Assert.IsNotNull(scroll.viewport.GetComponent<Image>());
+            var waiting = FindText("全員の開始可能宣言を待っています");
+            Assert.IsNotNull(waiting);
+            Assert.AreEqual(Color.white, waiting.color);
+            Assert.AreEqual(FontStyle.Bold, waiting.fontStyle);
         }
 
         [Test]

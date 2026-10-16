@@ -1232,7 +1232,7 @@ namespace Quota
                             || (networkState.seats != null && networkState.seats.Length >= 2 && networkState.seats.All(seat => seat.ready));
                         if (canStart)
                             SetupButton(column, networkState.lobby_decision ? "一人でも始める" : networkState.lobby_duration == 0 ? "ゲーム開始" : "いますぐ開始", StartNetworkMatch, actionW, buttonH, font);
-                        else SetupNotice(column, "全員の開始可能宣言を待っています", rowW, buttonH, font);
+                        else SetupNotice(column, "全員の開始可能宣言を待っています", rowW, buttonH, font, true);
                         if (networkState.lobby_decision)
                         {
                             SetupGap(column, innerGap);
