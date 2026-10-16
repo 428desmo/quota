@@ -1109,13 +1109,18 @@ namespace Quota
         void DrawLobby(float screenW, float columnTop, float available, bool showReview)
         {
             const float innerGap = 16f;
+            var screenH = columnTop + available + 24f;
             var leader = !NetworkJoined || (networkState.you != null && networkState.you.leader);
             var seats = playerCount;
             var buttonH = Mathf.Clamp((available - 176f - (seats + 7) * 16f) / (seats + 8f), 28f, 64f);
             var font = Mathf.Max(18, Mathf.RoundToInt(32f * buttonH / 72f));
-            var viewport = Portrait.Rect(frame, "lobby-viewport", 0f, columnTop, screenW, available + 24f);
+            var footerH = NetworkJoined ? buttonH + 88f : 0f;
+            var viewportH = available + 24f - footerH;
+            var viewport = Portrait.Rect(frame, "lobby-viewport", 0f, columnTop, screenW, viewportH);
+            var scrollSurface = viewport.gameObject.AddComponent<Image>();
+            scrollSurface.color = new Color(0f, 0f, 0f, 0f);
             viewport.gameObject.AddComponent<RectMask2D>();
-            var column = Portrait.Rect(viewport, "setup", 0f, 0f, screenW, available + 24f);
+            var column = Portrait.Rect(viewport, "setup", 0f, 0f, screenW, viewportH);
             var layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = layout.childControlHeight = true;
@@ -1133,6 +1138,7 @@ namespace Quota
                 SetupGap(column, innerGap);
                 SetupSegmentedRow(column, "開始まで：", new[] { "60秒", "90秒", "120秒" }, lobbyDuration + "秒",
                     rowW, buttonH, LabelSlot(font, "開始まで："), font, true, value => { lobbyDuration = int.Parse(value.Replace("秒", "")); SaveRules(); ShowSetup(); });
+                SetupGap(column, innerGap);
             }
             SetupSegmentedRow(column, "プレイヤーの数：", new[] { "3人", "4人" }, playerCount == 4 ? "4人" : "3人",
                 rowW, buttonH, labelW, font, leader, value => ChooseInlineLobbyChoice("players", value));
@@ -1146,7 +1152,7 @@ namespace Quota
             if (NetworkJoined)
             {
                 if (leader || networkState.visibility == "public")
-                    SetupNotice(column, "ルームID：" + (string.IsNullOrEmpty(networkState.invite_code) ? networkState.table_id : networkState.invite_code), rowW, buttonH, Mathf.Min(font, 20));
+                    SetupRoomCode(column, "ルームID：" + (string.IsNullOrEmpty(networkState.invite_code) ? networkState.table_id : networkState.invite_code), rowW, buttonH, Mathf.Min(font, 20));
                 if (leader && !string.IsNullOrEmpty(networkState.invite_code))
                 {
                     SetupGap(column, innerGap);
@@ -1185,14 +1191,22 @@ namespace Quota
             SetupSegmentedRow(column, "CPUプレイヤーの強さ：", new[] { "弱", "中", "強" }, new[] { "弱", "中", "強" }[cpuStrength],
                 rowW, buttonH, LabelSlot(font, "CPUプレイヤーの強さ："), font, leader,
                 value => SetCpuStrength(value));
-            SetupGap(column, buttonH);
+            SetupGap(column, innerGap);
             if (gameMode != GameMode.Offline)
             {
-                SetupButton(column, "対戦設定", () => OpenLobbySettings("match"), actionW, buttonH, font);
-                SetupGap(column, innerGap);
+                var settingsRow = new GameObject("lobby-settings-buttons", typeof(RectTransform), typeof(LayoutElement), typeof(HorizontalLayoutGroup));
+                settingsRow.transform.SetParent(column, false);
+                SizeElement(settingsRow.GetComponent<LayoutElement>(), actionW * 2f + innerGap, buttonH);
+                var settingsLayout = settingsRow.GetComponent<HorizontalLayoutGroup>();
+                settingsLayout.spacing = innerGap;
+                settingsLayout.childAlignment = TextAnchor.MiddleCenter;
+                settingsLayout.childControlWidth = settingsLayout.childControlHeight = true;
+                settingsLayout.childForceExpandWidth = settingsLayout.childForceExpandHeight = false;
+                SetupButton(settingsRow.GetComponent<RectTransform>(), "対戦設定", () => OpenLobbySettings("match"), actionW, buttonH, font);
+                SetupButton(settingsRow.GetComponent<RectTransform>(), "個人設定", () => OpenLobbySettings("personal"), actionW, buttonH, font);
             }
-            SetupButton(column, "個人設定", () => OpenLobbySettings("personal"), actionW, buttonH, font);
-            SetupGap(column, buttonH);
+            else SetupButton(column, "個人設定", () => OpenLobbySettings("personal"), actionW, buttonH, font);
+            SetupGap(column, innerGap);
             if (NetworkJoined)
             {
                 if (networkState.phase == "preparing")
@@ -1249,23 +1263,40 @@ namespace Quota
                 SetupButton(column, "終了したゲームを見る", ShowReview, actionW, buttonH, font);
                 SetupGap(column, innerGap);
             }
-            SetupButton(column, NetworkJoined ? "ルームから抜ける" : "戻る", NetworkJoined ? (UnityAction)LeaveNetworkTable : CloseLobby, actionW, buttonH, font);
+            if (!NetworkJoined) SetupButton(column, "戻る", CloseLobby, actionW, buttonH, font);
             LayoutRebuilder.ForceRebuildLayoutImmediate(column);
-            var contentH = Mathf.Max(available + 24f, LayoutUtility.GetPreferredHeight(column));
+            var preferredH = 0f;
+            foreach (Transform child in column)
+            {
+                var element = child.GetComponent<LayoutElement>();
+                if (element != null) preferredH += element.preferredHeight;
+            }
+            preferredH += Mathf.Max(0, column.childCount - 1) * layout.spacing + layout.padding.top + layout.padding.bottom;
+            var contentH = Mathf.Max(viewportH, preferredH);
             column.anchorMin = new Vector2(0f, 1f);
             column.anchorMax = new Vector2(1f, 1f);
             column.pivot = new Vector2(0.5f, 1f);
             column.sizeDelta = new Vector2(0f, contentH);
             column.anchoredPosition = Vector2.zero;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(column);
             var scroll = viewport.gameObject.AddComponent<ScrollRect>();
             scroll.viewport = viewport;
             scroll.content = column;
             scroll.horizontal = false;
-            scroll.vertical = contentH > available + 24f;
+            scroll.vertical = true;
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.scrollSensitivity = 48f;
             if (scroll.vertical) scroll.verticalNormalizedPosition = lobbyScroll;
             scroll.onValueChanged.AddListener(value => lobbyScroll = value.y);
+            if (NetworkJoined)
+            {
+                var footer = Portrait.Rect(frame, "lobby-footer", 0f, screenH - buttonH - 72f, screenW, buttonH);
+                var footerLayout = footer.gameObject.AddComponent<HorizontalLayoutGroup>();
+                footerLayout.childAlignment = TextAnchor.MiddleCenter;
+                footerLayout.childControlWidth = footerLayout.childControlHeight = true;
+                footerLayout.childForceExpandWidth = footerLayout.childForceExpandHeight = false;
+                SetupButton(footer, "ルームから抜ける", LeaveNetworkTable, actionW, buttonH, font);
+            }
         }
 
         void OpenLobbyChoice(string key)
@@ -4732,6 +4763,25 @@ namespace Quota
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.text = "CPU";
             text.raycastTarget = false;
+        }
+
+        void SetupRoomCode(RectTransform parent, string caption, float width, float height, int fontSize)
+        {
+            var holder = new GameObject("room-code", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            holder.transform.SetParent(parent, false);
+            SizeElement(holder.GetComponent<LayoutElement>(), width, height);
+            var image = holder.GetComponent<Image>();
+            image.sprite = Portrait.SlicedRound;
+            image.type = Image.Type.Sliced;
+            image.color = Ecru;
+            image.raycastTarget = false;
+            var label = TextAt(holder.transform, caption, 12f, 0f, width - 24f, height,
+                fontSize, Ink, nameFont, TextAnchor.MiddleCenter);
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 14;
+            label.resizeTextMaxSize = fontSize;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
         }
 
         RectTransform SetupNotice(RectTransform parent, string caption, float width, float height, int fontSize, bool light = false)
