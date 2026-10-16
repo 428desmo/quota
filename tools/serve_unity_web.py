@@ -135,6 +135,7 @@ TYPES = {
 class Seat:
     def __init__(self, client: str, name: str, cpu: bool = False) -> None:
         self.client = client
+        self.ban_token = secrets.token_urlsafe(12)
         self.name = name
         self.cpu = cpu
         self.departed = False
@@ -143,6 +144,12 @@ class Seat:
 
 
 class UnityTable:
+    BAN_REASONS = (
+        "このルームは知人との対局を予定しているため、今回はご参加をお断りします。",
+        "このルームの進行方針と合わないため、今回はご参加をお断りします。",
+        "リーダーの判断により、今回はご参加をお断りします。",
+    )
+
     def __init__(self, leader: str, name: str, players: int) -> None:
         self.id = secrets.token_hex(3)
         self.players = players if players in (3, 4) else 3
@@ -169,6 +176,7 @@ class UnityTable:
         self.lobby_extended = False
         self.lobby_decision = False
         self.lobby_decision_at = None
+        self.banned: dict[str, str] = {}
 
     def touch(self) -> None:
         self.idle_at = time.monotonic()
@@ -234,7 +242,8 @@ class UnityTable:
             "players": self.players,
             "seats": [
                 {"name": seat.name, "leader": seat.client == self.leader_id(), "cpu": seat.cpu, "departed": seat.departed,
-                 "ready": seat.client in self.lobby_ready}
+                 "ready": seat.client in self.lobby_ready,
+                 "ban_token": seat.ban_token if client == self.leader_id() else ""}
                 for seat in self.humans
             ],
             "cpus": [display_name(cid) for cid in self.cpu_cast[:max(0, self.players - self.seated())]],
@@ -276,9 +285,11 @@ class UnityHall:
         table = self.tables.get(self.where.get(client, ""))
         if table is None:
             self.where.pop(client, None)
+            notice = next((item.banned[client] for item in self.tables.values() if client in item.banned), "")
             return {"phase": "hall", "tables": [item.summary(client) for item in self.tables.values()
                     if item.visibility == "public" and item.phase != "preparing"],
-                    "guard_remaining": max(0, self.exit_guard_until.get(client, 0) - time.monotonic())}
+                    "guard_remaining": max(0, self.exit_guard_until.get(client, 0) - time.monotonic()),
+                    "notice": notice}
         table.touch()
         if client in table.members:
             table.members[client].last_seen = time.monotonic()
@@ -327,6 +338,8 @@ class UnityHall:
             raise ValueError("そのルームはありません")
         if table.visibility == "private" and not secrets.compare_digest(str(body.get("invite_code") or code), table.invite_code):
             raise ValueError("そのルームはありません")
+        if client in table.banned:
+            raise ValueError("このルームには再参加できません")
         if table.lobby_decision and client not in table.members:
             raise ValueError("参加受付は終了しました")
         role = body.get("role", "auto")
@@ -489,6 +502,26 @@ class UnityHall:
             table.lobby_ready.add(client)
         else:
             table.lobby_ready.discard(client)
+        table.touch()
+        return table.recruiting(client)
+
+    def ban(self, body: dict, client: str) -> dict:
+        table = self._require(client)
+        if table.phase not in ("preparing", "recruiting") or table.leader_id() != client:
+            raise ValueError("ロビーのリーダーだけが退出を指定できます")
+        token = body.get("target_token")
+        reason = body.get("reason")
+        if type(reason) is not int or reason not in range(len(UnityTable.BAN_REASONS)):
+            raise ValueError("通知文を選択してください")
+        target = next((seat for seat in table.humans if seat.ban_token == token and seat.client != client), None)
+        if target is None or target.client not in table.members:
+            raise ValueError("対象プレイヤーはロビーにいません")
+        table.banned[target.client] = (UnityTable.BAN_REASONS[reason]
+                                       + " このルームには再参加できません。他のルームへの参加は可能です。")
+        table.members.pop(target.client)
+        table.humans.remove(target)
+        table.lobby_ready.discard(target.client)
+        self.where.pop(target.client, None)
         table.touch()
         return table.recruiting(client)
 
@@ -790,7 +823,7 @@ class Handler(SimpleHTTPRequestHandler):
         route = self.path if self.path in {
             "/api/state", "/api/table", "/api/join", "/api/leave", "/api/participation",
             "/api/players", "/api/settings", "/api/action", "/api/start", "/api/shuffle", "/api/cast",
-            "/api/lookup", "/api/open", "/api/visibility", "/api/ready", "/api/extend", "/api/cancel",
+            "/api/lookup", "/api/open", "/api/visibility", "/api/ready", "/api/ban", "/api/extend", "/api/cancel",
             "/api/diagnostic", "/api/metrics",
         } else "/api/unknown"
         if self.path != "/api/metrics":
@@ -836,6 +869,8 @@ class Handler(SimpleHTTPRequestHandler):
                     payload = HALL.set_visibility(body, client)
                 elif self.path == "/api/ready":
                     payload = HALL.set_ready(body, client)
+                elif self.path == "/api/ban":
+                    payload = HALL.ban(body, client)
                 elif self.path == "/api/extend":
                     payload = HALL.extend_lobby(client)
                 elif self.path == "/api/cancel":

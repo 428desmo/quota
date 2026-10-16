@@ -90,6 +90,9 @@ namespace Quota
         readonly List<int> lobbyCast = new List<int>();
         readonly List<int> nomination = new List<int>();
         bool nominationOpen;
+        bool banSelectionOpen;
+        string banTargetToken;
+        string banTargetName;
         int cpuStrength = 1;
         readonly System.Random lobbyRng = new System.Random();
         NetworkSnapshot networkState;
@@ -836,6 +839,7 @@ namespace Quota
             if (lobbyOpen && !string.IsNullOrEmpty(lobbyChoice)) DrawLobbyChoice(screenW, screenH);
             if (lobbyOpen && !string.IsNullOrEmpty(lobbySettingsPage)) DrawLobbySettings(screenW, screenH);
             if (lobbyOpen && nominationOpen) DrawNomination(screenW, screenH);
+            if (lobbyOpen && banSelectionOpen) DrawLobbyBan(screenW, screenH);
             if (!lobbyOpen && modeChoiceOpen) DrawModeChoice(screenW, screenH);
             if (!string.IsNullOrEmpty(setupPage)) DrawSetupPage(wide);
             Shade(TextAt(frame, BuildStamp, 24f, screenH - 56f, screenW - 48f, 40f, 24, Cream, nameFont, TextAnchor.MiddleCenter));
@@ -1162,6 +1166,11 @@ namespace Quota
                 var holder = SetupRightAlignedHolder(column, "seat-holder-" + seatNumber, rowW, buttonH);
                 SetupSeatRow(holder, $"{seatNumber}. {seat.Key}", seat.Value, seatW, buttonH, font);
                 seatNumber++;
+                SetupGap(column, innerGap);
+            }
+            if (NetworkJoined && leader && networkState.seats != null && networkState.seats.Any(seat => !seat.leader && !seat.cpu))
+            {
+                SetupButton(column, "参加者を退出させる", () => { banTargetToken = null; banSelectionOpen = true; ShowSetup(); }, seatW, buttonH, font);
                 SetupGap(column, innerGap);
             }
             if (!NetworkJoined || (networkState.you != null && networkState.you.leader))
@@ -1646,6 +1655,8 @@ namespace Quota
             networkTurnDeadline = Time.realtimeSinceStartupAsDouble + next.turn_remaining;
             if (next.phase == "hall")
             {
+                if (!string.IsNullOrEmpty(next.notice)) networkError = next.notice;
+                banSelectionOpen = false;
                 recoveryPending = false;
                 PlayerPrefs.SetInt("quota.network.active", 0);
                 PlayerPrefs.Save();
@@ -1898,6 +1909,65 @@ namespace Quota
 
         [System.Serializable]
         sealed class NetworkReady { public bool ready; }
+
+        [System.Serializable]
+        sealed class NetworkBan { public string target_token; public int reason; }
+
+        void DrawLobbyBan(float screenW, float screenH)
+        {
+            var overlay = Portrait.Rect(frame, "lobby-ban", 0f, 0f, screenW, screenH);
+            var wash = overlay.gameObject.AddComponent<Image>();
+            wash.color = new Color(0f, 0f, 0f, 0.66f);
+            var canvas = overlay.gameObject.AddComponent<Canvas>();
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 160;
+            overlay.gameObject.AddComponent<GraphicRaycaster>();
+            var outside = overlay.gameObject.AddComponent<Button>();
+            outside.targetGraphic = wash;
+            outside.onClick.AddListener(() => { banSelectionOpen = false; ShowSetup(); });
+            var panelW = Mathf.Min(screenW - 40f, 780f);
+            var panelH = 480f;
+            var panel = Portrait.Box(overlay, "ban-window", (screenW - panelW) * 0.5f,
+                (screenH - panelH) * 0.5f, panelW, panelH, 12f, 1f, Paper, Ink, false);
+            panel.GetComponent<Image>().raycastTarget = true;
+            var choosingTarget = string.IsNullOrEmpty(banTargetToken);
+            Bold(TextAt(panel, choosingTarget ? "退出させる参加者を選択" : banTargetName + " さんへの通知",
+                20f, 12f, panelW - 40f, 56f, 27, Ink, nameFont, TextAnchor.MiddleCenter));
+            if (choosingTarget)
+            {
+                var row = 0;
+                foreach (var seat in networkState.seats ?? new NetworkSeat[0])
+                {
+                    if (seat.leader || seat.cpu || string.IsNullOrEmpty(seat.ban_token)) continue;
+                    var token = seat.ban_token;
+                    var name = seat.name;
+                    Pill(panel, name, 20f, 84f + row * 78f, panelW - 40f, 66f, 25,
+                        () => { banTargetToken = token; banTargetName = name; ShowSetup(); });
+                    row++;
+                }
+            }
+            else
+            {
+                var reasons = new[] {
+                    "知人との対局を予定しているため",
+                    "ルームの進行方針と合わないため",
+                    "リーダーの判断により"
+                };
+                for (var i = 0; i < reasons.Length; i++)
+                {
+                    var reason = i;
+                    Pill(panel, reasons[i], 20f, 84f + i * 78f, panelW - 40f, 66f, 23, () => {
+                        var token = banTargetToken;
+                        banSelectionOpen = false;
+                        banTargetToken = null;
+                        ShowSetup();
+                        StartCoroutine(NetworkPost("/api/ban", JsonUtility.ToJson(new NetworkBan { target_token = token, reason = reason })));
+                    });
+                }
+            }
+            Pill(panel, "キャンセル", 20f, panelH - 74f, panelW - 40f, 54f, 25,
+                () => { banSelectionOpen = false; banTargetToken = null; ShowSetup(); });
+        }
 
         void SetNetworkReady(bool ready) => StartCoroutine(NetworkPost("/api/ready", JsonUtility.ToJson(new NetworkReady { ready = ready })));
 
@@ -2337,6 +2407,7 @@ namespace Quota
             public bool leader;
             public bool cpu;
             public bool ready;
+            public string ban_token;
         }
 
         [System.Serializable]
@@ -2372,6 +2443,7 @@ namespace Quota
             public string[] cpus;
             public NetworkYou you;
             public string error;
+            public string notice;
         }
 
         [System.Serializable]

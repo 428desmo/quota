@@ -169,3 +169,29 @@ def test_false_normal_dismissal_during_play_still_counts_as_exit():
     hall.begin("a")
     hall.leave("a", explicit_exit=False)
     assert hall.snapshot("a")["guard_remaining"] > 0
+
+
+def test_leader_ban_is_lobby_only_and_room_scoped_without_exit_guard():
+    hall = UnityHall()
+    room = create_room(hall, visibility="public")
+    hall.join({"table": room["table_id"], "name": "友人", "role": "player"}, "friend")
+    token = hall.snapshot("leader")["seats"][1]["ban_token"]
+    assert token and hall.snapshot("friend")["seats"][1]["ban_token"] == ""
+    with pytest.raises(ValueError, match="リーダー"):
+        hall.ban({"target_token": token, "reason": 0}, "friend")
+    with pytest.raises(ValueError, match="通知文"):
+        hall.ban({"target_token": token, "reason": 9}, "leader")
+    result = hall.ban({"target_token": token, "reason": 1}, "leader")
+    assert len(result["seats"]) == 1
+    expelled = hall.snapshot("friend")
+    assert expelled["phase"] == "hall"
+    assert "進行方針" in expelled["notice"]
+    assert expelled["guard_remaining"] == 0
+    with pytest.raises(ValueError, match="再参加"):
+        hall.join({"table": room["table_id"], "role": "observer"}, "friend")
+    other = hall.create({"name": "別のリーダー", "players": 3}, "other")
+    assert hall.join({"table": other["table_id"], "role": "player"}, "friend")["you"]["seat"] == 1
+    playing = hall.create({"name": "対局リーダー", "players": 3}, "playing_leader")
+    hall.begin("playing_leader")
+    with pytest.raises(ValueError, match="ロビー"):
+        hall.ban({"target_token": token, "reason": 1}, "playing_leader")
