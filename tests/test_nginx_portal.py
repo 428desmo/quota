@@ -40,6 +40,6 @@ def test_index_links_to_quota_and_retires_only_old_root_worker():
     for game in ("quota", "fragile", "loop"):
         assert f'href="/{game}/"' in page
     assert 'src="fragile-screen.jpg"' in page
-    assert "遊びを、選ぼう。" in page
+    assert "気分転換にゲームをどうぞ。" in page
     assert 'name="app-index"' in page
     assert 'registration.scope === location.origin + "/"' in page
