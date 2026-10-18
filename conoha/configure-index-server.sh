@@ -41,7 +41,7 @@ check_page() {
 }
 index_ready=false
 for attempt in $(seq 1 10); do
-  if check_page http-index '遊びの港' -H 'Host: _' http://127.0.0.1/; then
+  if check_page http-index 'name="app-index"' -H 'Host: _' http://127.0.0.1/; then
     index_ready=true
     break
   fi
@@ -53,7 +53,7 @@ if [ "$index_ready" != true ] \
   pages_ready=false
 fi
 if [ -f "$backup/https.conf" ] && [ "$pages_ready" = true ]; then
-  if ! check_page https-index '遊びの港' --resolve "$domain:443:127.0.0.1" "https://$domain/" \
+  if ! check_page https-index 'name="app-index"' --resolve "$domain:443:127.0.0.1" "https://$domain/" \
       || ! check_page https-quota createUnityInstance --resolve "$domain:443:127.0.0.1" "https://$domain/quota/"; then
     pages_ready=false
   fi

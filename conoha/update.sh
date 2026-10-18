@@ -24,9 +24,8 @@ trap cleanup EXIT
 progress 'Selecting only the current WebGL build locally'
 python3 "$CONOHA_DIR/web_files.py" prepare "$WEB_DIR" "$local_stage/web"
 mkdir -p "$local_stage/web/portal"
-cp "$PROJECT_ROOT/portal/index.html" "$local_stage/web/portal/index.html"
+rsync -a "$PROJECT_ROOT/portal/" "$local_stage/web/portal/"
 cp "$PROJECT_ROOT/visual/horizontal_base.jpg" "$local_stage/web/portal/harbor-wide.jpg"
-cp "$PROJECT_ROOT/visual/vertical_base.jpg" "$local_stage/web/portal/harbor-tall.jpg"
 mkdir -p "$local_stage/backend/tools"
 rsync -a --exclude=__pycache__ --exclude='*.pyc' "$PROJECT_ROOT/quota/" "$local_stage/backend/quota/"
 cp "$PROJECT_ROOT/tools/serve_unity_web.py" "$local_stage/backend/tools/"

@@ -37,5 +37,9 @@ def test_unrecognized_nginx_config_is_rejected():
 
 def test_index_links_to_quota_and_retires_only_old_root_worker():
     page = (Path(__file__).resolve().parents[1] / "portal/index.html").read_text()
-    assert 'href="/quota/"' in page
+    for game in ("quota", "fragile", "loop"):
+        assert f'href="/{game}/"' in page
+    assert 'src="fragile-screen.jpg"' in page
+    assert "遊びを、選ぼう。" in page
+    assert 'name="app-index"' in page
     assert 'registration.scope === location.origin + "/"' in page

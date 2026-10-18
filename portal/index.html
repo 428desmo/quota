@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#172323">
-  <meta name="description" content="Quotaをはじめ、ここから遊べるアプリをご案内します。">
-  <title>遊びの港 | Guns N Stone Roses</title>
+  <meta name="app-index" content="gunsnstoneroses">
+  <meta name="description" content="Quota、Fragile、Loop。3つのゲームから、今日の遊びを選ぼう。">
+  <title>ゲームを選ぶ | Guns N Stone Roses</title>
   <style>
     :root { color-scheme: dark; --ink: #172323; --paper: #f4eee1; --muted: #c3c8bd; --copper: #b8673f; }
     * { box-sizing: border-box; }
@@ -14,56 +15,65 @@
     a { color: inherit; }
     a:focus-visible { outline: 3px solid #f0b76a; outline-offset: 5px; }
     .site { min-height: 100svh; position: relative; isolation: isolate; overflow: hidden; }
-    .site::before { content: ""; position: absolute; inset: 0 0 auto; height: min(800px, 100svh); z-index: -2; background: url("harbor-wide.jpg") center 37% / cover no-repeat; opacity: .34; }
-    .site::after { content: ""; position: absolute; inset: 0 0 auto; height: min(800px, 100svh); z-index: -1; background: linear-gradient(90deg, rgba(23,35,35,.96), rgba(23,35,35,.64) 68%, rgba(23,35,35,.45)), linear-gradient(0deg, var(--ink), transparent 48%); }
+    .site::before { content: ""; position: absolute; inset: 0 0 auto; height: 760px; z-index: -2; background: radial-gradient(ellipse 390px 310px at 9% 23%, rgba(177,103,63,.28), transparent 75%), radial-gradient(ellipse 490px 330px at 69% 6%, rgba(205,221,190,.16), transparent 75%), radial-gradient(ellipse 410px 300px at 94% 70%, rgba(114,162,139,.20), transparent 75%), linear-gradient(135deg, #20272a, #1d2d2c 56%, #172323); }
+    .site::after { content: ""; position: absolute; inset: 0 0 auto; height: 760px; z-index: -1; background: radial-gradient(circle at 80% 37%, transparent 0 128px, rgba(238,229,202,.09) 129px 130px, transparent 131px 220px, rgba(238,229,202,.07) 221px 222px, transparent 223px), linear-gradient(0deg, var(--ink), transparent 58%); }
     .wrap { width: min(1160px, calc(100% - 64px)); margin-inline: auto; }
     header { padding-block: 34px 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid rgba(244,238,225,.24); }
     .brand { text-decoration: none; font-size: 13px; letter-spacing: .22em; font-weight: 800; line-height: 1.6; }
     .brand span { display: block; color: #d6ae82; font-size: 10px; letter-spacing: .31em; font-weight: 600; }
     .header-note { color: var(--muted); letter-spacing: .16em; font-size: 11px; white-space: nowrap; }
-    main { padding-top: clamp(64px, 7vw, 96px); }
+    main { padding-top: clamp(58px, 6vw, 82px); }
     .eyebrow { color: #e0b17c; letter-spacing: .26em; font-size: 12px; font-weight: 750; text-transform: uppercase; }
-    h1 { margin: 25px 0 22px; font-family: "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif; font-size: clamp(48px, 7vw, 92px); font-weight: 600; line-height: 1.25; letter-spacing: .055em; text-wrap: balance; }
-    .lead { margin: 0; max-width: 640px; color: #e0e3da; font-size: clamp(16px, 1.65vw, 19px); line-height: 2; }
-    .section-heading { margin: clamp(50px, 6vw, 74px) 0 24px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+    h1 { margin: 18px 0 16px; font-family: "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif; font-size: clamp(47px, 6.6vw, 82px); font-weight: 600; line-height: 1.23; letter-spacing: .055em; text-wrap: balance; }
+    .lead { margin: 0; max-width: 760px; color: #e0e3da; font-size: clamp(16px, 1.5vw, 18px); line-height: 1.9; }
+    .game-jump { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .game-jump a { padding: 9px 17px; border: 1px solid rgba(244,238,225,.3); border-radius: 999px; color: #e3e9df; background: rgba(255,255,255,.035); font-size: 13px; text-decoration: none; transition: background .18s, border-color .18s; }
+    .game-jump a:hover { background: rgba(255,255,255,.1); border-color: #d3b188; }
+    .section-heading { margin: clamp(44px, 5vw, 64px) 0 22px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
     .section-heading h2 { margin: 0; font-size: 16px; letter-spacing: .1em; }
     .section-heading small { color: #b7baae; font-family: Georgia, serif; font-style: italic; font-size: 14px; }
-    .apps { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(250px, .82fr); gap: 20px; align-items: stretch; }
-    .app-card { position: relative; min-width: 0; min-height: 325px; border: 1px solid rgba(244,238,225,.28); border-radius: 8px; overflow: hidden; background: #282b27; }
-    .quota-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .9fr); }
-    .app-info { padding: clamp(28px, 3.5vw, 48px); display: flex; flex-direction: column; align-items: flex-start; position: relative; z-index: 1; }
+    .apps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+    .app-card { position: relative; min-width: 0; border: 1px solid rgba(244,238,225,.26); border-radius: 8px; overflow: hidden; background: #282b27; }
+    .quota-card { display: flex; flex-direction: column; }
+    .app-info { order: 2; flex: 1; min-height: 325px; padding: clamp(24px, 2.7vw, 34px); display: flex; flex-direction: column; align-items: flex-start; position: relative; z-index: 1; }
     .card-kicker { color: #dfbc8d; font-size: 11px; letter-spacing: .18em; font-weight: 750; }
-    .quota-name { margin: 25px 0 8px; font: italic 700 clamp(56px, 7vw, 84px)/1 Georgia, "Times New Roman", serif; letter-spacing: -.055em; }
-    .quota-copy { margin: 0; font-size: clamp(17px, 2.1vw, 23px); font-weight: 700; letter-spacing: .06em; }
-    .quota-detail { margin: 22px 0 32px; color: #d7d9d0; line-height: 1.85; font-size: 14px; }
-    .play-link { margin-top: auto; display: inline-flex; align-items: center; justify-content: space-between; gap: 26px; min-height: 54px; min-width: 225px; padding: 14px 18px 14px 22px; border-radius: 3px; background: #a64d31; text-decoration: none; font-weight: 800; transition: background .18s, transform .18s; }
+    .quota-name { margin: 19px 0 10px; font: italic 700 clamp(49px, 4.3vw, 64px)/1 Georgia, "Times New Roman", serif; letter-spacing: -.055em; }
+    .quota-copy { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: .04em; }
+    .quota-detail { margin: 16px 0 26px; color: #d7d9d0; line-height: 1.8; font-size: 14px; }
+    .play-link { margin-top: auto; display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; width: 100%; padding: 12px 16px; border-radius: 3px; background: #a64d31; text-decoration: none; font-size: 14px; font-weight: 800; transition: background .18s, transform .18s; }
     .play-link:hover { background: #c4623e; transform: translateY(-2px); }
     .play-link span { font-size: 22px; line-height: 1; }
-    .quota-art { background: linear-gradient(90deg, #282b27 0%, rgba(40,43,39,.15) 26%, rgba(23,35,35,.14)), url("harbor-tall.jpg") 47% center / cover no-repeat; }
-    .future-card { padding: 30px; display: flex; flex-direction: column; justify-content: space-between; background: repeating-linear-gradient(135deg, transparent, transparent 22px, rgba(244,238,225,.018) 22px, rgba(244,238,225,.018) 23px), #253231; }
-    .future-card .number { color: #e0b17c; font: italic 34px Georgia, serif; }
-    .future-card h3 { margin: 0 0 12px; font-size: 23px; line-height: 1.45; }
-    .future-card p { margin: 0; color: #c3c8bd; font-size: 14px; line-height: 1.8; }
-    .future-card .status { border-top: 1px solid rgba(244,238,225,.24); padding-top: 18px; color: #e1b583; font-size: 11px; letter-spacing: .18em; }
-    footer { margin-top: 88px; padding: 24px 0 34px; border-top: 1px solid rgba(244,238,225,.18); display: flex; justify-content: space-between; gap: 16px; color: #aeb5ab; font-size: 12px; letter-spacing: .05em; }
-    @media (max-width: 800px) { .apps { grid-template-columns: 1fr; } .future-card { min-height: 200px; } }
-    @media (max-width: 580px) {
+    .quota-art { order: 1; flex: 0 0 185px; background: url("harbor-wide.jpg") center 46% / cover no-repeat; }
+    footer { margin-top: 76px; padding: 24px 0 34px; border-top: 1px solid rgba(244,238,225,.18); display: flex; justify-content: space-between; gap: 16px; color: #aeb5ab; font-size: 12px; letter-spacing: .05em; }
+    @media (max-width: 1000px) and (min-width: 651px) {
+      .apps { grid-template-columns: 1fr; }
+      .quota-card { flex-direction: row; min-height: 285px; }
+      .app-info { order: 1; min-height: 285px; width: 55%; }
+      .quota-art { order: 2; flex: 0 0 45%; }
+    }
+    @media (max-width: 650px) {
       .wrap { width: min(calc(100% - 32px), 440px); }
       header { padding-top: 22px; }
       .header-note, .section-heading small { display: none; }
-      .site::before { height: 640px; background-image: url("harbor-tall.jpg"); background-position: center top; }
-      .site::after { height: 640px; background: linear-gradient(180deg, rgba(23,35,35,.45), rgba(23,35,35,.82) 58%, var(--ink)); }
-      main { padding-top: 62px; }
-      h1 { font-size: clamp(45px, 11vw, 62px); }
+      .site::before, .site::after { height: 650px; }
+      main { padding-top: 54px; }
+      h1 { font-size: clamp(43px, 11vw, 62px); }
       .lead { font-size: 16px; }
-      .section-heading { margin-top: 58px; }
-      .quota-card { min-height: 415px; display: block; }
-      .quota-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(34,38,34,.95), rgba(34,38,34,.78) 50%, rgba(34,38,34,.3)), url("harbor-tall.jpg") center / cover; }
-      .app-info { min-height: 415px; }
-      .quota-art { display: none; }
+      .game-jump { margin-top: 22px; }
+      .section-heading { margin-top: 46px; }
+      .apps { grid-template-columns: 1fr; }
+      .quota-art { flex-basis: 150px; }
+      .app-info { min-height: 290px; }
       footer { margin-top: 60px; display: block; line-height: 1.9; }
     }
     @media (prefers-reduced-motion: reduce) { .play-link { transition: none; } }
+    .fragile-art { position: relative; background: #e8eee5; }
+    .fragile-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .loop-art { display: grid; place-items: center; position: relative; overflow: hidden; background: #e5ead4; }
+    .loop-art::before, .loop-art::after { content: ""; position: absolute; width: 150px; height: 150px; border: 2px solid #a6b77e; border-radius: 50%; }
+    .loop-art::before { transform: translate(-42px, -24px); }
+    .loop-art::after { transform: translate(42px, 24px); border-style: dashed; opacity: .65; }
+    .loop-art span { z-index: 1; color: #344b32; font-size: 60px; font-weight: 800; letter-spacing: -.08em; }
   </style>
 </head>
 <body>
@@ -74,26 +84,46 @@
         <div class="header-note">PLAY / EXPLORE</div>
       </header>
       <main>
-        <div class="eyebrow">Welcome to the harbor</div>
-        <h1>遊びの港へ。</h1>
-        <p class="lead">ここから、まだ知らない駆け引きへ。<br>ひとりでじっくり、仲間と一緒に。あなたの次の一局を見つけてください。</p>
-        <div class="section-heading"><h2>公開中のアプリ</h2><small>Choose your adventure</small></div>
+        <div class="eyebrow">THREE GAMES / THREE WORLDS</div>
+        <h1>遊びを、選ぼう。</h1>
+        <p class="lead">カードの駆け引き。空を転がる冒険。軌道をつなぐ挑戦。<br>気分に合う世界から、はじめよう。</p>
+        <nav class="game-jump" aria-label="ゲームへ移動">
+          <a href="#quota">01　Quota</a><a href="#fragile">02　Fragile</a><a href="#loop">03　Loop</a>
+        </nav>
+        <div class="section-heading"><h2>公開中のゲーム</h2><small>Choose your adventure · 3 titles</small></div>
         <div class="apps">
-          <article class="app-card quota-card">
+          <article id="quota" class="app-card quota-card" aria-labelledby="quota-title">
             <div class="app-info">
               <span class="card-kicker">01 / STRATEGY CARD GAME</span>
-              <h2 class="quota-name">Quota</h2>
+              <h2 id="quota-title" class="quota-name">Quota</h2>
               <p class="quota-copy">揃えて、達成。</p>
               <p class="quota-detail">ノルマは、自分で決めろ。<br>交易品を集めて競うカードゲーム。</p>
               <a class="play-link" href="/quota/">Quotaをプレイ <span aria-hidden="true">↗</span></a>
             </div>
             <div class="quota-art" role="img" aria-label="港の交易風景"></div>
           </article>
-          <div class="app-card future-card" aria-label="今後のアプリのためのスペース">
-            <span class="number">02 / —</span>
-            <div><h3>次の遊びも、<br>この港から。</h3><p>新しいアプリの案内も、ここに加わります。</p></div>
-            <div class="status">MORE TO COME</div>
-          </div>
+          <article id="fragile" class="app-card quota-card fragile-card" aria-labelledby="fragile-title">
+            <div class="app-info">
+              <span class="card-kicker">02 / 3D MARBLE ADVENTURE</span>
+              <h2 id="fragile-title" class="quota-name">Fragile</h2>
+              <p class="quota-copy">空を転がる、小さな冒険。</p>
+              <p class="quota-detail">指でビー玉を転がして、ゴールへ。<br>空に浮かぶ、起伏と曲がり道の冒険へ。</p>
+              <a class="play-link" href="/fragile/">Fragileをプレイ <span aria-hidden="true">↗</span></a>
+            </div>
+            <div class="quota-art fragile-art">
+              <img src="fragile-screen.jpg" alt="Fragileの実際のスタート画面。空に浮かぶ曲がり道とクッション、木々のある島。" width="590" height="420" loading="lazy" decoding="async">
+            </div>
+          </article>
+          <article id="loop" class="app-card quota-card loop-card" aria-labelledby="loop-title">
+            <div class="app-info">
+              <span class="card-kicker">03 / ORBIT ACTION GAME</span>
+              <h2 id="loop-title" class="quota-name">Loop</h2>
+              <p class="quota-copy">傾けて、軌道をつなぐ。</p>
+              <p class="quota-detail">くるくる、ゆらゆら、星を集めて。<br>ボードを傾け、穴と追っ手をかわそう。</p>
+              <a class="play-link" href="/loop/">Loopをプレイ <span aria-hidden="true">↗</span></a>
+            </div>
+            <div class="quota-art loop-art" aria-hidden="true"><span>loop.</span></div>
+          </article>
         </div>
       </main>
       <footer><span>GUNS N STONE ROSES</span><span>ひとつ先の、遊びへ。</span></footer>
