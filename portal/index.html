@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#172323">
+  <meta name="description" content="Quotaをはじめ、ここから遊べるアプリをご案内します。">
+  <title>遊びの港 | Guns N Stone Roses</title>
+  <style>
+    :root { color-scheme: dark; --ink: #172323; --paper: #f4eee1; --muted: #c3c8bd; --copper: #b8673f; }
+    * { box-sizing: border-box; }
+    html { background: var(--ink); }
+    body { margin: 0; color: var(--paper); font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; }
+    a { color: inherit; }
+    a:focus-visible { outline: 3px solid #f0b76a; outline-offset: 5px; }
+    .site { min-height: 100svh; position: relative; isolation: isolate; overflow: hidden; }
+    .site::before { content: ""; position: absolute; inset: 0 0 auto; height: min(800px, 100svh); z-index: -2; background: url("harbor-wide.jpg") center 37% / cover no-repeat; opacity: .34; }
+    .site::after { content: ""; position: absolute; inset: 0 0 auto; height: min(800px, 100svh); z-index: -1; background: linear-gradient(90deg, rgba(23,35,35,.96), rgba(23,35,35,.64) 68%, rgba(23,35,35,.45)), linear-gradient(0deg, var(--ink), transparent 48%); }
+    .wrap { width: min(1160px, calc(100% - 64px)); margin-inline: auto; }
+    header { padding-block: 34px 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid rgba(244,238,225,.24); }
+    .brand { text-decoration: none; font-size: 13px; letter-spacing: .22em; font-weight: 800; line-height: 1.6; }
+    .brand span { display: block; color: #d6ae82; font-size: 10px; letter-spacing: .31em; font-weight: 600; }
+    .header-note { color: var(--muted); letter-spacing: .16em; font-size: 11px; white-space: nowrap; }
+    main { padding-top: clamp(64px, 7vw, 96px); }
+    .eyebrow { color: #e0b17c; letter-spacing: .26em; font-size: 12px; font-weight: 750; text-transform: uppercase; }
+    h1 { margin: 25px 0 22px; font-family: "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif; font-size: clamp(48px, 7vw, 92px); font-weight: 600; line-height: 1.25; letter-spacing: .055em; text-wrap: balance; }
+    .lead { margin: 0; max-width: 640px; color: #e0e3da; font-size: clamp(16px, 1.65vw, 19px); line-height: 2; }
+    .section-heading { margin: clamp(50px, 6vw, 74px) 0 24px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+    .section-heading h2 { margin: 0; font-size: 16px; letter-spacing: .1em; }
+    .section-heading small { color: #b7baae; font-family: Georgia, serif; font-style: italic; font-size: 14px; }
+    .apps { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(250px, .82fr); gap: 20px; align-items: stretch; }
+    .app-card { position: relative; min-width: 0; min-height: 325px; border: 1px solid rgba(244,238,225,.28); border-radius: 8px; overflow: hidden; background: #282b27; }
+    .quota-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .9fr); }
+    .app-info { padding: clamp(28px, 3.5vw, 48px); display: flex; flex-direction: column; align-items: flex-start; position: relative; z-index: 1; }
+    .card-kicker { color: #dfbc8d; font-size: 11px; letter-spacing: .18em; font-weight: 750; }
+    .quota-name { margin: 25px 0 8px; font: italic 700 clamp(56px, 7vw, 84px)/1 Georgia, "Times New Roman", serif; letter-spacing: -.055em; }
+    .quota-copy { margin: 0; font-size: clamp(17px, 2.1vw, 23px); font-weight: 700; letter-spacing: .06em; }
+    .quota-detail { margin: 22px 0 32px; color: #d7d9d0; line-height: 1.85; font-size: 14px; }
+    .play-link { margin-top: auto; display: inline-flex; align-items: center; justify-content: space-between; gap: 26px; min-height: 54px; min-width: 225px; padding: 14px 18px 14px 22px; border-radius: 3px; background: #a64d31; text-decoration: none; font-weight: 800; transition: background .18s, transform .18s; }
+    .play-link:hover { background: #c4623e; transform: translateY(-2px); }
+    .play-link span { font-size: 22px; line-height: 1; }
+    .quota-art { background: linear-gradient(90deg, #282b27 0%, rgba(40,43,39,.15) 26%, rgba(23,35,35,.14)), url("harbor-tall.jpg") 47% center / cover no-repeat; }
+    .future-card { padding: 30px; display: flex; flex-direction: column; justify-content: space-between; background: repeating-linear-gradient(135deg, transparent, transparent 22px, rgba(244,238,225,.018) 22px, rgba(244,238,225,.018) 23px), #253231; }
+    .future-card .number { color: #e0b17c; font: italic 34px Georgia, serif; }
+    .future-card h3 { margin: 0 0 12px; font-size: 23px; line-height: 1.45; }
+    .future-card p { margin: 0; color: #c3c8bd; font-size: 14px; line-height: 1.8; }
+    .future-card .status { border-top: 1px solid rgba(244,238,225,.24); padding-top: 18px; color: #e1b583; font-size: 11px; letter-spacing: .18em; }
+    footer { margin-top: 88px; padding: 24px 0 34px; border-top: 1px solid rgba(244,238,225,.18); display: flex; justify-content: space-between; gap: 16px; color: #aeb5ab; font-size: 12px; letter-spacing: .05em; }
+    @media (max-width: 800px) { .apps { grid-template-columns: 1fr; } .future-card { min-height: 200px; } }
+    @media (max-width: 580px) {
+      .wrap { width: min(calc(100% - 32px), 440px); }
+      header { padding-top: 22px; }
+      .header-note, .section-heading small { display: none; }
+      .site::before { height: 640px; background-image: url("harbor-tall.jpg"); background-position: center top; }
+      .site::after { height: 640px; background: linear-gradient(180deg, rgba(23,35,35,.45), rgba(23,35,35,.82) 58%, var(--ink)); }
+      main { padding-top: 62px; }
+      h1 { font-size: clamp(45px, 11vw, 62px); }
+      .lead { font-size: 16px; }
+      .section-heading { margin-top: 58px; }
+      .quota-card { min-height: 415px; display: block; }
+      .quota-card::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(34,38,34,.95), rgba(34,38,34,.78) 50%, rgba(34,38,34,.3)), url("harbor-tall.jpg") center / cover; }
+      .app-info { min-height: 415px; }
+      .quota-art { display: none; }
+      footer { margin-top: 60px; display: block; line-height: 1.9; }
+    }
+    @media (prefers-reduced-motion: reduce) { .play-link { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="site">
+    <div class="wrap">
+      <header>
+        <a class="brand" href="/" aria-label="Guns N Stone Roses ホーム">GUNS N STONE ROSES<span>GAMES &amp; EXPERIENCES</span></a>
+        <div class="header-note">PLAY / EXPLORE</div>
+      </header>
+      <main>
+        <div class="eyebrow">Welcome to the harbor</div>
+        <h1>遊びの港へ。</h1>
+        <p class="lead">ここから、まだ知らない駆け引きへ。<br>ひとりでじっくり、仲間と一緒に。あなたの次の一局を見つけてください。</p>
+        <div class="section-heading"><h2>公開中のアプリ</h2><small>Choose your adventure</small></div>
+        <div class="apps">
+          <article class="app-card quota-card">
+            <div class="app-info">
+              <span class="card-kicker">01 / STRATEGY CARD GAME</span>
+              <h2 class="quota-name">Quota</h2>
+              <p class="quota-copy">揃えて、達成。</p>
+              <p class="quota-detail">ノルマは、自分で決めろ。<br>交易品を集めて競うカードゲーム。</p>
+              <a class="play-link" href="/quota/">Quotaをプレイ <span aria-hidden="true">↗</span></a>
+            </div>
+            <div class="quota-art" role="img" aria-label="港の交易風景"></div>
+          </article>
+          <div class="app-card future-card" aria-label="今後のアプリのためのスペース">
+            <span class="number">02 / —</span>
+            <div><h3>次の遊びも、<br>この港から。</h3><p>新しいアプリの案内も、ここに加わります。</p></div>
+            <div class="status">MORE TO COME</div>
+          </div>
+        </div>
+      </main>
+      <footer><span>GUNS N STONE ROSES</span><span>ひとつ先の、遊びへ。</span></footer>
+    </div>
+  </div>
+  <script>
+    // The old Quota worker owned "/". Retire only that scope so the index stays current.
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        registrations.forEach(function (registration) {
+          if (registration.scope === location.origin + "/") registration.unregister();
+        });
+      }).catch(function () {});
+    }
+  </script>
+</body>
+</html>
