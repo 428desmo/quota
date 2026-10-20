@@ -53,3 +53,29 @@ test('複数ラウンドでは前ラウンドの得点を確定して新しい�
   assert.ok(game.players.every((player, seat) => player.score >= priorScores[seat] && player.achieved.length === 0));
   assert.equal(new Set(game.goods).size, 4);
 });
+
+test('収集の途中では補充せず、指定した順に実績へ積む',()=>{
+  const game=new Game({seed:9}),cards=makeDeck(),p=game.players[game.current];
+  p.quota=cards[2];p.collection=[];game.market=[cards[4],cards[5],cards[52],cards[13],cards[26],cards[39],cards[14]];
+  const seat=game.current,deck=game.deck.length;
+  game.step({type:'collect',ids:[4]});assert.equal(game.current,seat);assert.equal(game.deck.length,deck);assert.equal(game.market[0],null);
+  game.step({type:'collect',ids:[5]});assert.deepEqual(p.achieved.map(c=>c.id),[2,4,5]);assert.equal(p.quota,null);assert.equal(p.score,3);assert.equal(sequencePoints(p.achieved),1);assert.equal(game.deck.length,deck-2);
+});
+test('ダブルは宣言取消で回数を戻し、1行動後は補充して同じ人の2行動目になる',()=>{
+  const game=new Game({seed:1}),cards=makeDeck(),p=game.players[game.current],seat=game.current;
+  game.market=[cards[1],cards[2],cards[3],cards[13],cards[26],cards[39],cards[14]];
+  game.declareDouble();game.cancelDouble();assert.equal(p.doubleLeft,1);assert.equal(game.plan,'normal');
+  game.declareDouble();game.step({type:'take',id:1});assert.equal(game.current,seat);assert.equal(game.doubleStage,2);assert.ok(game.market[0]);assert.throws(()=>game.cancelDouble());
+  game.step({type:'collect',ids:[2]});assert.notEqual(game.current,seat);assert.deepEqual(p.achieved.map(c=>c.id),[1,2]);assert.equal(p.doubleLeft,0);
+});
+test('放棄は手番を終えず、その手番で新しいノルマを選べる',()=>{
+  const game=new Game({seed:7}),cards=makeDeck(),p=game.players[game.current],seat=game.current;
+  p.quota=cards[12];p.collection=[cards[5]];game.market=[cards[13],null,null,null,null,null,null];
+  game.step({type:'abandon'});assert.equal(game.current,seat);assert.deepEqual(game.discard.map(c=>c.id),[12,5]);assert.ok(game.legal({type:'take',id:13}));
+  game.step({type:'take',id:13});assert.equal(p.achieved[0].id,13);assert.equal(p.score,1);
+});
+test('全員のパスが2巡続いたときは配り直し後に膠着終了する',()=>{
+  const game=new Game({seed:2});for(let i=0;i<3;i++)game.step({type:'pass'});
+  assert.ok(game.stallFlag);assert.equal(game.reshuffleCount,1);assert.equal(game.noGainStreak,0);
+  for(let i=0;i<3;i++)game.step({type:'pass'});assert.equal(game.roundEndReason,'STALL');assert.ok(game.awaitingNextRound);
+});

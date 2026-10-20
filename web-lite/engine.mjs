@@ -1,17 +1,17 @@
 // A browser-native port of Quota's offline rules. No Unity or server dependency.
+import { PythonRandom } from './random.mjs';
 export const SUITS = ['S', 'H', 'D', 'C'];
 export const CPU_NAMES = ['慎重なピエトロ', '柔軟なマルコ', '手際のよいルチア', '大胆なロレンツォ', '抜け目ないイザベラ', '好奇心旺盛なソフィア'];
 
 export function rng(seed = Math.floor(Math.random() * 0xffffffff)) {
-  let value = (seed >>> 0) || 0x9e3779b9;
-  return () => {
-    value ^= value << 13; value ^= value >>> 17; value ^= value << 5;
-    return (value >>> 0) / 0x100000000;
-  };
+  const source = new PythonRandom(seed);
+  const random = () => source.next() / 0x100000000;
+  random.randBelow = n => source.randBelow(n);
+  return random;
 }
 export function shuffle(items, random) {
   for (let i = items.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
+    const j = random.randBelow ? random.randBelow(i + 1) : Math.floor(random() * (i + 1));
     [items[i], items[j]] = [items[j], items[i]];
   }
   return items;
@@ -52,39 +52,43 @@ export const titlePoints = player => titleAwards(player).reduce((sum, award) => 
 export const finalScore = player => player.score + sequencePoints(player.achieved) + titlePoints(player);
 
 export class Game {
-  constructor({ playerCount = 3, rounds = playerCount, name = 'あなた', cpuIds = [0, 1, 2], seed } = {}) {
+  constructor({ playerCount = 3, rounds = playerCount, name = 'あなた', cpuIds = [0, 1, 2, 3], spectator = false, seed } = {}) {
     if (![3, 4].includes(playerCount) || ![1, playerCount, playerCount * 2].includes(rounds)) throw Error('設定値が不正です');
     this.random = rng(seed);
     this.playerCount = playerCount;
     this.roundCount = rounds;
     this.roundIndex = 1;
+    this.observers = new Set();
     this.players = Array.from({ length: playerCount }, (_, seat) => ({
-      name: seat === 0 ? name : CPU_NAMES[cpuIds[seat - 1] ?? seat - 1], human: seat === 0,
+      name: seat === 0 && !spectator ? name : CPU_NAMES[cpuIds[spectator ? seat : seat - 1] ?? seat], human: seat === 0 && !spectator,
       quota: null, collection: [], achieved: [], bundles: [], score: 0,
       achieveCount: 0, maxSingleScore: 0, reshuffleLeft: 1, doubleLeft: 1,
     }));
-    this.turnOrder = shuffle(Array.from({ length: playerCount }, (_, i) => i), this.random);
-    this.orderCursor = 0;
-    this.current = this.turnOrder[0];
     this.log = [];
     this.finished = false;
     this.awaitingNextRound = false;
     this.roundEndReason = null;
+    this.dealRound();
+    this.random.randBelow(playerCount); // Keep the opening stream identical to Unity.
     this.chooseGoods();
-    this.openRound(false);
+    this.turnOrder = shuffle(Array.from({ length: playerCount }, (_, i) => i), this.random);
+    this.openRound(false, false);
   }
 
   chooseGoods() { this.goods = shuffle(Array.from({ length: 27 }, (_, i) => i), this.random).slice(0, 4); }
   marketSize() { return this.playerCount === 4 ? 6 : 7; }
-  openRound(resetScores) {
-    if (resetScores) for (const player of this.players) {
-      player.score += sequencePoints(player.achieved) + titlePoints(player);
-      player.quota = null; player.collection = []; player.achieved = []; player.bundles = [];
-    }
+  dealRound() {
     this.deck = shuffle(makeDeck(), this.random);
     this.removed = Array.from({ length: 8 }, () => this.deck.pop());
     this.market = Array.from({ length: this.marketSize() }, () => this.deck.pop());
     this.discard = [];
+  }
+  openRound(resetScores, deal = true) {
+    if (resetScores) for (const player of this.players) {
+      player.score += sequencePoints(player.achieved) + titlePoints(player);
+      player.quota = null; player.collection = []; player.achieved = []; player.bundles = [];
+    }
+    if (deal) this.dealRound();
     for (const player of this.players) { player.reshuffleLeft = 1; player.doubleLeft = 1; }
     this.noGainStreak = 0; this.stallFlag = false; this.turnGain = false;
     this.plan = 'normal'; this.doubleStage = 0; this.doubleGained = false;
@@ -97,6 +101,7 @@ export class Game {
     if (!this.awaitingNextRound || this.finished) throw Error('次のラウンドはありません');
     this.roundIndex++; this.awaitingNextRound = false; this.roundEndReason = null;
     this.chooseGoods(); this.openRound(true);
+    this.notify([], 0, false, true);
   }
   active() { return !this.finished && !this.awaitingNextRound; }
   eligible() {
@@ -128,7 +133,15 @@ export class Game {
     player.score += points; player.achieveCount++; player.maxSingleScore = Math.max(player.maxSingleScore, points);
     this.log.push(`${player.name} がノルマ達成（${points}点）`);
   }
+  notify(market, deckCount, reshuffled = false, newRound = false) {
+    for (const observer of this.observers) observer(this, market, deckCount, reshuffled, newRound);
+  }
   step(action) {
+    const market = [...this.market], deckCount = this.deck.length;
+    this.apply(action);
+    this.notify(market, deckCount, action.type === 'pass' && market.some((card, i) => card !== this.market[i]));
+  }
+  apply(action) {
     if (!this.legal(action)) throw Error('この行動はできません');
     const player = this.players[this.current];
     let gained = false;
@@ -153,13 +166,20 @@ export class Game {
   canDeclare() { return this.active() && this.plan === 'normal' && !this.turnGain; }
   declareReshuffle() {
     if (!this.canDeclare() || !this.players[this.current].reshuffleLeft) throw Error('配り直しは使えません');
+    const market = [...this.market], deckCount = this.deck.length;
     this.players[this.current].reshuffleLeft--; this.plan = 'reshuffle'; this.reshuffle();
+    this.notify(market, deckCount, true);
     this.log.push(`${this.players[this.current].name} が配り直し`);
   }
   declareDouble() {
     if (!this.canDeclare() || !this.players[this.current].doubleLeft) throw Error('ダブルは使えません');
     this.players[this.current].doubleLeft--; this.plan = 'double'; this.doubleStage = 1;
     this.log.push(`${this.players[this.current].name} がダブル`);
+  }
+  cancelDouble() {
+    if (!this.active() || this.plan !== 'double' || this.doubleStage !== 1 || this.turnGain) throw Error('ダブルは取り消せません');
+    this.players[this.current].doubleLeft++; this.plan = 'normal'; this.doubleStage = 0; this.doubleGained = false;
+    this.log.push(`${this.players[this.current].name} がダブルを取り消し`);
   }
   reshuffle() {
     this.deck.push(...this.market.filter(Boolean)); shuffle(this.deck, this.random);
@@ -205,10 +225,12 @@ export class Game {
       const left = this.players[a], right = this.players[b];
       return finalScore(right) - finalScore(left) || right.achieveCount - left.achieveCount || right.maxSingleScore - left.maxSingleScore || a - b;
     });
+    let rank = 1;
     return seats.map((seat, index) => {
       const player = this.players[seat], prev = this.players[seats[index - 1]];
       const tied = prev && finalScore(player) === finalScore(prev) && player.achieveCount === prev.achieveCount && player.maxSingleScore === prev.maxSingleScore;
-      return { seat, rank: tied ? null : index + 1, score: finalScore(player) };
-    }).map((row, index, rows) => ({ ...row, rank: row.rank ?? rows[index - 1].rank }));
+      if (!tied) rank = index + 1;
+      return { seat, rank, score: finalScore(player) };
+    });
   }
 }
