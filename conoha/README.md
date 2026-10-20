@@ -18,7 +18,7 @@ ConoHa管理画面のセキュリティグループでSSHのポートとTCP80を
 ./conoha/init.sh
 ```
 
-Nginx、Python、rsync、firewalldとSELinux設定ツールをインストールし、Quota用ユーザー・systemdサービスを作ります。Nginxは入口ページを`/`、QuotaのWebGL版を`/quota/`で配信し、`/api/`を127.0.0.1:8080のPythonへ中継します。SELinuxは無効化せずファイルラベルと中継の許可を設定します。SSHとHTTPをfirewalldで許可します。
+Nginx、Python、rsync、firewalldとSELinux設定ツールをインストールし、Quota用ユーザー・systemdサービスを作ります。Nginxは入口ページを`/`、QuotaのUnity/WebGL版を`/quota1/`、軽量Web版を`/quota2/`と`/quota/`で配信し、`/api/`を127.0.0.1:8080のPythonへ中継します。`/quota/`は軽量Web版と同じ公開ディレクトリを参照します。SELinuxは無効化せずファイルラベルと中継の許可を設定します。SSHとHTTPをfirewalldで許可します。
 
 **Quota専用のVPS向けです。** Nginxのメイン設定を置き換えます。初回の元設定は`/etc/nginx/nginx.conf.quota-before`に保存します。他のサイトが既にあるサーバーにはそのまま使わないでください。設定値を変更した場合はinitを再実行し、続けてupdateを実行してください。既に動作中のPythonはinitでは再起動しません。
 
@@ -39,6 +39,8 @@ ConoHaのセキュリティグループでも**TCP 443の受信**を許可して
 ```sh
 curl -I https://app1.gunsnstoneroses.com/
 curl -I https://app1.gunsnstoneroses.com/quota/
+curl -I https://app1.gunsnstoneroses.com/quota1/
+curl -I https://app1.gunsnstoneroses.com/quota2/
 curl -I http://app1.gunsnstoneroses.com/
 ```
 
@@ -54,7 +56,7 @@ UnityからWebGLを先にビルド／エクスポートし、その後に実行�
 
 既定の出力先は`unity/Builds/WebGL`。別の場所はconfig.shのWEB_DIRに絶対パスで指定します。現在の非圧縮ビルドが対象で、圧縮ビルドは設定不一致を防ぐため拒否します。Unityのビルド自体は行いません。
 
-Webファイル、入口ページ、Pythonコード・商品／ランキングJSONをrsyncで転送し、新しいリリースへ公開先を切り替えます。初回の切り替え時にはNginxの入口と`/quota/`経路を検証して反映します。入口ページのソースと各ゲームの画像は`portal/`に置き、Quotaの港の画像は`visual/horizontal_base.jpg`から取り込みます。更新前にPythonの構文・データ読込を確認し、更新後にAPIとHTTPを確認。切替後に失敗した場合は以前の公開先へ戻します。
+UnityのWebファイル、`web-lite/`の軽量Web版、入口ページ、Pythonコード・商品／ランキングJSONをrsyncで転送し、新しいリリースへ公開先を切り替えます。初回の切り替え時にはNginxの入口と3つのQuota経路を検証して反映します。入口ページのソースと各ゲームの画像は`portal/`に置き、Quotaの港の画像は`visual/horizontal_base.jpg`から取り込みます。更新前にPythonの構文・データ読込を確認し、更新後にAPIとHTTPを確認。切替後に失敗した場合は以前の公開先へ戻します。
 
 Python側のコードまたはJSONが変更された場合にサービスを再起動します。**再起動すると開催中の卓は消えます。** Webファイルだけの変更なら動作中のサービスを保持します。初回はサービスを起動します。
 
@@ -72,7 +74,7 @@ free -h
 df -h /srv/quota
 ```
 
-ブラウザで`https://app1.gunsnstoneroses.com/`を開くと入口ページ、`https://app1.gunsnstoneroses.com/quota/`を開くとゲームです。IPアドレス宛てHTTPでも同じ構成になります。Pythonはsystemdが常駐・異常終了時の再起動を管理するためnohupは不要です。
+ブラウザで`https://app1.gunsnstoneroses.com/`を開くと入口ページ、`/quota1/`はUnity版、`/quota2/`と`/quota/`は軽量Web版です。軽量Web版は現在オフライン対局のみ対応しています。IPアドレス宛てHTTPでも同じ構成になります。Pythonはsystemdが常駐・異常終了時の再起動を管理するためnohupは不要です。
 
 ## 初期設定が止まる場合
 

@@ -43,6 +43,7 @@
     .play-link { margin-top: auto; display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; width: 100%; padding: 12px 16px; border-radius: 3px; background: #a64d31; text-decoration: none; font-size: 14px; font-weight: 800; transition: background .18s, transform .18s; }
     .play-link:hover { background: #c4623e; transform: translateY(-2px); }
     .play-link span { font-size: 22px; line-height: 1; }
+    .legacy-link { margin-top: 13px; color: #d7d9d0; font-size: 12px; text-underline-offset: 3px; }
     .quota-art { order: 1; flex: 0 0 185px; background: url("harbor-wide.jpg") center 46% / cover no-repeat; }
     footer { margin-top: 76px; padding: 24px 0 34px; border-top: 1px solid rgba(244,238,225,.18); display: flex; justify-content: space-between; gap: 16px; color: #aeb5ab; font-size: 12px; letter-spacing: .05em; }
     @media (max-width: 1000px) and (min-width: 651px) {
@@ -98,7 +99,8 @@
               <h2 id="quota-title" class="quota-name">Quota</h2>
               <p class="quota-copy">揃えて、達成。</p>
               <p class="quota-detail">ノルマは、自分で決めろ。<br>交易品を集めて競うカードゲーム。</p>
-              <a class="play-link" href="/quota/">Quotaをプレイ <span aria-hidden="true">↗</span></a>
+              <a class="play-link" href="/quota/">軽量Web版でプレイ <span aria-hidden="true">↗</span></a>
+              <a class="legacy-link" href="/quota1/">Unity版（インターネット対戦はこちら）</a>
             </div>
             <div class="quota-art" role="img" aria-label="港の交易風景"></div>
           </article>

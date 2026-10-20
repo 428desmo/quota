@@ -26,6 +26,8 @@ python3 "$CONOHA_DIR/web_files.py" prepare "$WEB_DIR" "$local_stage/web"
 mkdir -p "$local_stage/web/portal"
 rsync -a "$PROJECT_ROOT/portal/" "$local_stage/web/portal/"
 cp "$PROJECT_ROOT/visual/horizontal_base.jpg" "$local_stage/web/portal/harbor-wide.jpg"
+mkdir -p "$local_stage/web/quota2"
+rsync -a --exclude=README.md --exclude='*.test.mjs' "$PROJECT_ROOT/web-lite/" "$local_stage/web/quota2/"
 mkdir -p "$local_stage/backend/tools"
 rsync -a --exclude=__pycache__ --exclude='*.pyc' "$PROJECT_ROOT/quota/" "$local_stage/backend/quota/"
 cp "$PROJECT_ROOT/tools/serve_unity_web.py" "$local_stage/backend/tools/"
@@ -59,6 +61,6 @@ rsync -av --progress --timeout=120 -e "$RSYNC_SSH" "$CONOHA_DIR/deploy-server.sh
 rsync -a --timeout=120 -e "$RSYNC_SSH" "$CONOHA_DIR/configure-index-server.sh" "$PROJECT_ROOT/tools/nginx_portal.py" "$SSH_TARGET:$remote_stage/"
 progress 'Publishing release and checking services on VPS'
 remote "$(root_command "$remote_stage/deploy-server.sh" "$REMOTE_ROOT" "$APP_PORT")"
-progress 'Configuring the app index and /quota/ route'
+progress 'Configuring the app index and /quota1/, /quota2/, /quota/ routes'
 remote "$(root_command "$remote_stage/configure-index-server.sh" "$REMOTE_ROOT" "$PUBLIC_DOMAIN")"
-echo "Deployment completed: https://$PUBLIC_DOMAIN/ (index), https://$PUBLIC_DOMAIN/quota/ (Quota)"
+echo "Deployment completed: https://$PUBLIC_DOMAIN/ (index), https://$PUBLIC_DOMAIN/quota1/ (Unity), https://$PUBLIC_DOMAIN/quota2/ (lightweight), https://$PUBLIC_DOMAIN/quota/ (alias)"

@@ -5,6 +5,7 @@ set -Eeuo pipefail
 root=$1; domain=$2; stage=$(cd "$(dirname "$0")" && pwd)
 [[ "$root" =~ ^/srv/[A-Za-z0-9_-]+$ ]] && [[ "$domain" =~ ^[A-Za-z0-9.-]+$ ]] || exit 1
 [ -f "$root/web/current/portal/index.html" ] || { echo 'Portal page is missing from current release.' >&2; exit 1; }
+[ -f "$root/web/current/quota2/index.html" ] || { echo 'Lightweight Quota page is missing from current release.' >&2; exit 1; }
 http_config=/etc/nginx/conf.d/quota.conf
 https_config=/etc/nginx/conf.d/quota-https.conf
 [ -f "$http_config" ] || { echo 'Quota HTTP config required.' >&2; exit 1; }
@@ -27,6 +28,8 @@ if ! python3 "$stage/nginx_portal.py" "$root" "${configs[@]}" || ! nginx -t || !
   echo 'Nginx portal switch failed; previous configuration restored.' >&2
   exit 1
 fi
+# reload returns before the old workers stop accepting requests. Wait for the new routes.
+sleep 2
 check_page() {
   label=$1; expected=$2; shift 2
   if ! curl -fsS --max-time 10 "$@" -o "$backup/$label"; then
@@ -49,12 +52,16 @@ for attempt in $(seq 1 10); do
 done
 pages_ready=true
 if [ "$index_ready" != true ] \
-    || ! check_page http-quota createUnityInstance -H 'Host: _' http://127.0.0.1/quota/; then
+    || ! check_page http-quota1 createUnityInstance -H 'Host: _' http://127.0.0.1/quota1/ \
+    || ! check_page http-quota2 'Quota — 軽量Web版' -H 'Host: _' http://127.0.0.1/quota2/ \
+    || ! check_page http-quota 'Quota — 軽量Web版' -H 'Host: _' http://127.0.0.1/quota/; then
   pages_ready=false
 fi
 if [ -f "$backup/https.conf" ] && [ "$pages_ready" = true ]; then
   if ! check_page https-index 'name="app-index"' --resolve "$domain:443:127.0.0.1" "https://$domain/" \
-      || ! check_page https-quota createUnityInstance --resolve "$domain:443:127.0.0.1" "https://$domain/quota/"; then
+      || ! check_page https-quota1 createUnityInstance --resolve "$domain:443:127.0.0.1" "https://$domain/quota1/" \
+      || ! check_page https-quota2 'Quota — 軽量Web版' --resolve "$domain:443:127.0.0.1" "https://$domain/quota2/" \
+      || ! check_page https-quota 'Quota — 軽量Web版' --resolve "$domain:443:127.0.0.1" "https://$domain/quota/"; then
     pages_ready=false
   fi
 fi
@@ -63,4 +70,4 @@ if [ "$pages_ready" != true ]; then
   echo 'Portal health check failed; previous configuration restored.' >&2
   exit 1
 fi
-echo "Index and Quota ready at / and /quota/ on the configured virtual hosts."
+echo "Index and Quota ready at /, /quota1/, /quota2/, and /quota/ on the configured virtual hosts."
