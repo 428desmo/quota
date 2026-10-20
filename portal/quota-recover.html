@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quota — 表示の更新</title>
+<style>
+  :root{font-family:"Hiragino Sans",sans-serif;color:#fff7e7;background:#2c211a}
+  body{margin:0;min-height:100svh;display:grid;place-items:center}
+  main{max-width:32rem;margin:24px;padding:28px;border:1px solid #a38a61;border-radius:16px;background:#443127}
+  h1{font-size:24px}p{line-height:1.8}a{display:block;padding:16px;text-align:center;background:#f1e2c9;border-radius:8px;color:#30231b;text-decoration:none}
+</style>
+<main><h1>Quotaの表示を更新しています</h1><p id="status" role="status">古い簡易Web版の保存データを整理して、WebGL版を開きます。</p><a href="/quota1/">WebGL版を直接開く</a></main>
+<script>
+(async () => {
+  try {
+    if ('serviceWorker' in navigator) {
+      for (const registration of await navigator.serviceWorker.getRegistrations()) {
+        if (new URL(registration.scope).pathname === '/quota/') await registration.unregister();
+      }
+    }
+    if ('caches' in window) {
+      for (const key of await caches.keys()) {
+        if (!key.startsWith('quota-web-lite-')) continue;
+        const cache = await caches.open(key);
+        for (const request of await cache.keys()) {
+          const url = new URL(request.url);
+          if (url.origin === location.origin && url.pathname.startsWith('/quota/')) await cache.delete(request);
+        }
+        if (!(await cache.keys()).length) await caches.delete(key);
+      }
+    }
+    location.replace('/quota/?client=webgl');
+  } catch (error) {
+    document.querySelector('#status').textContent = '自動更新を完了できませんでした。下のボタンからWebGL版を開いてください。';
+  }
+})();
+</script>
+</html>

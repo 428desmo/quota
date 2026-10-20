@@ -76,6 +76,8 @@ df -h /srv/quota
 
 ブラウザで`https://app1.gunsnstoneroses.com/`を開くと入口ページ、`/quota1/`と`/quota/`はUnity/WebGL版、`/quota2/`は軽量Web版です。軽量Web版は現在オフライン対局のみ対応しています。IPアドレス宛てHTTPでも同じ構成になります。Pythonはsystemdが常駐・異常終了時の再起動を管理するためnohupは不要です。
 
+`/quota/`に古い軽量Web版が残る端末では、`https://app1.gunsnstoneroses.com/quota-recover.html`を開くと、そのパスの古い登録・キャッシュだけを解除してWebGL版へ戻ります。`/quota2/`や他ゲームの保存データ、個人設定は削除しません。自動切替は初期版のキャッシュ優先動作と、ページ側に更新検知がない状態も含めて`node tests/quota_route_migration.mjs`で検証できます。
+
 ## 初期設定が止まる場合
 
 initは接続先と処理段階を表示します。Macで次のようにログを保存してください。
