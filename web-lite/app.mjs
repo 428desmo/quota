@@ -1,4 +1,4 @@
-import { CPU_NAMES, Game, SUITS, finalScore, sequencePoints, titleAwards, achievementBonus } from './engine.mjs';
+import { CPU_NAMES, Game, SUITS, finalScore, sequenceAt, sequencePoints, titleAwards, achievementBonus } from './engine.mjs';
 import { bindCpuProfiles, chooseCpuAction, randomCpuIds, CPU_DESCRIPTIONS } from './cpu.mjs';
 import { Soundscape } from './audio.mjs';
 import { displayOrder, titleStates, roundBreakdown, scoreRanks, winnerText, guideHtml, escapeHtml as esc } from './presentation.mjs';
@@ -32,8 +32,11 @@ function header(tagline = false) { return `<header class="mast"><img class="titl
 function options(key, list) { const label=({players:'プレイヤーの数',roundMode:'ラウンド数',strength:'CPUプレイヤーの強さ',confirm:'放棄などに確認を求める',bgm:'BGM音量',se:'SE音量'})[key];return `<div class="segmented" role="group" aria-label="${label}">${list.map(([value,label]) => `<button type="button" data-option="${key}" data-value="${value}" aria-pressed="${String(settings[key]) === String(value)}" class="${String(settings[key]) === String(value) ? 'chosen' : ''}">${esc(label)}</button>`).join('')}</div>`; }
 function field(label, key, list) { return `<div class="field"><span>${label}：</span>${options(key,list)}</div>`; }
 function menuHtml() {
-  return `<main class="shell menu">${header(true)}<section class="menu-fields"><div class="mode-label">オフライン対局</div><label class="name-field"><span>プレイヤー名</span><input id="player-name" autocomplete="nickname" maxlength="24" value="${esc(settings.name)}"></label>${button('ゲームをはじめる','lobby','primary wide')}
-    <div class="menu-guides">${button('遊び方','how-to','paper')}${button('詳細ルール','rules','paper')}</div></section><span class="version">Quota 2 · OFFLINE</span>${modalHtml()}</main>`;
+  return `<main class="shell menu">${header(true)}<section class="menu-fields">
+    <div class="menu-guides">${button('遊び方','how-to','paper')}${button('詳細ルール','rules','paper')}</div>
+    <div class="menu-mode"><span>ゲームモード：</span><strong>オフライン</strong></div>
+    <label class="name-field"><span>あなたの名前：</span><input id="player-name" autocomplete="nickname" maxlength="24" value="${esc(settings.name)}"></label>
+    ${button('新しいゲームの準備','lobby','primary wide')}</section><span class="version">Quota 2 · OFFLINE</span>${modalHtml()}</main>`;
 }
 function lobbyHtml() {
   const order = cast.slice(0,settings.players - 1);
@@ -49,15 +52,21 @@ const kindIndex = card => card.suit === 'J' ? 0 : ({S:1,H:2,C:3,D:4})[card.suit]
 const markerColors = ['#000000','#D55E00','#009E73','#0072B2','#A5378D'];
 const rankColors = ['#C4A035','#A0522D','#7B3FA0','#2E7D32','#1E5AA8'];
 function face(card) { return card.suit === 'J' ? goods.wild : goods.goods[(shown || game).goods[kindIndex(card)-1]]; }
-function cardHtml(card, { small = false, selectable = false, muted = false } = {}) {
+function cardHtml(card, { small = false, selectable = false, muted = false, coins = [] } = {}) {
   if (!card) return '<div class="card empty" aria-label="空き枠"></div>';
   const item = face(card), kind = kindIndex(card), tag = selectable ? 'button' : 'div';
   return `<${tag} class="card ${small ? 'small' : ''} ${muted ? 'muted' : ''} ${hidden.has(card.id) ? 'concealed' : ''}" data-card-id="${card.id}" ${selectable ? `type="button" data-card="${card.id}" aria-label="${esc(item.name)} ${card.rank ?? '金貨'}"` : ''} style="--marker:${markerColors[kind]};--mark-y:${(50+25*kind)/2}%;--rank:${rankColors[kind]}">
-    <span class="kind-mark"></span><span class="rank">${card.rank ?? '＊'}</span><img src="./assets/goods/${encodeURIComponent(item.file)}.png" alt="" draggable="false"><span class="goods-name">${esc(item.name)}</span></${tag}>`;
+    <span class="kind-mark"></span><span class="rank">${card.rank ?? '＊'}</span><img src="./assets/goods/${encodeURIComponent(item.file)}.png" alt="" draggable="false"><span class="goods-name">${esc(item.name)}</span>${coins.length ? `<span class="card-coins">${coins.map((color,i)=>`<i class="chip ${color}" style="--coin-x:${coins.length>4?(i%2)*30:0};--coin-y:${40+Math.floor(i/(coins.length>4?2:1))*Math.min(22,70/Math.max(1,Math.ceil(coins.length/(coins.length>4?2:1))-1))}"></i>`).join('')}</span>` : ''}</${tag}>`;
 }
-function fanHtml(cards, label) {
-  if (!cards.length) return `<div class="fan vacant" aria-label="${label}"></div>`;
-  return `<div class="fan" aria-label="${label}" style="width:min(100%,${40+(cards.length-1)*16}px)">${cards.map((card,i) => `<div class="fan-slot" style="left:calc(${cards.length>1?i/(cards.length-1):0} * (100% - var(--small-card)))">${cardHtml(card,{small:true})}</div>`).join('')}</div>`;
+function fanHtml(cards, label, coins = new Map()) {
+  const achieved=label==='実績札';
+  return `<div class="fan ${cards.length?'':'vacant'}" data-zone="${achieved?'achieved':'quota'}" aria-label="${label}">${cards.map((card,i)=>`<div class="fan-slot" style="--card-x:${6.5+(achieved?i*3:i===0?0:70+(i-1)*40)}">${cardHtml(card,{small:true,coins:coins.get(card.id)||[]})}</div>`).join('')}</div>`;
+}
+function quotaCoins(p) {
+  if(!p.quota)return new Map();
+  const cards=[p.quota,...p.collection],line=[...p.achieved,...cards],coins=new Map();
+  cards.forEach((card,i)=>coins.set(card.id,[...Array(i===0?achievementBonus(p.quota.rank):0).fill('green'),...Array(sequenceAt(line,p.achieved.length+i)).fill('purple')]));
+  return coins;
 }
 function makeTokens(seat, green, purple, blue = 0) {
   return ['green','purple','blue'].flatMap((color,i) => Array.from({length:[green,purple,blue][i]},(_,n) => ({ color, key:`${seat}-${color}-${n}` })));
@@ -71,39 +80,42 @@ function trayHtml(p,seat) {
 function actionHtml(p, seat) {
   if (!game.active() || !p.human || game.current !== seat || busy) return '';
   const buttons = [];
-  if (game.plan === 'double' && game.doubleStage === 1 && !game.turnGain) buttons.push(['ダブル取消','cancel-double']);
+  if (game.plan === 'double' && game.doubleStage === 1 && !game.turnGain) buttons.push(['キャンセル','cancel-double']);
   else if (game.canDeclare() && p.doubleLeft) buttons.push(['ダブル','double']);
   if (game.canDeclare() && p.reshuffleLeft) buttons.push(['配り直し','reshuffle']);
   if (p.quota) buttons.push(['放棄','abandon']);
   buttons.push(['パス','pass']);
-  return `<div class="action-stack">${buttons.map(([label,action],i) => button(label,action,'action-button',`style="--slot:${i}"`)).join('')}</div>`;
+  return `<div class="action-stack">${buttons.map(([label,action],i) => button(label,action,'action-button',`style="--slot:${i};--caption-length:${label.length}"`)).join('')}</div>`;
 }
 function playerHtml(p,seat) {
-  const g = shown || game, turn = game.active() && g.current === seat;
-  const ordinal = g.turnOrder.indexOf(seat)+1;
-  return `<section class="player ${turn ? 'turn' : ''} ${p.human ? 'human' : ''}" data-player="${seat}" aria-label="${esc(p.name)}"><h2 class="player-name"><span>${['','①','②','③','④'][ordinal]}</span>${esc(p.name)}</h2>
-    <div class="player-zones"><div class="stat-labels"><h3>ノルマ</h3><strong>${p.quota ? p.collection.length+1 : 0}<small>${p.quota ? '/'+p.quota.rank : ''}</small></strong><h3>実績</h3><strong>${p.achieved.length}</strong></div>
-    <div class="card-zones">${fanHtml(p.quota ? [p.quota,...p.collection] : [],'ノルマ札と収集札')}${fanHtml(p.achieved,'実績札')}</div>
+  const g=shown||game,turn=game.active()&&g.current===seat;
+  const ordinal=(g.turnOrder.indexOf(seat)-(g.roundIndex-1)%g.playerCount+g.playerCount)%g.playerCount+1;
+  const caption=['','①','②','③','④'][ordinal]+p.name;
+  const fitted=width=>Math.max(18,Math.min(36,Math.floor(width*.92/caption.length)));
+  return `<section class="player ${turn?'turn':''} ${p.human?'human':''}" data-player="${seat}" aria-label="${esc(p.name)}"><h2 class="player-name" style="--portrait-name:${fitted(516)};--wide-name:${Math.min(30,fitted(648))}">${esc(caption)}</h2>
+    <div class="player-zones"><div class="stat-labels"><h3 class="quota-label">ノルマ</h3><strong class="quota-count">${p.quota?p.collection.length+1:''}<small>${p.quota?'/'+p.quota.rank:''}</small></strong><h3 class="achieved-label">実績</h3>${g.roundIndex>=2?`<small class="previous-score">${roundBase[seat]||0}+</small>`:''}<strong class="achieved-count ${g.roundIndex>=2?'with-previous':''}">${p.achieved.length}</strong></div>
+    <div class="card-zones">${fanHtml(p.quota?[p.quota,...p.collection]:[],'ノルマ札と収集札',quotaCoins(p))}${fanHtml(p.achieved,'実績札')}</div>
     <div class="bonus-zone"><div class="special-remaining"><span class="${p.doubleLeft?'':'used'}">${p.doubleLeft?'ダブル':'USED'}</span><span class="${p.reshuffleLeft?'':'used'}">${p.reshuffleLeft?'配り直し':'USED'}</span></div>
-    <div class="titles">${titleStates(p,titleVerdict).map(t => `<div class="title ${t.earned?'earned':''} ${t.impossible?'invalid':''}"><span aria-hidden="true">${t.earned?'○':' '}</span>${t.name}</div>`).join('')}</div><div class="tray-label">ボーナス</div>${trayHtml(p,seat)}</div></div>${actionHtml(p,seat)}</section>`;
+    <div class="titles">${titleStates(p,titleVerdict).map(t=>`<div class="title ${t.earned?'earned':''} ${t.impossible?'invalid':''}"><span aria-hidden="true">${t.earned?'○':' '}</span>${t.name}</div>`).join('')}</div><div class="tray-label">ボーナス</div>${trayHtml(p,seat)}</div></div>${actionHtml(p,seat)}</section>`;
 }
 function gameHtml() {
   const g = shown || game, human = g.players.find(p=>p.human);
   const canClick = game.active() && game.players[game.current].human && !busy && !modal;
   const turnText = canClick ? `${game.plan==='double'?'ダブル：':''}${human.quota?'同じ商品か金貨をタップして収集。取らずにパスもできます。':'場札をタップしてノルマ札を選んでください。'}` : notice || (game.active() ? g.players[g.current].name+'の手番' : 'ラウンド終了');
-  return `<main class="shell board" style="--players:${g.playerCount}"><div class="board-top">${header()}<div class="board-controls">${human ? button('設定','settings','toolbar') : ''}${button('EXIT','exit','toolbar exit')}</div><div class="round-state"><span>ラウンド ${g.roundIndex}/${g.roundCount}</span><span>膠着：${Array.from({length:g.playerCount*2},(_,i)=>`<i class="${i<g.noGainStreak+(g.stallFlag?g.playerCount:0)?'lit':''}"></i>`).join('')}</span></div><div class="deck" data-deck><small>山札</small><strong>${g.deckCount ?? g.deck.length}</strong></div></div>
+  return `<main class="shell board" style="--players:${g.playerCount}"><div class="board-top">${header()}<div class="board-controls">${human ? button('設定','settings','toolbar') : ''}${button('EXIT','exit','toolbar exit')}</div><div class="round-state"><span>ラウンド ${g.roundIndex}/${g.roundCount}</span><span>膠着：${Array.from({length:g.playerCount*2},(_,i)=>`<i class="${i<g.noGainStreak+(g.stallFlag?g.playerCount:0)?'lit':''} ${i>=g.playerCount?'late':''}"></i>`).join('')}</span></div><div class="deck" data-deck><small>山札</small><strong>${g.deckCount ?? g.deck.length}</strong></div></div>
     <section class="market" aria-label="場札"><div class="market-row">${g.market.map(card => cardHtml(card,{selectable:!!card&&canClick,muted:!!card&&!!human?.quota&&card.suit!==human.quota.suit&&card.suit!=='J'})).join('')}</div></section>
     <div class="turn-notice" role="status">${esc(turnText)}</div>
     <div class="player-stack">${displayOrder(g).map(seat=>playerHtml(g.players[seat],seat)).join('')}</div>
-    ${ceremonyHtml()}${modalHtml()}<span class="version">Quota 2 · OFFLINE</span></main>`;
+    ${ceremonyHtml()}${modalHtml()}</main>`;
 }
 function ceremonyHtml() {
   if (!ceremony || ceremony.phase === 'verdict') return '';
   const c = ceremony;
-  return `<section class="ceremony-panel" role="dialog" aria-modal="false" aria-label="ラウンド終了"><h2>第${game.roundIndex}ラウンド終了</h2>
+  if(c.phase!=='reason')c.maxHeight=Math.max(c.maxHeight||340,c.phase==='titles'?c.awards.length*56+136:c.order.length*64+232);
+  return `<section class="ceremony-panel" style="--panel-height:${c.phase==='reason'?340:c.maxHeight}" role="dialog" aria-modal="false" aria-label="ラウンド終了"><h2>第${game.roundIndex}ラウンド終了</h2>
     ${c.phase==='reason' ? `<p>${game.roundEndReason==='DECK'?'山札切れでラウンド終了。':'膠着の連続でラウンド終了。'}</p>` : c.phase==='titles' ? `<div class="award-lines">${c.awards.map((award,i)=>`<div data-award="${i}"><span>${esc(game.players[award.seat].name)}</span><b>「${award.name}」</b><small>+${award.points}</small></div>`).join('')}</div>` : `<div class="score-list">${c.order.map(seat=>`<div class="score-row" data-score-row="${seat}"><span class="place">${c.ranks?.find(r=>r.seat===seat)?.rank ?? ''}${c.ranks?'位':''}</span><span class="score-name">${esc(game.players[seat].name)}</span><span class="score-figure" data-score="${seat}">${figureHtml(seat)}</span></div>`).join('')}</div>`}
     ${c.label?`<p class="rank-caption">${c.label}</p>`:''}${c.phase==='ready' && game.finished ? `<p class="winner">${esc(winnerText(game.players,c.ranks))}</p>`:''}
-    ${c.phase==='ready'?button(game.finished?'ゲームを終了':'OK',game.finished?'home':'next-round','paper wide'):''}</section>`;
+    ${c.phase==='ready'?button(game.finished?'ゲームを終了':'OK',game.finished?'home':'next-round','paper wide',`style="--caption-length:${game.finished?7:2}"`):''}</section>`;
 }
 function figureHtml(seat) {
   const c=ceremony,b=c.breakdowns[seat];
@@ -124,6 +136,7 @@ function modalHtml() {
   return `<div class="shade" data-dismiss="true"><section class="dialog ${modal==='how-to'||modal==='rules'?'guide-dialog':''}" role="dialog" aria-modal="true" aria-label="${modal==='settings'?'個人設定':modal==='how-to'?'遊び方':modal==='rules'?'詳細ルール':'確認'}">${content}</section></div>`;
 }
 function render() {
+  document.body.dataset.scene=page==='game'?'game':'setup';
   const scroll=root.querySelector('.guide-scroll')?.scrollTop || 0;
   const focused=document.activeElement?.dataset;
   root.innerHTML=page==='game'?gameHtml():page==='lobby'?lobbyHtml():menuHtml();

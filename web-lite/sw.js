@@ -1,7 +1,7 @@
 const PREFIX = `quota-web-lite-${new URL(self.registration.scope).pathname}-`;
 // The deployment helper replaces this token with a hash of all runtime files.
 const CACHE = PREFIX + '__QUOTA_RELEASE__';
-const SHELL = ['./','./index.html','./style.css','./app.mjs','./engine.mjs','./random.mjs','./cpu.mjs','./audio.mjs','./presentation.mjs','./assets/goods.json'];
+const SHELL = ['./','./index.html','./style.css','./unity-look.css','./app.mjs','./engine.mjs','./random.mjs','./cpu.mjs','./audio.mjs','./presentation.mjs','./assets/goods.json'];
 const IMAGES = ['horizontal_base.jpg','vertical_base.jpg','title1.png','title2.png','card_back.png'].map(name=>'./assets/'+name);
 const SOUNDS = ['play_bgm_02','end_bgm_01','end_bgm_03','card_01','card_02','card_03','chip_counting_02'].map(name=>`./assets/sound/${name}.mp3`);
 const GUIDES = ['./assets/copy/how-to-play.txt','./assets/copy/detailed-rules.txt',...Array.from({length:9},(_,i)=>`./assets/slides/slide${String(i+1).padStart(2,'0')}.jpg`)];
