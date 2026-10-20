@@ -64,4 +64,4 @@ progress 'Publishing release and checking services on VPS'
 remote "$(root_command "$remote_stage/deploy-server.sh" "$REMOTE_ROOT" "$APP_PORT")"
 progress 'Configuring the app index and /quota1/, /quota2/, /quota/ routes'
 remote "$(root_command "$remote_stage/configure-index-server.sh" "$REMOTE_ROOT" "$PUBLIC_DOMAIN")"
-echo "Deployment completed: https://$PUBLIC_DOMAIN/ (index), https://$PUBLIC_DOMAIN/quota1/ (Unity), https://$PUBLIC_DOMAIN/quota2/ (lightweight), https://$PUBLIC_DOMAIN/quota/ (alias)"
+echo "Deployment completed: https://$PUBLIC_DOMAIN/ (index), https://$PUBLIC_DOMAIN/quota1/ (Unity), https://$PUBLIC_DOMAIN/quota2/ (lightweight), https://$PUBLIC_DOMAIN/quota/ (Unity alias)"

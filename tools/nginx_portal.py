@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve both Quota clients while keeping /quota/ as the lightweight alias."""
+"""Serve both Quota clients while keeping /quota/ as the Unity/WebGL alias."""
 
 import argparse
 from pathlib import Path
@@ -26,7 +26,7 @@ def portal_config(contents: str, root: str) -> str:
         add_header Cache-Control "no-cache";
     }}
 """
-    locations = f"""    location = /quota1 {{ return 308 /quota1/$is_args$args; }}
+    previous_locations = f"""    location = /quota1 {{ return 308 /quota1/$is_args$args; }}
     location ^~ /quota1/Build/ {{
         alias {root}/web/current/Build/;
         add_header Cache-Control "public, max-age=31536000, immutable";
@@ -51,8 +51,33 @@ def portal_config(contents: str, root: str) -> str:
         add_header Cache-Control "no-cache";
     }}
 """
+    previous_alias = f"""    location ^~ /quota/ {{
+        alias {root}/web/current/quota2/;
+        index index.html;
+        default_type text/javascript;
+        add_header Cache-Control "no-cache";
+    }}
+"""
+    unity_alias = f"""    location = /quota/sw.js {{
+        alias {root}/web/current/portal/retire-quota-lite-sw.js;
+        default_type text/javascript;
+        add_header Cache-Control "no-store";
+    }}
+    location ^~ /quota/Build/ {{
+        alias {root}/web/current/Build/;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }}
+    location ^~ /quota/ {{
+        alias {root}/web/current/;
+        index index.html;
+        add_header Cache-Control "no-cache";
+    }}
+"""
+    locations = previous_locations.replace(previous_alias, unity_alias)
     if "location ^~ /quota1/" in contents:
-        if locations not in contents:
+        if previous_locations in contents:
+            contents = contents.replace(previous_locations, locations)
+        elif locations not in contents:
             raise ValueError("Quota routes differ from the managed configuration")
     elif old_locations in contents:
         contents = contents.replace(old_locations, locations)

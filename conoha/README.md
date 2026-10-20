@@ -18,7 +18,7 @@ ConoHa管理画面のセキュリティグループでSSHのポートとTCP80を
 ./conoha/init.sh
 ```
 
-Nginx、Python、rsync、firewalldとSELinux設定ツールをインストールし、Quota用ユーザー・systemdサービスを作ります。Nginxは入口ページを`/`、QuotaのUnity/WebGL版を`/quota1/`、軽量Web版を`/quota2/`と`/quota/`で配信し、`/api/`を127.0.0.1:8080のPythonへ中継します。`/quota/`は軽量Web版と同じ公開ディレクトリを参照します。SELinuxは無効化せずファイルラベルと中継の許可を設定します。SSHとHTTPをfirewalldで許可します。
+Nginx、Python、rsync、firewalldとSELinux設定ツールをインストールし、Quota用ユーザー・systemdサービスを作ります。Nginxは入口ページを`/`、QuotaのUnity/WebGL版を`/quota1/`と`/quota/`、軽量Web版を`/quota2/`で配信し、`/api/`を127.0.0.1:8080のPythonへ中継します。`/quota/`はUnity/WebGL版と同じ公開ディレクトリを参照します。SELinuxは無効化せずファイルラベルと中継の許可を設定します。SSHとHTTPをfirewalldで許可します。
 
 **Quota専用のVPS向けです。** Nginxのメイン設定を置き換えます。初回の元設定は`/etc/nginx/nginx.conf.quota-before`に保存します。他のサイトが既にあるサーバーにはそのまま使わないでください。設定値を変更した場合はinitを再実行し、続けてupdateを実行してください。既に動作中のPythonはinitでは再起動しません。
 
@@ -74,7 +74,7 @@ free -h
 df -h /srv/quota
 ```
 
-ブラウザで`https://app1.gunsnstoneroses.com/`を開くと入口ページ、`/quota1/`はUnity版、`/quota2/`と`/quota/`は軽量Web版です。軽量Web版は現在オフライン対局のみ対応しています。IPアドレス宛てHTTPでも同じ構成になります。Pythonはsystemdが常駐・異常終了時の再起動を管理するためnohupは不要です。
+ブラウザで`https://app1.gunsnstoneroses.com/`を開くと入口ページ、`/quota1/`と`/quota/`はUnity/WebGL版、`/quota2/`は軽量Web版です。軽量Web版は現在オフライン対局のみ対応しています。IPアドレス宛てHTTPでも同じ構成になります。Pythonはsystemdが常駐・異常終了時の再起動を管理するためnohupは不要です。
 
 ## 初期設定が止まる場合
 

@@ -8,7 +8,7 @@ Unity/WebGL版から独立したHTML/CSS/JavaScript実装です。ビルドや�
 python3 -m http.server 8765 --directory web-lite
 ```
 
-`http://127.0.0.1:8765/`を開きます。VPSでは`/quota2/`と`/quota/`がこの版、`/quota1/`がUnity版です。
+`http://127.0.0.1:8765/`を開きます。VPSでは`/quota2/`がこの版、`/quota1/`と`/quota/`がUnity版です。
 
 最初はメニューの「ゲームをはじめる」からロビーへ進みます。3人／4人、1ラウンド／人数分／人数分×2、CPUの弱・中・強を選べます。CPUはランダム入れ替えと順序を指定した指名に対応します。「CPU模擬戦を見る」では全員CPUになり、途中ラウンドは自動で進みます。
 

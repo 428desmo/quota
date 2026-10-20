@@ -54,14 +54,14 @@ pages_ready=true
 if [ "$index_ready" != true ] \
     || ! check_page http-quota1 createUnityInstance -H 'Host: _' http://127.0.0.1/quota1/ \
     || ! check_page http-quota2 'Quota — 軽量Web版' -H 'Host: _' http://127.0.0.1/quota2/ \
-    || ! check_page http-quota 'Quota — 軽量Web版' -H 'Host: _' http://127.0.0.1/quota/; then
+    || ! check_page http-quota createUnityInstance -H 'Host: _' http://127.0.0.1/quota/; then
   pages_ready=false
 fi
 if [ -f "$backup/https.conf" ] && [ "$pages_ready" = true ]; then
   if ! check_page https-index 'name="app-index"' --resolve "$domain:443:127.0.0.1" "https://$domain/" \
       || ! check_page https-quota1 createUnityInstance --resolve "$domain:443:127.0.0.1" "https://$domain/quota1/" \
       || ! check_page https-quota2 'Quota — 軽量Web版' --resolve "$domain:443:127.0.0.1" "https://$domain/quota2/" \
-      || ! check_page https-quota 'Quota — 軽量Web版' --resolve "$domain:443:127.0.0.1" "https://$domain/quota/"; then
+      || ! check_page https-quota createUnityInstance --resolve "$domain:443:127.0.0.1" "https://$domain/quota/"; then
     pages_ready=false
   fi
 fi

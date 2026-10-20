@@ -29,7 +29,7 @@ server {
     assert "alias /srv/quota/web/current/;" in after
     assert "location ^~ /quota2/" in after
     assert "location ^~ /quota/" in after
-    assert after.count("alias /srv/quota/web/current/quota2/;") == 2
+    assert after.count("alias /srv/quota/web/current/quota2/;") == 1
     assert "default_type text/javascript;" in after
     assert "location /api/ { proxy_pass http://127.0.0.1:8080; }" in after
     assert portal_config(after, ROOT) == after
@@ -62,7 +62,7 @@ def test_existing_quota_route_migrates_without_changing_other_games():
     after = portal_config(before, ROOT)
     assert "location ^~ /fragile/ { alias /srv/fragile/; }" in after
     assert "location ^~ /loop/ { alias /srv/loop/; }" in after
-    assert "location ^~ /quota/Build/" not in after
+    assert "location ^~ /quota/Build/" in after
     assert "location ^~ /quota1/Build/" in after
     assert portal_config(after, ROOT) == after
 
@@ -71,8 +71,24 @@ def test_index_links_to_quota_and_retires_only_old_root_worker():
     page = (Path(__file__).resolve().parents[1] / "portal/index.html").read_text()
     for game in ("quota", "fragile", "loop"):
         assert f'href="/{game}/"' in page
-    assert 'href="/quota1/"' in page
+    assert 'href="/quota2/"' in page
     assert 'src="fragile-screen.jpg"' in page
     assert "気分転換にゲームをどうぞ。" in page
     assert 'name="app-index"' in page
     assert 'registration.scope === location.origin + "/"' in page
+
+
+def test_current_lightweight_alias_migrates_to_unity():
+    fresh = portal_config('server {\n    root /srv/quota/web/current;\n    location /api/ { proxy_pass http://127.0.0.1:8080; }\n}\n', ROOT)
+    start = fresh.index('    location = /quota/sw.js')
+    end = fresh.index('    location /api/ {', start)
+    previous = fresh[:start] + '''    location ^~ /quota/ {
+        alias /srv/quota/web/current/quota2/;
+        index index.html;
+        default_type text/javascript;
+        add_header Cache-Control "no-cache";
+    }
+''' + fresh[end:]
+    assert portal_config(previous, ROOT) == fresh
+    assert 'location = /quota/sw.js' in fresh
+    assert 'alias /srv/quota/web/current/portal/retire-quota-lite-sw.js;' in fresh
