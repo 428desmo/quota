@@ -1,5 +1,6 @@
 const PREFIX = `quota-web-lite-${new URL(self.registration.scope).pathname}-`;
-const CACHE = PREFIX + '2026-10-20-parity-1';
+// The deployment helper replaces this token with a hash of all runtime files.
+const CACHE = PREFIX + '__QUOTA_RELEASE__';
 const SHELL = ['./','./index.html','./style.css','./app.mjs','./engine.mjs','./random.mjs','./cpu.mjs','./audio.mjs','./presentation.mjs','./assets/goods.json'];
 const IMAGES = ['horizontal_base.jpg','vertical_base.jpg','title1.png','title2.png','card_back.png'].map(name=>'./assets/'+name);
 const SOUNDS = ['play_bgm_02','end_bgm_01','end_bgm_03','card_01','card_02','card_03','chip_counting_02'].map(name=>`./assets/sound/${name}.mp3`);

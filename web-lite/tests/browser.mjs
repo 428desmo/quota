@@ -11,24 +11,36 @@ let errors='';chrome.stderr.on('data',data=>{errors=(errors+data).slice(-4000);}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let ws;
 try{
-  const portFile=path.join(profile,'DevToolsActivePort');for(let i=0;i<150&&!existsSync(portFile);i++)await sleep(100);
-  if(!existsSync(portFile))throw Error('Chrome unavailable: '+errors);
-  const port=readFileSync(portFile,'utf8').split('\n')[0];
+  const portFile=path.join(profile,'DevToolsActivePort');let port;
+  for(let i=0;i<150;i++){
+    if(existsSync(portFile)){const value=readFileSync(portFile,'utf8').split('\n')[0];if(/^\d+$/.test(value)&&Number(value)>0){port=value;break;}}
+    await sleep(100);
+  }
+  if(!port)throw Error('Chrome unavailable: '+errors);
   const pages=await fetch(`http://127.0.0.1:${port}/json`).then(r=>r.json());
   ws=new WebSocket(pages.find(p=>p.type==='page').webSocketDebuggerUrl);
   await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
-  let serial=0;const waiting=new Map(),exceptions=[];
-  ws.onmessage=event=>{const msg=JSON.parse(event.data);if(msg.id&&waiting.has(msg.id)){const [resolve,reject]=waiting.get(msg.id);waiting.delete(msg.id);msg.error?reject(Error(JSON.stringify(msg.error))):resolve(msg.result);}else if(msg.method==='Runtime.exceptionThrown')exceptions.push(msg.params.exceptionDetails.exception?.description||msg.params.exceptionDetails.text);};
+  let serial=0,audioContexts=0;const waiting=new Map(),exceptions=[];
+  ws.onmessage=event=>{
+    const msg=JSON.parse(event.data);
+    if(msg.id&&waiting.has(msg.id)){const [resolve,reject]=waiting.get(msg.id);waiting.delete(msg.id);msg.error?reject(Error(JSON.stringify(msg.error))):resolve(msg.result);}
+    else if(msg.method==='Runtime.exceptionThrown')exceptions.push(msg.params.exceptionDetails.exception?.description||msg.params.exceptionDetails.text);
+    else if(msg.method==='WebAudio.contextCreated')audioContexts++;
+    else if(msg.method==='Runtime.consoleAPICalled'){
+      const text=msg.params.args.map(arg=>arg.value||'').join(' ');if(text.startsWith('Quota audio:'))exceptions.push(text);
+    }
+  };
   const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++serial;waiting.set(id,[resolve,reject]);ws.send(JSON.stringify({id,method,params}));});
   const js=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
   const check=async(expression,label)=>{if(!await js(expression))throw Error(label);};
   const until=async(expression,label,timeout=20000)=>{const start=Date.now();while(Date.now()-start<timeout){if(await js(expression))return;await sleep(80);}throw Error(label+': '+await js('document.body.innerText.slice(-600)'));};
   const click=async selector=>{await check(`!!document.querySelector(${JSON.stringify(selector)})`,'Missing '+selector);await js(`document.querySelector(${JSON.stringify(selector)}).click()`);};
-  await send('Page.enable');await send('Runtime.enable');
+  await send('Page.enable');await send('Runtime.enable');await send('WebAudio.enable');
   await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
   await send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__quotaTimerScale=1;const originalTimeout=window.setTimeout;window.setTimeout=(fn,delay,...args)=>originalTimeout(fn,delay*window.__quotaTimerScale,...args);`});
   await send('Page.navigate',{url:base});await until('!!document.querySelector("[data-action=lobby]")','Menu missing');
-  await js(`localStorage.setItem('quota.webLite.settings.v1',JSON.stringify({name:'検証プレイヤー',players:3,roundMode:0,strength:2,bgm:0,se:0,confirm:false}));`);
+  const soundLevel=process.env.QUOTA_TEST_AUDIO==='1'?1:0;
+  await js(`localStorage.setItem('quota.webLite.settings.v1',JSON.stringify({name:'検証プレイヤー',players:3,roundMode:0,strength:2,bgm:${soundLevel},se:${soundLevel},confirm:false}));`);
   await send('Page.reload',{ignoreCache:true});await until('!!document.querySelector("[data-action=lobby]")','Menu reload missing');
   await click('[data-action=how-to]');await until('document.querySelectorAll(".guide-panel").length>4','Guide not rendered');
   await check('document.querySelectorAll(".guide-panel table").length===1','Nested title table missing');
@@ -66,5 +78,6 @@ try{
   await send('Page.reload',{ignoreCache:false});await until('!!document.querySelector("[data-action=lobby]")','Offline reload failed');
   await click('[data-action=how-to]');await until('document.querySelectorAll(".guide-panel").length>4','Offline guide missing');
   if(exceptions.length)throw Error(exceptions.join('\n'));
+  if(soundLevel&&!audioContexts)throw Error('Web Audio context was not created');
   console.log('Browser acceptance passed: guides, nomination, human play, settings, 4-player/4-round simulation, cumulative score ceremony, empty trays, offline reload and guides.');
 }finally{ws?.close();chrome.kill('SIGTERM');await sleep(300);rmSync(profile,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
