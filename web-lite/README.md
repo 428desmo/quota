@@ -46,6 +46,8 @@ QUOTA_PARITY_SEEDS=42 QUOTA_PARITY_ROUND_MODES=single,double node web-lite/tests
 
 ```sh
 node web-lite/tests/browser.mjs
+# 音声APIも実際に有効にして検証する場合
+QUOTA_TEST_AUDIO=1 node web-lite/tests/browser.mjs
 ```
 
 対象URLは`QUOTA_WEB_URL`、Chromeの実行ファイルは`CHROME_PATH`で変更できます。検証はブラウザ用の一時プロファイルを使用します。

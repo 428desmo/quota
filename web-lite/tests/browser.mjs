@@ -20,18 +20,19 @@ try{
   const pages=await fetch(`http://127.0.0.1:${port}/json`).then(r=>r.json());
   ws=new WebSocket(pages.find(p=>p.type==='page').webSocketDebuggerUrl);
   await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
-  let serial=0,audioContexts=0;const waiting=new Map(),exceptions=[];
+  let serial=0,audioContexts=0,audioRan=false;const waiting=new Map(),exceptions=[];
   ws.onmessage=event=>{
     const msg=JSON.parse(event.data);
     if(msg.id&&waiting.has(msg.id)){const [resolve,reject]=waiting.get(msg.id);waiting.delete(msg.id);msg.error?reject(Error(JSON.stringify(msg.error))):resolve(msg.result);}
     else if(msg.method==='Runtime.exceptionThrown')exceptions.push(msg.params.exceptionDetails.exception?.description||msg.params.exceptionDetails.text);
-    else if(msg.method==='WebAudio.contextCreated')audioContexts++;
+    else if(msg.method==='WebAudio.contextCreated'){audioContexts++;audioRan ||= msg.params.context.contextState==='running';}
+    else if(msg.method==='WebAudio.contextChanged')audioRan ||= msg.params.context.contextState==='running';
     else if(msg.method==='Runtime.consoleAPICalled'){
       const text=msg.params.args.map(arg=>arg.value||'').join(' ');if(text.startsWith('Quota audio:'))exceptions.push(text);
     }
   };
   const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++serial;waiting.set(id,[resolve,reject]);ws.send(JSON.stringify({id,method,params}));});
-  const js=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
+  const js=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
   const check=async(expression,label)=>{if(!await js(expression))throw Error(label);};
   const until=async(expression,label,timeout=20000)=>{const start=Date.now();while(Date.now()-start<timeout){if(await js(expression))return;await sleep(80);}throw Error(label+': '+await js('document.body.innerText.slice(-600)'));};
   const click=async selector=>{await check(`!!document.querySelector(${JSON.stringify(selector)})`,'Missing '+selector);await js(`document.querySelector(${JSON.stringify(selector)}).click()`);};
@@ -78,6 +79,6 @@ try{
   await send('Page.reload',{ignoreCache:false});await until('!!document.querySelector("[data-action=lobby]")','Offline reload failed');
   await click('[data-action=how-to]');await until('document.querySelectorAll(".guide-panel").length>4','Offline guide missing');
   if(exceptions.length)throw Error(exceptions.join('\n'));
-  if(soundLevel&&!audioContexts)throw Error('Web Audio context was not created');
+  if(soundLevel&&(!audioContexts||!audioRan))throw Error('Web Audio context did not run');
   console.log('Browser acceptance passed: guides, nomination, human play, settings, 4-player/4-round simulation, cumulative score ceremony, empty trays, offline reload and guides.');
 }finally{ws?.close();chrome.kill('SIGTERM');await sleep(300);rmSync(profile,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
