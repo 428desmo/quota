@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#172323">
-  <meta name="app-index" content="gunsnstoneroses">
-  <meta name="description" content="Quota、Fragile、Loop。3つのゲームから、今日の遊びを選ぼう。">
-  <title>ゲームを選ぶ | Guns N Stone Roses</title>
+  <meta name="app-index" content="tokyo-desmo-lab">
+  <meta name="description" content="Quota、Fragile、Loop、Hatasaku。4つのゲームから、今日の遊びを選ぼう。">
+  <title>ゲームを選ぶ | TOKYO DESMO LAB</title>
   <style>
     :root { color-scheme: dark; --ink: #172323; --paper: #f4eee1; --muted: #c3c8bd; --copper: #b8673f; }
     * { box-sizing: border-box; }
@@ -75,23 +75,30 @@
     .loop-art::before { transform: translate(-42px, -24px); }
     .loop-art::after { transform: translate(42px, 24px); border-style: dashed; opacity: .65; }
     .loop-art span { z-index: 1; color: #344b32; font-size: 60px; font-weight: 800; letter-spacing: -.08em; }
+  
+    /* BEGIN HATASAKU */
+    .hatasaku-art { position: relative; background: #294a3b; overflow: hidden; }
+    .hatasaku-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    @media (min-width: 1001px) { .apps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    /* END HATASAKU */
   </style>
 </head>
 <body>
   <div class="site">
     <div class="wrap">
       <header>
-        <a class="brand" href="/" aria-label="Guns N Stone Roses ホーム">GUNS N STONE ROSES<span>GAMES &amp; EXPERIENCES</span></a>
+        <a class="brand" href="/" aria-label="TOKYO DESMO LAB ホーム">TOKYO DESMO LAB<span>GAMES &amp; EXPERIENCES</span></a>
         <div class="header-note">PLAY / EXPLORE</div>
       </header>
       <main>
-        <div class="eyebrow">THREE GAMES</div>
+        <div class="eyebrow">FOUR GAMES</div>
         <h1>気分転換にゲームをどうぞ。</h1>
         <p class="lead">カードの駆け引き、ビー玉の冒険、軌道をつなぐアクション。<br>気になるものから、気軽に遊んでください。</p>
         <nav class="game-jump" aria-label="ゲームへ移動">
           <a href="#quota">01　Quota</a><a href="#fragile">02　Fragile</a><a href="#loop">03　Loop</a>
+          <a href="#hatasaku">04　Hatasaku</a>
         </nav>
-        <div class="section-heading"><h2>公開中のゲーム</h2><small>Choose your adventure · 3 titles</small></div>
+        <div class="section-heading"><h2>公開中のゲーム</h2><small>Choose your adventure · 4 titles</small></div>
         <div class="apps">
           <article id="quota" class="app-card quota-card" aria-labelledby="quota-title">
             <div class="app-info">
@@ -126,9 +133,21 @@
             </div>
             <div class="quota-art loop-art" aria-hidden="true"><span>loop.</span></div>
           </article>
+          <!-- BEGIN HATASAKU -->
+          <article id="hatasaku" class="app-card quota-card" aria-labelledby="hatasaku-title">
+            <div class="app-info">
+              <span class="card-kicker">04 / FARMING CARD GAME</span>
+              <h2 id="hatasaku-title" class="quota-name">Hatasaku</h2>
+              <p class="quota-copy">植えて、待って、実らせる。</p>
+              <p class="quota-detail">小さな畑で、先を読む。<br>作物と天候を見極める、1人＋CPUのカードゲーム。</p>
+              <a class="play-link" href="/hatasaku/">はたさくをプレイ <span aria-hidden="true">↗</span></a>
+            </div>
+            <div class="quota-art hatasaku-art"><img src="/hatasaku/hatasaku-cover.svg" alt="スマホの農場画面に4枚の作物カードと、葉のアイコン付きはたさく HATASAKUロゴを重ねたビジュアル" width="1600" height="800" loading="lazy" decoding="async"></div>
+          </article>
+          <!-- END HATASAKU -->
         </div>
       </main>
-      <footer><span>GUNS N STONE ROSES</span><span>ひとつ先の、遊びへ。</span></footer>
+      <footer><span>TOKYO DESMO LAB</span><span>ひとつ先の、遊びへ。</span></footer>
     </div>
   </div>
   <script>

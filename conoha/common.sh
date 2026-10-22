@@ -9,7 +9,7 @@ source "$CONFIG"
 : "${VPS_HOST:?Set VPS_HOST in config.sh}"
 SSH_USER=${SSH_USER:-root}; SSH_PORT=${SSH_PORT:-22}; SSH_KEY=${SSH_KEY:-}
 REMOTE_ROOT=${REMOTE_ROOT:-/srv/quota}; APP_PORT=${APP_PORT:-8080}; SERVER_NAME=${SERVER_NAME:-_}
-PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-app1.gunsnstoneroses.com}
+PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-lab.tokyo-desmo.com}
 [[ "$VPS_HOST" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Use an IPv4 address, DNS name or SSH alias.' >&2; exit 1; }
 [[ "$SSH_USER" =~ ^[A-Za-z0-9_-]+$ ]] || exit 1
 [[ "$REMOTE_ROOT" =~ ^/srv/[A-Za-z0-9_-]+$ ]] || { echo 'REMOTE_ROOT must be /srv/<simple-name>.' >&2; exit 1; }

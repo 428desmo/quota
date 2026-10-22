@@ -6,5 +6,5 @@ SSH_KEY=""                    # Optional absolute path to a private key
 REMOTE_ROOT="/srv/quota"
 APP_PORT=8080
 SERVER_NAME="_"               # Domain name, or _ for access by IP (HTTP)
-PUBLIC_DOMAIN="app1.gunsnstoneroses.com" # HTTPS host for the index and /quota/
+PUBLIC_DOMAIN="lab.tokyo-desmo.com" # HTTPS host for the index and /quota/
 WEB_DIR=""                    # Default: unity/Builds/WebGL
